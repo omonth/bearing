@@ -23,6 +23,9 @@ function createApp(db, services = {}) {
     authService,
     bearingService,
     orderService,
+    customerService,
+    couponService,
+    pointsService,
   } = services;
 
   const app = express();
@@ -418,7 +421,7 @@ function createApp(db, services = {}) {
     app.use('/api/payment', paymentRoutes);
   }
 
-  const crmRoutes = require('./routes/crm')(db);
+  const crmRoutes = require('./routes/crm')(db, { customerService, couponService, pointsService });
   app.use('/api/crm', crmRoutes);
 
   if (aiService) {
@@ -427,7 +430,7 @@ function createApp(db, services = {}) {
   }
 
   const createGraphQLEndpoint = require('./graphql/endpoint');
-  app.use('/graphql', createGraphQLEndpoint({ db, recommendationEngine, analytics, paymentService, aiService, authService, bearingService, orderService }));
+  app.use('/graphql', createGraphQLEndpoint({ db, recommendationEngine, analytics, paymentService, aiService, authService, bearingService, orderService, customerService, couponService, pointsService }));
 
   return app;
 }

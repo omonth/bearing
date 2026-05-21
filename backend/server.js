@@ -9,6 +9,9 @@ const AIService = require('./services/aiService');
 const AuthService = require('./services/authService');
 const BearingService = require('./services/bearingService');
 const OrderService = require('./services/orderService');
+const CustomerService = require('./services/customerService');
+const CouponService = require('./services/couponService');
+const PointsService = require('./services/pointsService');
 const createApp = require('./app');
 
 const PORT = process.env.PORT || 3001;
@@ -23,6 +26,9 @@ const authService = new AuthService(db);
 const { clearCache } = require('./middleware/cache');
 const bearingService = new BearingService(db, clearCache);
 const orderService = new OrderService(db, clearCache);
+const customerService = new CustomerService(db);
+const couponService = new CouponService(db);
+const pointsService = new PointsService(db, customerService);
 
 const paymentService = new PaymentService(db, orderService);
 
@@ -37,6 +43,9 @@ const app = createApp(db, {
   authService,
   bearingService,
   orderService,
+  customerService,
+  couponService,
+  pointsService,
 });
 
 app.listen(PORT, '0.0.0.0', () => {

@@ -197,7 +197,7 @@ const schemaSDL = `
 `;
 
 function createGraphQLMiddleware(services) {
-  const { db, analytics, recommendationEngine, paymentService, aiService, authService, bearingService, orderService } = services;
+  const { db, analytics, recommendationEngine, paymentService, aiService, authService, bearingService, orderService, customerService, couponService, pointsService } = services;
 
   const rootValue = {
     // === Query ===
@@ -295,6 +295,13 @@ function createGraphQLMiddleware(services) {
       };
     },
     customers: async ({ level, status, search, limit, offset }) => {
+      if (customerService) {
+        const { data } = await customerService.list({ level, status, search, page: 1, pageSize: limit || 50 });
+        const items = data ? data.items : [];
+        if (offset) return items.slice(offset);
+        if (limit) return items.slice(0, limit);
+        return items;
+      }
       let query = 'SELECT * FROM customers WHERE 1=1';
       const params = [];
       if (level) { query += ' AND level = ?'; params.push(level); }
@@ -303,14 +310,17 @@ function createGraphQLMiddleware(services) {
       query += ' ORDER BY created_at DESC';
       if (limit) { query += ' LIMIT ?'; params.push(limit); }
       if (offset) { query += ' OFFSET ?'; params.push(offset); }
-      const rows = await db.all(query, params);
-      return rows.map(r => {
+      return (await db.all(query, params)).map(r => {
         let tags = [];
         try { tags = JSON.parse(r.tags || '[]'); } catch {}
         return { ...r, tags };
       });
     },
     customer: async ({ id }) => {
+      if (customerService) {
+        const { data } = await customerService.getById(id);
+        return data || null;
+      }
       const row = await db.get('SELECT * FROM customers WHERE id = ?', [id]);
       if (!row) return null;
       let tags = [];
@@ -318,6 +328,10 @@ function createGraphQLMiddleware(services) {
       return { ...row, tags };
     },
     coupons: async ({ status }) => {
+      if (couponService) {
+        const { data } = await couponService.list(status);
+        return data || [];
+      }
       let query = 'SELECT * FROM coupons WHERE 1=1';
       const params = [];
       if (status) { query += ' AND status = ?'; params.push(status); }
@@ -445,6 +459,11 @@ function createGraphQLMiddleware(services) {
       return { success: true, ...result };
     },
     createCustomer: async (args) => {
+      if (customerService) {
+        const { data, error } = await customerService.create(args);
+        if (error) return { success: false, message: error };
+        return { success: true, message: data.message, id: data.id };
+      }
       const result = await db.run(
         'INSERT INTO customers (name, phone, email, company, address) VALUES (?, ?, ?, ?, ?)',
         [args.name, args.phone, args.email, args.company, args.address]
@@ -452,6 +471,11 @@ function createGraphQLMiddleware(services) {
       return { success: true, message: '客户创建成功', id: result.lastID };
     },
     updateCustomer: async ({ id, tags, notes, status }) => {
+      if (customerService) {
+        const { data, error } = await customerService.update(id, { tags, notes, status });
+        if (error) return { success: false, message: error };
+        return { success: true, message: data.message };
+      }
       const updates = [], params = [];
       if (tags !== undefined) { updates.push('tags = ?'); params.push(JSON.stringify(tags)); }
       if (notes !== undefined) { updates.push('notes = ?'); params.push(notes); }
@@ -463,11 +487,21 @@ function createGraphQLMiddleware(services) {
       return { success: true, message: '客户信息更新成功' };
     },
     addPoints: async ({ customerId, points, type, reason }) => {
+      if (pointsService) {
+        const { data, error } = await pointsService.addPoints(customerId, points, type, reason);
+        if (error) return { success: false, message: error };
+        return { success: true, message: data.message };
+      }
       await db.run('INSERT INTO points_records (customer_id, points, type, reason) VALUES (?, ?, ?, ?)', [customerId, points, type, reason]);
       await db.run('UPDATE customers SET points = points + ? WHERE id = ?', [points, customerId]);
       return { success: true, message: '积分添加成功' };
     },
     createCoupon: async (args) => {
+      if (couponService) {
+        const { data, error } = await couponService.create(args);
+        if (error) return { success: false, message: error };
+        return { success: true, message: data.message, id: data.id };
+      }
       const result = await db.run(
         `INSERT INTO coupons (code, name, type, discount_value, min_order_amount, total_quantity, valid_from, valid_until) VALUES (?,?,?,?,?,?,?,?)`,
         [args.code, args.name, args.type, args.discountValue || 0, args.minOrderAmount || 0, args.totalQuantity || 1000, args.validFrom, args.validUntil]
@@ -475,12 +509,22 @@ function createGraphQLMiddleware(services) {
       return { success: true, message: '优惠券创建成功', id: result.lastID };
     },
     issueCoupon: async ({ couponId, customerIds }) => {
+      if (couponService) {
+        const { data, error } = await couponService.issue(couponId, customerIds);
+        if (error) return { success: false, message: error };
+        return { success: true, message: data.message };
+      }
       for (const customerId of customerIds) {
         await db.run('INSERT INTO customer_coupons (customer_id, coupon_id) VALUES (?, ?)', [customerId, couponId]);
       }
       return { success: true, message: `成功发放给${customerIds.length}个客户` };
     },
     useCoupon: async ({ code, customerId, orderId }) => {
+      if (couponService) {
+        const { data, error } = await couponService.use({ code, customerId, orderId });
+        if (error) return { success: false, message: error };
+        return { success: true, message: data.message, discountAmount: data.discountAmount };
+      }
       const coupon = await db.get('SELECT * FROM coupons WHERE code = ? AND status = ?', [code, 'active']);
       if (!coupon) throw new Error('优惠券不存在或已失效');
       const cc = await db.get('SELECT * FROM customer_coupons WHERE customer_id = ? AND coupon_id = ? AND status = ?', [customerId, coupon.id, 'unused']);
