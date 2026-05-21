@@ -294,6 +294,167 @@
       height: 16px;
       cursor: pointer;
     }
+
+    /* 甘特图样式 */
+    .gantt-container {
+      margin-top: 30px;
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+
+    .gantt-container h3 {
+      margin-bottom: 16px;
+      color: #333;
+    }
+
+    .gantt-chart {
+      overflow-x: auto;
+      overflow-y: auto;
+      max-height: 400px;
+      position: relative;
+    }
+
+    .gantt-header {
+      display: flex;
+      border-bottom: 2px solid #e0e0e0;
+    }
+
+    .gantt-label-col {
+      min-width: 160px;
+      flex-shrink: 0;
+      border-right: 2px solid #e0e0e0;
+      padding: 8px 12px;
+      font-weight: 600;
+      background: #fafafa;
+      position: sticky;
+      left: 0;
+      z-index: 2;
+    }
+
+    .gantt-timeline-col {
+      display: flex;
+      flex: 1;
+      min-width: 600px;
+    }
+
+    .gantt-day {
+      min-width: 36px;
+      padding: 8px 4px;
+      text-align: center;
+      font-size: 0.75rem;
+      color: #888;
+      border-right: 1px solid #f0f0f0;
+      flex-shrink: 0;
+    }
+
+    .gantt-day.weekend {
+      background: #fdf5f5;
+    }
+
+    .gantt-row {
+      display: flex;
+      border-bottom: 1px solid #f0f0f0;
+      position: relative;
+      min-height: 42px;
+      align-items: center;
+    }
+
+    .gantt-row .gantt-label-col {
+      font-weight: 400;
+      font-size: 0.85rem;
+      background: white;
+      padding: 6px 12px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .gantt-row .gantt-timeline-col {
+      position: relative;
+    }
+
+    .gantt-bar {
+      position: absolute;
+      top: 8px;
+      height: 26px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      padding: 0 8px;
+      font-size: 0.72rem;
+      color: white;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      cursor: pointer;
+      transition: opacity 0.2s;
+      z-index: 1;
+    }
+
+    .gantt-bar:hover {
+      opacity: 0.85;
+    }
+
+    .gantt-bar.status-pending { background: #f59e0b; }
+    .gantt-bar.status-paid { background: #3b82f6; }
+    .gantt-bar.status-shipped { background: #6366f1; }
+    .gantt-bar.status-completed { background: #10b981; }
+    .gantt-bar.status-cancelled { background: #ef4444; }
+
+    .gantt-legend {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+
+    .gantt-legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.8rem;
+      color: #555;
+    }
+
+    .gantt-legend-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+    }
+
+    .gantt-today-line {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: #ef4444;
+      z-index: 3;
+      pointer-events: none;
+    }
+
+    .gantt-today-label {
+      position: sticky;
+      top: 0;
+      font-size: 0.7rem;
+      color: #ef4444;
+      font-weight: 600;
+      white-space: nowrap;
+      margin-left: 4px;
+    }
+
+    .gantt-loading {
+      text-align: center;
+      padding: 30px;
+      color: #999;
+    }
+
+    .gantt-empty {
+      text-align: center;
+      padding: 30px;
+      color: #bbb;
+    }
   </style>
 </head>
 <body>
@@ -337,6 +498,20 @@
           <div class="stat-card">
             <h3 id="totalOrders">0</h3>
             <p>订单总数</p>
+          </div>
+        </div>
+
+        <div class="gantt-container">
+          <h3>📊 订单甘特图</h3>
+          <div class="gantt-legend">
+            <span class="gantt-legend-item"><span class="gantt-legend-dot" style="background:#f59e0b"></span> 待付款</span>
+            <span class="gantt-legend-item"><span class="gantt-legend-dot" style="background:#3b82f6"></span> 已付款</span>
+            <span class="gantt-legend-item"><span class="gantt-legend-dot" style="background:#6366f1"></span> 已发货</span>
+            <span class="gantt-legend-item"><span class="gantt-legend-dot" style="background:#10b981"></span> 已完成</span>
+            <span class="gantt-legend-item"><span class="gantt-legend-dot" style="background:#ef4444"></span> 已取消</span>
+          </div>
+          <div id="ganttChart" class="gantt-chart">
+            <div class="gantt-loading">加载中...</div>
           </div>
         </div>
       </div>
@@ -481,6 +656,7 @@
     // === 数据加载 ===
     function loadAll() {
       loadDashboard();
+      loadGanttChart();
       const active = document.querySelector('.tab-content.active');
       if (active) {
         if (active.id === 'bearings') loadBearings();
@@ -506,6 +682,7 @@
         } else {
           document.getElementById('totalOrders').textContent = '请登录';
         }
+        loadGanttChart();
       } catch (error) {
         console.error('加载仪表盘失败:', error);
       }
@@ -874,6 +1051,110 @@
         alert('添加失败: ' + error.message);
       }
     });
+
+    // === 甘特图 ===
+    function loadGanttChart() {
+      if (!authToken) {
+        document.getElementById('ganttChart').innerHTML = '<div class="gantt-loading">请先登录后查看甘特图</div>';
+        return;
+      }
+
+      apiFetch(`${API_URL}/orders`)
+        .then(r => r.json())
+        .then(orders => {
+          if (!Array.isArray(orders) || orders.length === 0) {
+            document.getElementById('ganttChart').innerHTML = '<div class="gantt-empty">暂无订单数据</div>';
+            return;
+          }
+
+          renderGanttChart(orders);
+        })
+        .catch(() => {
+          document.getElementById('ganttChart').innerHTML = '<div class="gantt-loading">加载失败</div>';
+        });
+    }
+
+    function renderGanttChart(orders) {
+      const today = new Date();
+      today.setHours(23, 59, 59, 999);
+
+      // Find date range (earliest created_at → latest completed/shipped or today)
+      let minDate = new Date(today);
+      let maxDate = new Date(today);
+      maxDate.setDate(maxDate.getDate() - 14); // default: 2 weeks back
+
+      const orderData = orders.map(o => {
+        const created = new Date(o.created_at);
+        const completed = o.completed_at ? new Date(o.completed_at) : null;
+        const shipped = o.shipped_at ? new Date(o.shipped_at) : null;
+        const end = completed || shipped || today;
+        if (created < minDate) minDate = created;
+        if (end > maxDate) maxDate = end;
+        return { ...o, _created: created, _end: end };
+      });
+
+      // Add padding days
+      minDate = new Date(minDate);
+      minDate.setDate(minDate.getDate() - 1);
+      maxDate = new Date(maxDate);
+      maxDate.setDate(maxDate.getDate() + 1);
+
+      const totalDays = Math.ceil((maxDate - minDate) / (1000 * 60 * 60 * 24));
+      const dayWidth = 38; // px per day
+      const timelineWidth = totalDays * dayWidth;
+
+      // Build day headers
+      let dayHeaders = '';
+      for (let i = 0; i <= totalDays; i++) {
+        const d = new Date(minDate);
+        d.setDate(d.getDate() + i);
+        const dayOfWeek = d.getDay();
+        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+        const isToday = d.toDateString() === new Date().toDateString();
+        dayHeaders += `<div class="gantt-day${isWeekend ? ' weekend' : ''}"${isToday ? ' style="background:#fef2f2;font-weight:700;color:#ef4444"' : ''}>${d.getMonth() + 1}/${d.getDate()}</div>`;
+      }
+
+      // Calculate today line position
+      const todayOffset = Math.ceil((today - minDate) / (1000 * 60 * 60 * 24)) * dayWidth + dayWidth / 2;
+
+      // Build rows
+      let rows = '';
+      orderData.forEach((o, idx) => {
+        const startOffset = Math.ceil((o._created - minDate) / (1000 * 60 * 60 * 24)) * dayWidth + dayWidth / 2;
+        const durationDays = Math.max(1, Math.ceil((o._end - o._created) / (1000 * 60 * 60 * 24)));
+        const barWidth = Math.max(60, durationDays * dayWidth);
+
+        const statusLabels = { pending: '待付款', paid: '已付款', shipped: '已发货', completed: '已完成', cancelled: '已取消' };
+        const label = `#${o.id} ${o.customer_name || ''} (${statusLabels[o.status] || o.status})`;
+
+        rows += `
+          <div class="gantt-row">
+            <div class="gantt-label-col" title="${label}">${label}</div>
+            <div class="gantt-timeline-col" style="min-width:${timelineWidth}px;position:relative">
+              ${idx === 0 ? `<div class="gantt-today-line" style="left:${todayOffset}px"></div><div class="gantt-today-label" style="position:absolute;left:${todayOffset + 6}px;top:0">今天</div>` : ''}
+              <div class="gantt-bar status-${o.status}"
+                style="left:${startOffset}px;width:${barWidth}px"
+                title="${label}\n开始: ${o._created.toLocaleDateString('zh-CN')}\n结束: ${o._end.toLocaleDateString('zh-CN')}"
+                onclick="viewOrderDetails(${o.id})">
+                ${o.model || o.customer_name || `#${o.id}`}
+              </div>
+            </div>
+          </div>`;
+      });
+
+      document.getElementById('ganttChart').innerHTML = `
+        <div class="gantt-header">
+          <div class="gantt-label-col">订单</div>
+          <div class="gantt-timeline-col" style="min-width:${timelineWidth}px">${dayHeaders}</div>
+        </div>
+        ${rows}`;
+
+      // Scroll to today
+      const chart = document.getElementById('ganttChart');
+      if (chart) {
+        chart.scrollLeft = Math.max(0, todayOffset - 200);
+      }
+    }
 
     // === 启动 ===
     if (authToken) {
