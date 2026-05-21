@@ -1,0 +1,31 @@
+{
+  "validation": {
+    "required": "{{field}} is required",
+    "invalid": "{{field}} format is invalid",
+    "tooShort": "{{field}} must be at least {{min}} characters",
+    "tooLong": "{{field}} must be at most {{max}} characters",
+    "outOfRange": "{{field}} must be between {{min}} and {{max}}"
+  },
+  "database": {
+    "connectionFailed": "Database connection failed",
+    "queryFailed": "Query failed",
+    "insertFailed": "Insert failed",
+    "updateFailed": "Update failed",
+    "deleteFailed": "Delete failed"
+  },
+  "api": {
+    "rateLimitExceeded": "Too many requests, please try again later",
+    "serverError": "Internal server error",
+    "notFound": "Resource not found",
+    "badRequest": "Bad request parameters",
+    "unauthorized": "Unauthorized access",
+    "forbidden": "Forbidden"
+  },
+  "business": {
+    "insufficientStock": "Insufficient stock, current stock: {{stock}}",
+    "productNotFound": "Product not found",
+    "orderNotFound": "Order not found",
+    "invalidOrderStatus": "Invalid order status",
+    "duplicateEntry": "Record already exists"
+  }
+}

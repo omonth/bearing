@@ -1,0 +1,31 @@
+{
+  "validation": {
+    "required": "{{field}}不能为空",
+    "invalid": "{{field}}格式不正确",
+    "tooShort": "{{field}}至少{{min}}位",
+    "tooLong": "{{field}}最多{{max}}位",
+    "outOfRange": "{{field}}必须在{{min}}到{{max}}之间"
+  },
+  "database": {
+    "connectionFailed": "数据库连接失败",
+    "queryFailed": "查询失败",
+    "insertFailed": "插入失败",
+    "updateFailed": "更新失败",
+    "deleteFailed": "删除失败"
+  },
+  "api": {
+    "rateLimitExceeded": "请求过于频繁，请稍后再试",
+    "serverError": "服务器内部错误",
+    "notFound": "资源不存在",
+    "badRequest": "请求参数错误",
+    "unauthorized": "未授权访问",
+    "forbidden": "禁止访问"
+  },
+  "business": {
+    "insufficientStock": "库存不足，当前库存：{{stock}}",
+    "productNotFound": "产品不存在",
+    "orderNotFound": "订单不存在",
+    "invalidOrderStatus": "无效的订单状态",
+    "duplicateEntry": "记录已存在"
+  }
+}

@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>轴承数据库管理系统</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .header {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+      margin-bottom: 30px;
+    }
+
+    .header h1 {
+      color: #333;
+      margin-bottom: 10px;
+    }
+
+    .header p {
+      color: #666;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .tab-btn {
+      background: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 1rem;
+      transition: all 0.3s;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .tab-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    .tab-btn.active {
+      background: #667eea;
+      color: white;
+    }
+
+    .content {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+
+    th, td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid #eee;
+    }
+
+    th {
+      background: #f5f5f5;
+      font-weight: 600;
+      color: #333;
+    }
+
+    tr:hover {
+      background: #f9f9f9;
+    }
+
+    .btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: all 0.3s;
+    }
+
+    .btn-primary {
+      background: #667eea;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #5568d3;
+    }
+
+    .btn-danger {
+      background: #ff4757;
+      color: white;
+    }
+
+    .btn-danger:hover {
+      background: #ee3344;
+    }
+
+    .btn-success {
+      background: #26de81;
+      color: white;
+    }
+
+    .btn-success:hover {
+      background: #20bf6b;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+      color: #333;
+    }
+
+    .form-group input,
+    .form-group textarea {
+      width: 100%;
+      padding: 10px;
+      border: 2px solid #ddd;
+      border-radius: 6px;
+      font-size: 1rem;
+      transition: border-color 0.3s;
+    }
+
+    .form-group input:focus,
+    .form-group textarea:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+
+    .stat-card {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    .stat-card h3 {
+      font-size: 2rem;
+      margin-bottom: 5px;
+    }
+
+    .stat-card p {
+      opacity: 0.9;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: #666;
+    }
+
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal.active {
+      display: flex;
+    }
+
+    .modal-content {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      max-width: 600px;
+      width: 90%;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    .login-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 15px;
+      padding-top: 15px;
+      border-top: 1px solid #eee;
+    }
+
+    .login-bar input {
+      padding: 8px 12px;
+      border: 2px solid #ddd;
+      border-radius: 6px;
+      font-size: 0.9rem;
+    }
+
+    .login-bar input:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    .login-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 15px;
+      padding-top: 15px;
+      border-top: 1px solid #eee;
+    }
+
+    .login-info .user-badge {
+      background: #d1fae5;
+      color: #065f46;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 0.85rem;
+      font-weight: 500;
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 10px;
+      font-size: 0.8rem;
+      font-weight: 500;
+    }
+
+    .status-pending { background: #fef3c7; color: #92400e; }
+    .status-paid { background: #dbeafe; color: #1e40af; }
+    .status-shipped { background: #e0e7ff; color: #3730a3; }
+    .status-completed { background: #d1fae5; color: #065f46; }
+    .status-cancelled { background: #fee2e2; color: #991b1b; }
+
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+
+    .bulk-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    select.order-check {
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🔧 轴承数据库管理系统</h1>
+      <p>实时查看和管理轴承库存数据</p>
+      <div id="loginArea">
+        <div class="login-bar">
+          <input type="text" id="loginUsername" placeholder="用户名" style="width:120px">
+          <input type="password" id="loginPassword" placeholder="密码" style="width:120px">
+          <button class="btn btn-primary" onclick="login()">登录</button>
+          <span style="color:#999;font-size:0.8rem">默认: admin / admin123</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('dashboard')">仪表盘</button>
+      <button class="tab-btn" onclick="switchTab('bearings')">轴承管理</button>
+      <button class="tab-btn" onclick="switchTab('orders')">订单管理</button>
+      <button class="tab-btn" onclick="switchTab('add')">添加产品</button>
+    </div>
+
+    <div class="content">
+      <div id="dashboard" class="tab-content active">
+        <h2>数据统计</h2>
+        <div class="stats">
+          <div class="stat-card">
+            <h3 id="totalProducts">0</h3>
+            <p>产品总数</p>
+          </div>
+          <div class="stat-card">
+            <h3 id="totalStock">0</h3>
+            <p>总库存</p>
+          </div>
+          <div class="stat-card">
+            <h3 id="totalCategories">0</h3>
+            <p>产品分类</p>
+          </div>
+          <div class="stat-card">
+            <h3 id="totalOrders">0</h3>
+            <p>订单总数</p>
+          </div>
+        </div>
+      </div>
+
+      <div id="bearings" class="tab-content">
+        <h2>轴承产品列表</h2>
+        <div id="bearingsTable" class="loading">加载中...</div>
+      </div>
+
+      <div id="orders" class="tab-content">
+        <h2>订单列表</h2>
+        <div id="ordersTable" class="loading">加载中...</div>
+      </div>
+
+      <div id="add" class="tab-content">
+        <h2>添加新产品</h2>
+        <form id="addProductForm">
+          <div class="form-group">
+            <label>产品名称</label>
+            <input type="text" name="name" required>
+          </div>
+          <div class="form-group">
+            <label>型号</label>
+            <input type="text" name="model" required>
+          </div>
+          <div class="form-group">
+            <label>价格</label>
+            <input type="number" step="0.01" name="price" required>
+          </div>
+          <div class="form-group">
+            <label>分类</label>
+            <input type="text" name="category" required>
+          </div>
+          <div class="form-group">
+            <label>内径</label>
+            <input type="text" name="innerDiameter" required>
+          </div>
+          <div class="form-group">
+            <label>外径</label>
+            <input type="text" name="outerDiameter" required>
+          </div>
+          <div class="form-group">
+            <label>宽度</label>
+            <input type="text" name="width" required>
+          </div>
+          <div class="form-group">
+            <label>库存</label>
+            <input type="number" name="stock" required>
+          </div>
+          <div class="form-group">
+            <label>产品图片</label>
+            <div style="display:flex;gap:12px;align-items:flex-start">
+              <div>
+                <input type="file" id="imageFile" accept="image/*" onchange="previewImage(this)" style="padding:8px">
+                <div style="margin-top:8px;font-size:0.85rem;color:#999">支持 jpg/png/gif/webp，最大 5MB</div>
+              </div>
+              <div id="imagePreview" style="width:100px;height:100px;border:2px dashed #ddd;border-radius:8px;display:flex;align-items:center;justify-content:center;overflow:hidden">
+                <span style="color:#ccc;font-size:0.8rem">预览</span>
+              </div>
+            </div>
+            <input type="hidden" name="image" id="imageUrl">
+          </div>
+          <div class="form-group">
+            <label>产品描述</label>
+            <textarea name="description" rows="4"></textarea>
+          </div>
+          <button type="submit" class="btn btn-success">添加产品</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_URL = '/api';
+    let authToken = sessionStorage.getItem('adminToken') || '';
+    let selectedOrders = new Set();
+
+    // === 认证管理 ===
+    function getHeaders() {
+      const headers = { 'Content-Type': 'application/json' };
+      if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+      return headers;
+    }
+
+    async function apiFetch(url, options = {}) {
+      const res = await fetch(url, { ...options, headers: getHeaders() });
+      if (res.status === 401) {
+        alert('登录已过期，请重新登录');
+        logout();
+        throw new Error('未授权');
+      }
+      return res;
+    }
+
+    async function login() {
+      const username = document.getElementById('loginUsername').value;
+      const password = document.getElementById('loginPassword').value;
+      if (!username || !password) { alert('请输入用户名和密码'); return; }
+
+      try {
+        const res = await fetch(`${API_URL}/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+        const data = await res.json();
+        if (data.token) {
+          authToken = data.token;
+          sessionStorage.setItem('adminToken', authToken);
+          updateLoginUI(data.user);
+          loadAll();
+        } else {
+          alert('登录失败: ' + (data.error || '未知错误'));
+        }
+      } catch (e) {
+        alert('登录失败: ' + e.message);
+      }
+    }
+
+    function logout() {
+      authToken = '';
+      sessionStorage.removeItem('adminToken');
+      document.getElementById('loginArea').innerHTML = `
+        <div class="login-bar">
+          <input type="text" id="loginUsername" placeholder="用户名" style="width:120px">
+          <input type="password" id="loginPassword" placeholder="密码" style="width:120px">
+          <button class="btn btn-primary" onclick="login()">登录</button>
+          <span style="color:#999;font-size:0.8rem">默认: admin / admin123</span>
+        </div>`;
+      document.getElementById('bearingsTable').innerHTML = '<p style="color:#999">请先登录</p>';
+      document.getElementById('ordersTable').innerHTML = '<p style="color:#999">请先登录</p>';
+    }
+
+    function updateLoginUI(user) {
+      document.getElementById('loginArea').innerHTML = `
+        <div class="login-info">
+          <span class="user-badge">👤 ${user.username} (${user.role})</span>
+          <button class="btn btn-danger" onclick="logout()" style="padding:4px 12px;font-size:0.8rem">退出</button>
+        </div>`;
+    }
+
+    // === 数据加载 ===
+    function loadAll() {
+      loadDashboard();
+      const active = document.querySelector('.tab-content.active');
+      if (active) {
+        if (active.id === 'bearings') loadBearings();
+        if (active.id === 'orders') loadOrders();
+      }
+    }
+
+    async function loadDashboard() {
+      try {
+        const bearings = await fetch(`${API_URL}/bearings`).then(r => r.json());
+        const categories = await fetch(`${API_URL}/categories`).then(r => r.json());
+
+        document.getElementById('totalProducts').textContent = bearings.length;
+        document.getElementById('totalStock').textContent = bearings.reduce((sum, b) => sum + b.stock, 0);
+        document.getElementById('totalCategories').textContent = categories.length;
+
+        if (authToken) {
+          try {
+            const orders = await apiFetch(`${API_URL}/orders`);
+            const data = await orders.json();
+            document.getElementById('totalOrders').textContent = Array.isArray(data) ? data.length : '-';
+          } catch { document.getElementById('totalOrders').textContent = '-'; }
+        } else {
+          document.getElementById('totalOrders').textContent = '请登录';
+        }
+      } catch (error) {
+        console.error('加载仪表盘失败:', error);
+      }
+    }
+
+    async function loadBearings() {
+      if (!authToken) {
+        document.getElementById('bearingsTable').innerHTML = '<p style="color:#999">请先登录后再管理产品</p>';
+        return;
+      }
+
+      try {
+        const bearings = await fetch(`${API_URL}/bearings`).then(r => r.json());
+
+        document.getElementById('bearingsTable').innerHTML = `
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>图片</th>
+                <th>名称</th>
+                <th>型号</th>
+                <th>分类</th>
+                <th>价格</th>
+                <th>库存</th>
+                <th>规格</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${bearings.map(b => `
+                <tr>
+                  <td>${b.id}</td>
+                  <td>
+                    <div style="position:relative;width:60px;height:60px">
+                      <img src="${b.image || 'https://via.placeholder.com/60x60?text=无图'}"
+                        style="width:60px;height:60px;object-fit:cover;border-radius:6px;border:1px solid #eee"
+                        onerror="this.src='https://via.placeholder.com/60x60?text=无图'">
+                      <label style="position:absolute;bottom:0;right:0;background:rgba(0,0,0,0.6);color:white;padding:2px 6px;border-radius:4px;cursor:pointer;font-size:0.7rem">
+                        换图
+                        <input type="file" accept="image/*" style="display:none" onchange="updateProductImage(${b.id}, this)">
+                      </label>
+                    </div>
+                  </td>
+                  <td>${b.name}</td>
+                  <td>${b.model}</td>
+                  <td>${b.category}</td>
+                  <td>¥${b.price.toFixed(2)}</td>
+                  <td>
+                    <input type="number" value="${b.stock}"
+                      onchange="updateStock(${b.id}, this.value)"
+                      style="width: 80px; padding: 5px;">
+                  </td>
+                  <td>${b.specs.innerDiameter} / ${b.specs.outerDiameter} / ${b.specs.width}</td>
+                  <td>
+                    <button class="btn btn-danger" onclick="deleteBearing(${b.id})">删除</button>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>`;
+      } catch (error) {
+        document.getElementById('bearingsTable').innerHTML = '<p>加载失败</p>';
+      }
+    }
+
+    async function loadOrders() {
+      if (!authToken) {
+        document.getElementById('ordersTable').innerHTML = '<p style="color:#999">请先登录后再管理订单</p>';
+        return;
+      }
+
+      try {
+        const res = await apiFetch(`${API_URL}/orders`);
+        const orders = await res.json();
+
+        selectedOrders.clear();
+
+        const statusLabel = (s) => {
+          const map = { pending: '待付款', paid: '已付款', shipped: '已发货', completed: '已完成', cancelled: '已取消' };
+          return map[s] || s;
+        };
+
+        document.getElementById('ordersTable').innerHTML = Array.isArray(orders) && orders.length > 0 ? `
+          <div class="toolbar">
+            <span>共 ${orders.length} 条订单</span>
+            <div class="bulk-actions">
+              <button class="btn btn-danger" onclick="batchDeleteOrders()" disabled id="batchDeleteBtn">批量删除选中</button>
+            </div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th><input type="checkbox" class="order-check" onchange="toggleAllOrders(this, ${JSON.stringify(orders.map(o=>o.id))})" title="全选"></th>
+                <th>订单ID</th>
+                <th>客户</th>
+                <th>电话</th>
+                <th>地址</th>
+                <th>金额</th>
+                <th>状态</th>
+                <th>时间</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${orders.map(o => `
+                <tr>
+                  <td><input type="checkbox" class="order-check" value="${o.id}" onchange="toggleOrder(${o.id}, this.checked)"></td>
+                  <td><strong>#${o.id}</strong></td>
+                  <td>${o.customer_name || '-'}</td>
+                  <td>${o.customer_phone || '-'}</td>
+                  <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${[o.province, o.city, o.district, o.address_detail].filter(Boolean).join(' ')}">${[o.province, o.city, o.district, o.address_detail].filter(Boolean).join(' ') || '-'}</td>
+                  <td>¥${(o.total_price || 0).toFixed(2)}</td>
+                  <td><span class="status-badge status-${o.status}">${statusLabel(o.status)}</span></td>
+                  <td>${new Date(o.created_at).toLocaleString('zh-CN')}</td>
+                  <td>
+                    <button class="btn btn-primary" onclick="viewOrderDetails(${o.id})" style="margin-right:4px">详情</button>
+                    <button class="btn btn-danger" onclick="deleteOrder(${o.id})">删除</button>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>` : '<p>暂无订单</p>';
+      } catch (error) {
+        document.getElementById('ordersTable').innerHTML = '<p>加载失败</p>';
+      }
+    }
+
+    // === 订单选择 ===
+    function toggleOrder(id, checked) {
+      if (checked) selectedOrders.add(id);
+      else selectedOrders.delete(id);
+      updateBatchBtn();
+    }
+
+    function toggleAllOrders(el, ids) {
+      if (el.checked) ids.forEach(id => selectedOrders.add(id));
+      else selectedOrders.clear();
+      document.querySelectorAll('.order-check').forEach(cb => { if (cb !== el) cb.checked = el.checked; });
+      updateBatchBtn();
+    }
+
+    function updateBatchBtn() {
+      const btn = document.getElementById('batchDeleteBtn');
+      if (btn) btn.disabled = selectedOrders.size === 0;
+    }
+
+    // === 订单操作 ===
+    async function viewOrderDetails(orderId) {
+      try {
+        const res = await apiFetch(`${API_URL}/orders/${orderId}/items`);
+        if (!res.ok) { alert('加载失败，请先登录'); return; }
+        const items = await res.json();
+        const details = items.map(it =>
+          `${it.name} (${it.model}) x ${it.quantity} = ¥${(it.price * it.quantity).toFixed(2)}`
+        ).join('\n');
+        alert(`订单 #${orderId} 详情:\n\n${details}`);
+      } catch (error) {
+        alert('加载订单详情失败');
+      }
+    }
+
+    async function deleteOrder(id) {
+      const statusEl = document.querySelector(`.status-badge`);
+      if (!confirm(`确定要删除订单 #${id} 吗？\n\n删除后将自动恢复库存。`)) return;
+
+      try {
+        const res = await apiFetch(`${API_URL}/orders/${id}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (res.ok) {
+          alert(`订单 #${id} 已删除${data.restoredStock ? '，库存已恢复' : ''}`);
+          loadOrders();
+          loadDashboard();
+        } else {
+          alert('删除失败: ' + (data.error || data.message || '未知错误'));
+        }
+      } catch (error) {
+        alert('删除失败: ' + error.message);
+      }
+    }
+
+    async function batchDeleteOrders() {
+      if (selectedOrders.size === 0) return;
+      const ids = Array.from(selectedOrders);
+      if (!confirm(`确定要删除选中的 ${ids.length} 个订单吗？\n\n可删除: 待付款/已取消\n不可删除: 已支付/已发货/已完成\n\n删除后将自动恢复库存。`)) return;
+
+      try {
+        const res = await apiFetch(`${API_URL}/orders/batch`, {
+          method: 'DELETE',
+          body: JSON.stringify({ orderIds: ids })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          alert(`${data.message}${data.restoredStock ? '，库存已恢复' : ''}`);
+          selectedOrders.clear();
+          loadOrders();
+          loadDashboard();
+        } else {
+          alert('批量删除失败: ' + (data.error || ''));
+          if (data.invalidOrders) {
+            alert('以下订单无法删除（已支付/已发货/已完成）: ' + data.invalidOrders.join(', '));
+          }
+        }
+      } catch (error) {
+        alert('批量删除失败: ' + error.message);
+      }
+    }
+
+    // === 产品操作 ===
+    async function updateStock(id, stock) {
+      try {
+        const res = await apiFetch(`${API_URL}/bearings/${id}/stock`, {
+          method: 'PUT',
+          body: JSON.stringify({ stock: parseInt(stock) })
+        });
+        if (res.ok) {
+          loadDashboard();
+        } else {
+          const data = await res.json();
+          alert('库存更新失败: ' + (data.error || ''));
+        }
+      } catch (error) {
+        alert('库存更新失败: ' + error.message);
+      }
+    }
+
+    async function updateProductImage(id, input) {
+      const file = input.files[0];
+      if (!file) return;
+
+      const formData = new FormData();
+      formData.append('image', file);
+
+      try {
+        const res = await fetch(`${API_URL}/bearings/${id}/image`, {
+          method: 'PUT',
+          headers: { 'Authorization': `Bearer ${authToken}` },
+          body: formData
+        });
+
+        if (res.ok) {
+          loadBearings();
+        } else {
+          const data = await res.json();
+          alert('图片更新失败: ' + (data.error || ''));
+        }
+      } catch (error) {
+        alert('图片更新失败: ' + error.message);
+      }
+    }
+
+    async function deleteBearing(id) {
+      if (!confirm('确定要删除这个产品吗？此操作不可恢复。')) return;
+
+      try {
+        const res = await apiFetch(`${API_URL}/bearings/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+          alert('产品删除成功');
+          loadBearings();
+          loadDashboard();
+        } else {
+          const data = await res.json();
+          alert('删除失败: ' + (data.error || ''));
+        }
+      } catch (error) {
+        alert('删除失败: ' + error.message);
+      }
+    }
+
+    // === 标签切换 ===
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+      event.target.classList.add('active');
+      document.getElementById(tabName).classList.add('active');
+
+      if (tabName === 'dashboard') loadDashboard();
+      if (tabName === 'bearings') loadBearings();
+      if (tabName === 'orders') loadOrders();
+    }
+
+    // === 图片上传 ===
+    let uploadedImageUrl = '';
+
+    function previewImage(input) {
+      const file = input.files[0];
+      if (!file) return;
+
+      const preview = document.getElementById('imagePreview');
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        preview.innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;border-radius:6px">`;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    async function uploadImage(file) {
+      const formData = new FormData();
+      formData.append('image', file);
+
+      const res = await fetch(`${API_URL}/upload/image`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${authToken}` },
+        body: formData
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || '上传失败');
+      }
+
+      return await res.json();
+    }
+
+    // === 添加产品表单 ===
+    document.getElementById('addProductForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      if (!authToken) { alert('请先登录'); return; }
+
+      // 先上传图片
+      const fileInput = document.getElementById('imageFile');
+      let imageUrl = '';
+      if (fileInput.files.length > 0) {
+        try {
+          const uploadResult = await uploadImage(fileInput.files[0]);
+          imageUrl = uploadResult.url;
+        } catch (err) {
+          alert('图片上传失败: ' + err.message);
+          return;
+        }
+      }
+
+      const formData = new FormData(e.target);
+      const data = {
+        name: formData.get('name'),
+        model: formData.get('model'),
+        price: parseFloat(formData.get('price')),
+        category: formData.get('category'),
+        innerDiameter: formData.get('innerDiameter'),
+        outerDiameter: formData.get('outerDiameter'),
+        width: formData.get('width'),
+        stock: parseInt(formData.get('stock')),
+        image: imageUrl || `https://via.placeholder.com/300x300/4A90E2/ffffff?text=${encodeURIComponent(formData.get('model'))}`,
+        description: formData.get('description')
+      };
+
+      try {
+        const res = await apiFetch(`${API_URL}/bearings`, {
+          method: 'POST',
+          body: JSON.stringify(data)
+        });
+
+        if (res.ok) {
+          alert('产品添加成功！');
+          e.target.reset();
+          document.getElementById('imagePreview').innerHTML = '<span style="color:#ccc;font-size:0.8rem">预览</span>';
+          document.getElementById('imageFile').value = '';
+          loadDashboard();
+        } else {
+          const error = await res.json();
+          alert('添加失败: ' + (error.error || error.message || '未知错误'));
+        }
+      } catch (error) {
+        alert('添加失败: ' + error.message);
+      }
+    });
+
+    // === 启动 ===
+    if (authToken) {
+      // 恢复登录状态
+      fetch(`${API_URL}/auth/me`, { headers: { 'Authorization': `Bearer ${authToken}` } })
+        .then(r => r.json())
+        .then(user => {
+          if (user.username) updateLoginUI(user);
+          else logout();
+        })
+        .catch(() => logout());
+    }
+    loadDashboard();
+  </script>
+</body>
+</html>

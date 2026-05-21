@@ -1,0 +1,525 @@
+const { graphql, buildSchema } = require('graphql');
+const logger = require('../logger');
+
+const schemaSDL = `
+  type Bearing {
+    id: ID!
+    name: String!
+    model: String!
+    price: Float!
+    image: String
+    category: String!
+    specs: BearingSpecs!
+    stock: Int!
+    description: String
+  }
+
+  type BearingSpecs {
+    innerDiameter: Float
+    outerDiameter: Float
+    width: Float
+  }
+
+  type Order {
+    id: ID!
+    customerName: String!
+    customerPhone: String!
+    province: String
+    city: String
+    district: String
+    addressDetail: String
+    totalPrice: Float!
+    status: String!
+    trackingNumber: String
+    createdAt: String
+    items: [OrderItem!]
+  }
+
+  type OrderItem {
+    id: ID!
+    bearingId: Int!
+    quantity: Int!
+    price: Float!
+    bearing: Bearing
+  }
+
+  type Customer {
+    id: ID!
+    name: String!
+    phone: String!
+    email: String
+    company: String
+    address: String
+    level: String!
+    points: Int!
+    totalSpent: Float!
+    totalOrders: Int!
+    tags: [String!]
+    status: String!
+  }
+
+  type Coupon {
+    id: ID!
+    code: String!
+    name: String!
+    type: String!
+    discountValue: Float
+    minOrderAmount: Float
+    totalQuantity: Int
+    usedQuantity: Int
+    validFrom: String
+    validUntil: String
+    status: String!
+  }
+
+  type PaymentOrder {
+    id: ID!
+    orderId: Int!
+    paymentMethod: String!
+    amount: Float!
+    status: String!
+    transactionId: String
+    tradeNo: String
+    createdAt: String
+    paidAt: String
+  }
+
+  type AnalyticsDashboard {
+    totalProducts: Int!
+    totalOrders: Int!
+    totalRevenue: Float!
+    lowStockProducts: Int!
+    outOfStockProducts: Int!
+    todayOrders: Int!
+    todayRevenue: Float!
+  }
+
+  type DemandPrediction {
+    productId: ID!
+    productName: String!
+    model: String!
+    currentStock: Int!
+    avgDailySales: Float!
+    predictedDemand: Int!
+    trend: String!
+    daysUntilEmpty: Int!
+    needsRestock: Boolean!
+    recommendedRestock: Int!
+  }
+
+  type SalesForecast {
+    date: String!
+    predictedRevenue: Float!
+    predictedOrders: Int!
+    dayOfWeek: Int!
+  }
+
+  type ChatResponse {
+    message: String!
+    suggestions: [String!]
+    intent: String!
+    timestamp: String!
+  }
+
+  type RefundResult {
+    refundId: ID!
+    refundNo: String!
+    amount: Float!
+    status: String!
+    message: String!
+  }
+
+  type CouponUseResult {
+    message: String!
+    discountAmount: Float!
+  }
+
+  type MutationResult {
+    success: Boolean!
+    message: String
+    id: ID
+    orderId: ID
+    orderNo: String
+    paymentOrderId: ID
+    qrCode: String
+    qrUrl: String
+    refundId: ID
+    refundNo: String
+    amount: Float
+    status: String
+    discountAmount: Float
+  }
+
+  input OrderItemInput {
+    id: Int!
+    quantity: Int!
+    price: Float!
+  }
+
+  type Query {
+    bearings(category: String, search: String, limit: Int, offset: Int): [Bearing!]!
+    bearing(id: ID!): Bearing
+    categories: [String!]!
+    orders(status: String, limit: Int, offset: Int): [Order!]!
+    order(id: ID!): Order
+    customers(level: String, status: String, search: String, limit: Int, offset: Int): [Customer!]!
+    customer(id: ID!): Customer
+    coupons(status: String): [Coupon!]!
+    payments(status: String, paymentMethod: String): [PaymentOrder!]!
+    payment(id: ID!): PaymentOrder
+    dashboard: AnalyticsDashboard!
+    demandPredictions: [DemandPrediction!]!
+    demandPrediction(productId: ID!, days: Int): DemandPrediction!
+    salesForecast(days: Int): [SalesForecast!]!
+    chat(message: String!): ChatResponse!
+    smartRecommendations(customerPhone: String, limit: Int): [Bearing!]!
+    hotProducts(limit: Int): [Bearing!]!
+    newProducts(limit: Int): [Bearing!]!
+    similarProducts(productId: ID!, limit: Int): [Bearing!]!
+  }
+
+  type Mutation {
+    createOrder(customerName: String!, customerPhone: String!, province: String, city: String, district: String, addressDetail: String, items: [OrderItemInput!]!, totalPrice: Float!): MutationResult!
+    updateOrderStatus(orderId: ID!, status: String!, trackingNumber: String, note: String): MutationResult!
+    addBearing(name: String!, model: String!, price: Float!, category: String!, stock: Int!, innerDiameter: Float, outerDiameter: Float, width: Float, image: String, description: String): MutationResult!
+    deleteBearing(id: ID!): MutationResult!
+    updateStock(id: ID!, stock: Int!): MutationResult!
+    createPayment(orderId: ID!, amount: Float!, paymentMethod: String!, subject: String): MutationResult!
+    simulatePayment(paymentOrderId: ID!): MutationResult!
+    createRefund(paymentOrderId: ID!, amount: Float!, reason: String): MutationResult!
+    createCustomer(name: String!, phone: String!, email: String, company: String, address: String): MutationResult!
+    updateCustomer(id: ID!, tags: [String!], notes: String, status: String): MutationResult!
+    addPoints(customerId: ID!, points: Int!, type: String!, reason: String): MutationResult!
+    createCoupon(code: String!, name: String!, type: String!, discountValue: Float, minOrderAmount: Float, totalQuantity: Int, validFrom: String, validUntil: String): MutationResult!
+    issueCoupon(couponId: ID!, customerIds: [ID!]!): MutationResult!
+    useCoupon(code: String!, customerId: ID!, orderId: ID!): MutationResult!
+  }
+`;
+
+function createGraphQLMiddleware(services) {
+  const { db, analytics, recommendationEngine, paymentService, aiService } = services;
+
+  const runAsync = (sql, params = []) =>
+    new Promise((resolve, reject) => {
+      db.run(sql, params, function(err) {
+        if (err) reject(err);
+        else resolve({ lastID: this.lastID, changes: this.changes });
+      });
+    });
+
+  const getAsync = (sql, params = []) =>
+    new Promise((resolve, reject) => {
+      db.get(sql, params, (err, row) => { if (err) reject(err); else resolve(row || null); });
+    });
+
+  const allAsync = (sql, params = []) =>
+    new Promise((resolve, reject) => {
+      db.all(sql, params, (err, rows) => { if (err) reject(err); else resolve(rows); });
+    });
+
+  const rootValue = {
+    // === Query ===
+    bearings: async ({ category, search, limit, offset }) => {
+      let query = 'SELECT * FROM bearings WHERE 1=1';
+      const params = [];
+      if (category && category !== '全部') { query += ' AND category = ?'; params.push(category); }
+      if (search) { query += ' AND (name LIKE ? OR model LIKE ?)'; params.push(`%${search}%`, `%${search}%`); }
+      query += ' ORDER BY id ASC';
+      if (limit) { query += ' LIMIT ?'; params.push(limit); }
+      if (offset) { query += ' OFFSET ?'; params.push(offset); }
+      const rows = await allAsync(query, params);
+      return rows.map(r => ({ ...r, specs: { innerDiameter: r.inner_diameter, outerDiameter: r.outer_diameter, width: r.width } }));
+    },
+    bearing: async ({ id }) => {
+      const row = await getAsync('SELECT * FROM bearings WHERE id = ?', [id]);
+      return row ? { ...row, specs: { innerDiameter: row.inner_diameter, outerDiameter: row.outer_diameter, width: row.width } } : null;
+    },
+    categories: async () => {
+      const rows = await allAsync('SELECT DISTINCT category FROM bearings', []);
+      return rows.map(r => r.category);
+    },
+    orders: async ({ status, limit, offset }) => {
+      let query = 'SELECT * FROM orders WHERE 1=1';
+      const params = [];
+      if (status) { query += ' AND status = ?'; params.push(status); }
+      query += ' ORDER BY created_at DESC';
+      if (limit) { query += ' LIMIT ?'; params.push(limit); }
+      if (offset) { query += ' OFFSET ?'; params.push(offset); }
+      const rows = await allAsync(query, params);
+      return Promise.all(rows.map(async (o) => {
+        const items = await allAsync(
+          `SELECT oi.*, b.name, b.model, b.image FROM order_items oi JOIN bearings b ON oi.bearing_id = b.id WHERE oi.order_id = ?`,
+          [o.id]
+        );
+        return {
+          id: o.id,
+          customerName: o.customer_name,
+          customerPhone: o.customer_phone,
+          province: o.province,
+          city: o.city,
+          district: o.district,
+          addressDetail: o.address_detail,
+          totalPrice: o.total_price,
+          status: o.status,
+          trackingNumber: o.tracking_number,
+          createdAt: o.created_at,
+          items: items.map(it => ({ ...it, bearingId: it.bearing_id }))
+        };
+      }));
+    },
+    order: async ({ id }) => {
+      const o = await getAsync('SELECT * FROM orders WHERE id = ?', [id]);
+      if (!o) return null;
+      const items = await allAsync(
+        `SELECT oi.*, b.name, b.model, b.image FROM order_items oi JOIN bearings b ON oi.bearing_id = b.id WHERE oi.order_id = ?`,
+        [id]
+      );
+      return {
+        id: o.id,
+        customerName: o.customer_name,
+        customerPhone: o.customer_phone,
+        province: o.province,
+        city: o.city,
+        district: o.district,
+        addressDetail: o.address_detail,
+        totalPrice: o.total_price,
+        status: o.status,
+        trackingNumber: o.tracking_number,
+        createdAt: o.created_at,
+        items: items.map(it => ({ ...it, bearingId: it.bearing_id }))
+      };
+    },
+    customers: async ({ level, status, search, limit, offset }) => {
+      let query = 'SELECT * FROM customers WHERE 1=1';
+      const params = [];
+      if (level) { query += ' AND level = ?'; params.push(level); }
+      if (status) { query += ' AND status = ?'; params.push(status); }
+      if (search) { query += ' AND (name LIKE ? OR phone LIKE ?)'; params.push(`%${search}%`, `%${search}%`); }
+      query += ' ORDER BY created_at DESC';
+      if (limit) { query += ' LIMIT ?'; params.push(limit); }
+      if (offset) { query += ' OFFSET ?'; params.push(offset); }
+      const rows = await allAsync(query, params);
+      return rows.map(r => {
+        let tags = [];
+        try { tags = JSON.parse(r.tags || '[]'); } catch {}
+        return { ...r, tags };
+      });
+    },
+    customer: async ({ id }) => {
+      const row = await getAsync('SELECT * FROM customers WHERE id = ?', [id]);
+      if (!row) return null;
+      let tags = [];
+      try { tags = JSON.parse(row.tags || '[]'); } catch {}
+      return { ...row, tags };
+    },
+    coupons: async ({ status }) => {
+      let query = 'SELECT * FROM coupons WHERE 1=1';
+      const params = [];
+      if (status) { query += ' AND status = ?'; params.push(status); }
+      query += ' ORDER BY created_at DESC';
+      return await allAsync(query, params);
+    },
+    payments: async ({ status, paymentMethod }) => {
+      let query = 'SELECT * FROM payment_orders WHERE 1=1';
+      const params = [];
+      if (status) { query += ' AND status = ?'; params.push(status); }
+      if (paymentMethod) { query += ' AND payment_method = ?'; params.push(paymentMethod); }
+      query += ' ORDER BY created_at DESC LIMIT 50';
+      return await allAsync(query, params);
+    },
+    payment: async ({ id }) => getAsync('SELECT * FROM payment_orders WHERE id = ?', [id]),
+    dashboard: async () => {
+      try {
+        return await analytics.getDashboardSummary();
+      } catch { return { totalProducts: 0, totalOrders: 0, totalRevenue: 0, lowStockProducts: 0, outOfStockProducts: 0, todayOrders: 0, todayRevenue: 0 }; }
+    },
+    demandPredictions: async () => aiService.predictAllDemand(),
+    demandPrediction: async ({ productId, days }) => aiService.predictDemand(parseInt(productId), days || 30),
+    salesForecast: async ({ days }) => {
+      const f = await aiService.forecastSales(days || 30);
+      return f.forecast || [];
+    },
+    chat: async ({ message }) => aiService.chat(message),
+    smartRecommendations: async ({ customerPhone, limit }) => {
+      const r = await aiService.getSmartRecommendations(customerPhone || null, limit || 10);
+      return r.recommendations.map(p => ({ ...p, specs: {} }));
+    },
+    hotProducts: async ({ limit }) => {
+      const prods = await recommendationEngine.getHotProducts(limit || 10, 30);
+      return prods.map(p => ({ ...p, specs: {} }));
+    },
+    newProducts: async ({ limit }) => {
+      const prods = await recommendationEngine.getNewProducts(limit || 10);
+      return prods.map(p => ({ ...p, specs: {} }));
+    },
+    similarProducts: async ({ productId, limit }) => {
+      const prods = await recommendationEngine.getSimilarProducts(parseInt(productId), limit || 5);
+      return prods.map(p => ({ ...p, specs: {} }));
+    },
+
+    // === Mutation ===
+    createOrder: async ({ customerName, customerPhone, province, city, district, addressDetail, items, totalPrice }) => {
+      return new Promise((resolve, reject) => {
+        db.serialize(() => {
+          db.run('BEGIN TRANSACTION');
+          db.run(
+            'INSERT INTO orders (customer_name, customer_phone, province, city, district, address_detail, total_price) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [customerName, customerPhone, province || '', city || '', district || '', addressDetail || '', totalPrice],
+            function(err) {
+              if (err) { db.run('ROLLBACK'); reject(err); return; }
+              const orderId = this.lastID;
+              let completed = 0;
+              items.forEach(item => {
+                db.run('INSERT INTO order_items (order_id, bearing_id, quantity, price) VALUES (?, ?, ?, ?)',
+                  [orderId, item.id, item.quantity, item.price],
+                  (err) => {
+                    if (err) { db.run('ROLLBACK'); reject(err); return; }
+                    db.run('UPDATE bearings SET stock = stock - ? WHERE id = ?', [item.quantity, item.id], (err) => {
+                      if (err) { db.run('ROLLBACK'); reject(err); return; }
+                      completed++;
+                      if (completed >= items.length) {
+                        db.run('COMMIT', (err) => {
+                          if (err) { db.run('ROLLBACK'); reject(err); }
+                          else resolve({ success: true, message: '订单创建成功', orderId });
+                        });
+                      }
+                    });
+                  }
+                );
+              });
+            }
+          );
+        });
+      });
+    },
+    updateOrderStatus: async ({ orderId, status, trackingNumber, note }) => {
+      let query = 'UPDATE orders SET status = ?';
+      const params = [status];
+      if (status === 'shipped' && trackingNumber) { query += ', tracking_number = ?, shipped_at = CURRENT_TIMESTAMP'; params.push(trackingNumber); }
+      if (status === 'completed') { query += ', completed_at = CURRENT_TIMESTAMP'; }
+      query += ' WHERE id = ?';
+      params.push(orderId);
+      await runAsync(query, params);
+      await runAsync('INSERT INTO order_status_history (order_id, new_status, note) VALUES (?, ?, ?)', [orderId, status, note || 'GraphQL']);
+      return { success: true, message: '订单状态已更新' };
+    },
+    addBearing: async (args) => {
+      const result = await runAsync(
+        `INSERT INTO bearings (name, model, price, category, inner_diameter, outer_diameter, width, stock, image, description) VALUES (?,?,?,?,?,?,?,?,?,?)`,
+        [args.name, args.model, args.price, args.category, args.innerDiameter, args.outerDiameter, args.width, args.stock, args.image, args.description]
+      );
+      return { success: true, message: '产品添加成功', id: result.lastID };
+    },
+    deleteBearing: async ({ id }) => {
+      await runAsync('DELETE FROM bearings WHERE id = ?', [id]);
+      return { success: true, message: '产品删除成功' };
+    },
+    updateStock: async ({ id, stock }) => {
+      await runAsync('UPDATE bearings SET stock = ? WHERE id = ?', [stock, id]);
+      return { success: true, message: '库存更新成功' };
+    },
+    createPayment: async (args) => {
+      const result = await paymentService.createPayment(args);
+      return { success: true, ...result };
+    },
+    simulatePayment: async ({ paymentOrderId }) => {
+      await paymentService.simulatePayment(paymentOrderId);
+      return { success: true, message: '支付成功（模拟）' };
+    },
+    createRefund: async (args) => {
+      const result = await paymentService.createRefund(args);
+      return { success: true, ...result };
+    },
+    createCustomer: async (args) => {
+      const result = await runAsync(
+        'INSERT INTO customers (name, phone, email, company, address) VALUES (?, ?, ?, ?, ?)',
+        [args.name, args.phone, args.email, args.company, args.address]
+      );
+      return { success: true, message: '客户创建成功', id: result.lastID };
+    },
+    updateCustomer: async ({ id, tags, notes, status }) => {
+      const updates = [], params = [];
+      if (tags !== undefined) { updates.push('tags = ?'); params.push(JSON.stringify(tags)); }
+      if (notes !== undefined) { updates.push('notes = ?'); params.push(notes); }
+      if (status !== undefined) { updates.push('status = ?'); params.push(status); }
+      if (updates.length === 0) return { success: true, message: '没有要更新的字段' };
+      updates.push('updated_at = CURRENT_TIMESTAMP');
+      params.push(id);
+      await runAsync(`UPDATE customers SET ${updates.join(', ')} WHERE id = ?`, params);
+      return { success: true, message: '客户信息更新成功' };
+    },
+    addPoints: async ({ customerId, points, type, reason }) => {
+      await runAsync('INSERT INTO points_records (customer_id, points, type, reason) VALUES (?, ?, ?, ?)', [customerId, points, type, reason]);
+      await runAsync('UPDATE customers SET points = points + ? WHERE id = ?', [points, customerId]);
+      return { success: true, message: '积分添加成功' };
+    },
+    createCoupon: async (args) => {
+      const result = await runAsync(
+        `INSERT INTO coupons (code, name, type, discount_value, min_order_amount, total_quantity, valid_from, valid_until) VALUES (?,?,?,?,?,?,?,?)`,
+        [args.code, args.name, args.type, args.discountValue || 0, args.minOrderAmount || 0, args.totalQuantity || 1000, args.validFrom, args.validUntil]
+      );
+      return { success: true, message: '优惠券创建成功', id: result.lastID };
+    },
+    issueCoupon: async ({ couponId, customerIds }) => {
+      for (const customerId of customerIds) {
+        await runAsync('INSERT INTO customer_coupons (customer_id, coupon_id) VALUES (?, ?)', [customerId, couponId]);
+      }
+      return { success: true, message: `成功发放给${customerIds.length}个客户` };
+    },
+    useCoupon: async ({ code, customerId, orderId }) => {
+      const coupon = await getAsync('SELECT * FROM coupons WHERE code = ? AND status = ?', [code, 'active']);
+      if (!coupon) throw new Error('优惠券不存在或已失效');
+      const cc = await getAsync('SELECT * FROM customer_coupons WHERE customer_id = ? AND coupon_id = ? AND status = ?', [customerId, coupon.id, 'unused']);
+      if (!cc) throw new Error('该客户没有此优惠券或已使用');
+      const discountAmount = coupon.type === 'fixed' ? coupon.discount_value : 0;
+      await runAsync('UPDATE customer_coupons SET status = ?, used_order_id = ?, used_at = CURRENT_TIMESTAMP WHERE id = ?', ['used', orderId, cc.id]);
+      await runAsync('UPDATE coupons SET used_quantity = used_quantity + 1 WHERE id = ?', [coupon.id]);
+      return { success: true, message: '优惠券使用成功', discountAmount };
+    }
+  };
+
+  return rootValue;
+}
+
+function createGraphQLEndpoint(services) {
+  const rootValue = createGraphQLMiddleware(services);
+  const schema = buildSchema(schemaSDL);
+
+  return async (req, res) => {
+    try {
+      const { query, variables, operationName } = req.body;
+
+      if (!query) {
+        // If GET request, return GraphiQL-like info
+        return res.json({
+          message: 'GraphQL API',
+          hint: 'Send POST requests with query/variables in JSON body',
+          example: {
+            query: '{ bearings { id name model price category stock } }'
+          }
+        });
+      }
+
+      const result = await graphql({
+        schema,
+        source: query,
+        rootValue,
+        variableValues: variables,
+        operationName
+      });
+
+      logger.info('GraphQL查询', { operationName: operationName || 'anonymous' });
+
+      if (result.errors) {
+        result.errors.forEach(e => logger.error('GraphQL错误', { error: e.message }));
+      }
+
+      res.json(result);
+    } catch (error) {
+      logger.error('GraphQL处理失败', { error: error.message });
+      res.status(400).json({ errors: [{ message: error.message }] });
+    }
+  };
+}
+
+module.exports = createGraphQLEndpoint;
