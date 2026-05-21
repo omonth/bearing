@@ -40,9 +40,27 @@ const requireAdmin = (req, res, next) => {
   next();
 };
 
+const optionalAuth = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    try {
+      const token = authHeader.substring(7);
+      const decoded = jwt.verify(token, JWT_SECRET);
+      req.user = decoded;
+    } catch {
+      req.user = null;
+    }
+  } else {
+    req.user = null;
+  }
+  next();
+};
+
 module.exports = {
   generateToken,
   verifyToken,
   requireAdmin,
+  optionalAuth,
   JWT_SECRET
 };

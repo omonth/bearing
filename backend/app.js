@@ -6,7 +6,7 @@ const path = require('path');
 const { body, param, validationResult } = require('express-validator');
 const helmet = require('helmet');
 const logger = require('./logger');
-const { verifyToken, requireAdmin } = require('./middleware/auth');
+const { verifyToken, requireAdmin, optionalAuth } = require('./middleware/auth');
 const { apiLimiter, loginLimiter, orderLimiter } = require('./middleware/rateLimiter');
 const { cacheMiddleware, clearCache } = require('./middleware/cache');
 const { exportOrdersToExcel, exportOrderToPDF } = require('./utils/exportOrders');
@@ -436,7 +436,7 @@ function createApp(db, services = {}) {
   }
 
   const createGraphQLEndpoint = require('./graphql/endpoint');
-  app.use('/graphql', createGraphQLEndpoint({ db, recommendationEngine, analytics, paymentService, aiService, authService, bearingService, orderService, customerService, couponService, pointsService }));
+  app.use('/graphql', optionalAuth, createGraphQLEndpoint({ db, recommendationEngine, analytics, paymentService, aiService, authService, bearingService, orderService, customerService, couponService, pointsService }));
 
   return app;
 }

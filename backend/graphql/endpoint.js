@@ -200,6 +200,17 @@ function createGraphQLMiddleware(services) {
   const { db, analytics, recommendationEngine, paymentService, aiService, authService, bearingService, orderService, customerService, couponService, pointsService } = services;
 
   const rootValue = {
+    _requireAdmin(context) {
+      if (!context || !context.user || context.user.role !== 'admin') {
+        throw new Error('需要管理员权限');
+      }
+    },
+    _requireAuth(context) {
+      if (!context || !context.user) {
+        throw new Error('请先登录');
+      }
+    },
+
     // === Query ===
     bearings: async ({ category }) => {
       if (bearingService) {
@@ -228,7 +239,8 @@ function createGraphQLMiddleware(services) {
       const rows = await db.all('SELECT DISTINCT category FROM bearings', []);
       return rows.map(r => r.category);
     },
-    orders: async ({ status, limit, offset }) => {
+    orders: async ({ status, limit, offset }, context) => {
+      rootValue._requireAdmin(context);
       if (orderService) {
         const { data: rows } = await orderService.list();
         let filtered = rows || [];
@@ -267,7 +279,8 @@ function createGraphQLMiddleware(services) {
         };
       }));
     },
-    order: async ({ id }) => {
+    order: async ({ id }, context) => {
+      rootValue._requireAdmin(context);
       if (orderService) {
         const { data: o } = await orderService.getById(id);
         if (!o) return null;
@@ -294,7 +307,8 @@ function createGraphQLMiddleware(services) {
         items: items.map(it => ({ ...it, bearingId: it.bearing_id }))
       };
     },
-    customers: async ({ level, status, search, limit, offset }) => {
+    customers: async ({ level, status, search, limit, offset }, context) => {
+      rootValue._requireAdmin(context);
       if (customerService) {
         const { data } = await customerService.list({ level, status, search, page: 1, pageSize: limit || 50 });
         const items = data ? data.items : [];
@@ -316,7 +330,8 @@ function createGraphQLMiddleware(services) {
         return { ...r, tags };
       });
     },
-    customer: async ({ id }) => {
+    customer: async ({ id }, context) => {
+      rootValue._requireAdmin(context);
       if (customerService) {
         const { data } = await customerService.getById(id);
         return data || null;
@@ -327,7 +342,8 @@ function createGraphQLMiddleware(services) {
       try { tags = JSON.parse(row.tags || '[]'); } catch {}
       return { ...row, tags };
     },
-    coupons: async ({ status }) => {
+    coupons: async ({ status }, context) => {
+      rootValue._requireAdmin(context);
       if (couponService) {
         const { data } = await couponService.list(status);
         return data || [];
@@ -338,7 +354,8 @@ function createGraphQLMiddleware(services) {
       query += ' ORDER BY created_at DESC';
       return await db.all(query, params);
     },
-    payments: async ({ status, paymentMethod }) => {
+    payments: async ({ status, paymentMethod }, context) => {
+      rootValue._requireAdmin(context);
       let query = 'SELECT * FROM payment_orders WHERE 1=1';
       const params = [];
       if (status) { query += ' AND status = ?'; params.push(status); }
@@ -346,8 +363,12 @@ function createGraphQLMiddleware(services) {
       query += ' ORDER BY created_at DESC LIMIT 50';
       return await db.all(query, params);
     },
-    payment: async ({ id }) => db.get('SELECT * FROM payment_orders WHERE id = ?', [id]),
-    dashboard: async () => {
+    payment: async ({ id }, context) => {
+      rootValue._requireAdmin(context);
+      return db.get('SELECT * FROM payment_orders WHERE id = ?', [id]);
+    },
+    dashboard: async (_, context) => {
+      rootValue._requireAdmin(context);
       try {
         return await analytics.getDashboardSummary();
       } catch { return { totalProducts: 0, totalOrders: 0, totalRevenue: 0, lowStockProducts: 0, outOfStockProducts: 0, todayOrders: 0, todayRevenue: 0 }; }
@@ -377,7 +398,8 @@ function createGraphQLMiddleware(services) {
     },
 
     // === Mutation ===
-    createOrder: async ({ customerName, customerPhone, province, city, district, addressDetail, items }) => {
+    createOrder: async ({ customerName, customerPhone, province, city, district, addressDetail, items }, context) => {
+      rootValue._requireAuth(context);
       if (orderService) {
         const { data, error } = await orderService.create({
           customerName, customerPhone, province, city, district, addressDetail, items
@@ -400,7 +422,8 @@ function createGraphQLMiddleware(services) {
       });
       return { success: true, message: '订单创建成功', orderId: result.orderId };
     },
-    updateOrderStatus: async ({ orderId, status, trackingNumber, note }) => {
+    updateOrderStatus: async ({ orderId, status, trackingNumber, note }, context) => {
+      rootValue._requireAdmin(context);
       if (orderService) {
         const { data, error } = await orderService.updateStatus(orderId, status, note, trackingNumber);
         if (error) return { success: false, message: error };
@@ -416,7 +439,8 @@ function createGraphQLMiddleware(services) {
       await db.run('INSERT INTO order_status_history (order_id, new_status, note) VALUES (?, ?, ?)', [orderId, status, note || 'GraphQL']);
       return { success: true, message: '订单状态已更新' };
     },
-    addBearing: async (args) => {
+    addBearing: async (args, context) => {
+      rootValue._requireAdmin(context);
       if (bearingService) {
         const { data, error } = await bearingService.create(args);
         if (error) return { success: false, message: error };
@@ -428,7 +452,8 @@ function createGraphQLMiddleware(services) {
       );
       return { success: true, message: '产品添加成功', id: result.lastID };
     },
-    deleteBearing: async ({ id }) => {
+    deleteBearing: async ({ id }, context) => {
+      rootValue._requireAdmin(context);
       if (bearingService) {
         const { data, error } = await bearingService.delete(id);
         if (error) return { success: false, message: error };
@@ -437,7 +462,8 @@ function createGraphQLMiddleware(services) {
       await db.run('DELETE FROM bearings WHERE id = ?', [id]);
       return { success: true, message: '产品删除成功' };
     },
-    updateStock: async ({ id, stock }) => {
+    updateStock: async ({ id, stock }, context) => {
+      rootValue._requireAdmin(context);
       if (bearingService) {
         const { data, error } = await bearingService.updateStock(id, stock);
         if (error) return { success: false, message: error };
@@ -450,15 +476,18 @@ function createGraphQLMiddleware(services) {
       const result = await paymentService.createPayment(args);
       return { success: true, ...result };
     },
-    simulatePayment: async ({ paymentOrderId }) => {
+    simulatePayment: async ({ paymentOrderId }, context) => {
+      rootValue._requireAdmin(context);
       await paymentService.simulatePayment(paymentOrderId);
       return { success: true, message: '支付成功（模拟）' };
     },
-    createRefund: async (args) => {
+    createRefund: async (args, context) => {
+      rootValue._requireAdmin(context);
       const result = await paymentService.createRefund(args);
       return { success: true, ...result };
     },
-    createCustomer: async (args) => {
+    createCustomer: async (args, context) => {
+      rootValue._requireAdmin(context);
       if (customerService) {
         const { data, error } = await customerService.create(args);
         if (error) return { success: false, message: error };
@@ -470,7 +499,8 @@ function createGraphQLMiddleware(services) {
       );
       return { success: true, message: '客户创建成功', id: result.lastID };
     },
-    updateCustomer: async ({ id, tags, notes, status }) => {
+    updateCustomer: async ({ id, tags, notes, status }, context) => {
+      rootValue._requireAdmin(context);
       if (customerService) {
         const { data, error } = await customerService.update(id, { tags, notes, status });
         if (error) return { success: false, message: error };
@@ -486,7 +516,8 @@ function createGraphQLMiddleware(services) {
       await db.run(`UPDATE customers SET ${updates.join(', ')} WHERE id = ?`, params);
       return { success: true, message: '客户信息更新成功' };
     },
-    addPoints: async ({ customerId, points, type, reason }) => {
+    addPoints: async ({ customerId, points, type, reason }, context) => {
+      rootValue._requireAdmin(context);
       if (pointsService) {
         const { data, error } = await pointsService.addPoints(customerId, points, type, reason);
         if (error) return { success: false, message: error };
@@ -562,6 +593,7 @@ function createGraphQLEndpoint(services) {
         schema,
         source: query,
         rootValue,
+        contextValue: { user: req.user },
         variableValues: variables,
         operationName
       });
