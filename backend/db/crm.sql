@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS customers (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     phone VARCHAR(20) UNIQUE NOT NULL,
+    password VARCHAR(255),
     email VARCHAR(255),
     company VARCHAR(255),
     address TEXT,
@@ -86,7 +87,7 @@ CREATE TABLE IF NOT EXISTS customer_coupons (
     coupon_id INTEGER NOT NULL,
     status VARCHAR(20) DEFAULT 'unused',
     used_at TIMESTAMP,
-    order_id INTEGER,
+    used_order_id INTEGER,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE,
     FOREIGN KEY (coupon_id) REFERENCES coupons(id) ON DELETE CASCADE

@@ -425,6 +425,9 @@ function createApp(db, services = {}) {
   const crmRoutes = require('./routes/crm')(db, { customerService, couponService, pointsService });
   app.use('/api/crm', crmRoutes);
 
+  const customerRoutes = require('./routes/customer')(db, { customerService, couponService, pointsService });
+  app.use('/api/customer', customerRoutes);
+
   if (supplyChainService) {
     const supplyChainRoutes = require('./routes/supplyChain')(supplyChainService);
     app.use('/api/supply-chain', supplyChainRoutes);

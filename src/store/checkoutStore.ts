@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { createOrder, createPayment, queryPaymentStatus } from '@/lib/api';
+import { createOrder, createPayment, queryPaymentStatus, useCustomerCoupon } from '@/lib/api';
 import { REGION_DATA, ALL_PROVINCES } from '@/data/regions';
 import type { CartItem } from '@/types';
 
@@ -19,15 +19,19 @@ interface CheckoutStore {
   paymentInfo: any;
   submitting: boolean;
   paymentStatus: PaymentStatus;
+  selectedCoupon: string;
+  couponDiscount: number;
 
   setField: (field: string, value: string) => void;
   setProvince: (value: string) => void;
   setPaymentMethod: (method: PaymentMethod) => void;
   setCheckoutStep: (step: CheckoutStep) => void;
+  setSelectedCoupon: (code: string) => void;
   submitOrder: (items: CartItem[], totalPrice: number) => Promise<void>;
   resetCheckout: () => void;
   getCities: () => string[];
   getAllProvinces: () => string[];
+  getFinalPrice: (totalPrice: number) => number;
 }
 
 let pollingTimer: ReturnType<typeof setInterval> | null = null;
@@ -51,6 +55,8 @@ export const useCheckoutStore = create<CheckoutStore>()((set, get) => ({
   paymentInfo: null,
   submitting: false,
   paymentStatus: 'pending',
+  selectedCoupon: '',
+  couponDiscount: 0,
 
   setField: (field, value) => set({ [field]: value }),
 
@@ -60,12 +66,19 @@ export const useCheckoutStore = create<CheckoutStore>()((set, get) => ({
 
   setCheckoutStep: (step) => set({ checkoutStep: step }),
 
+  setSelectedCoupon: (code) => set({ selectedCoupon: code, couponDiscount: 0 }),
+
   getCities: () => {
     const { province } = get();
     return province ? (REGION_DATA[province] || ['其他']) : [];
   },
 
   getAllProvinces: () => ALL_PROVINCES,
+
+  getFinalPrice: (totalPrice) => {
+    const { couponDiscount } = get();
+    return Math.max(0, totalPrice - couponDiscount);
+  },
 
   submitOrder: async (items, totalPrice) => {
     const state = get();
@@ -75,6 +88,7 @@ export const useCheckoutStore = create<CheckoutStore>()((set, get) => ({
 
     set({ submitting: true });
     try {
+      const finalPrice = Math.max(0, totalPrice - state.couponDiscount);
       const orderResult = await createOrder({
         customerName: state.customerName,
         customerPhone: state.customerPhone,
@@ -87,19 +101,29 @@ export const useCheckoutStore = create<CheckoutStore>()((set, get) => ({
           quantity: item.quantity,
           price: item.price,
         })),
-        totalPrice,
+        totalPrice: Math.max(0, finalPrice),
       });
+
+      // Apply coupon if selected
+      if (state.selectedCoupon) {
+        try {
+          const couponResult = await useCustomerCoupon(state.selectedCoupon, orderResult.orderId);
+          if (couponResult.discountAmount) {
+            set({ couponDiscount: couponResult.discountAmount });
+          }
+        } catch {}
+      }
 
       const payment = await createPayment({
         orderId: orderResult.orderId,
-        amount: totalPrice,
+        amount: Math.max(0, finalPrice),
         paymentMethod: state.paymentMethod,
         subject: `订单 #${orderResult.orderId}`,
       });
 
       const paymentInfo = {
         ...payment,
-        amount: totalPrice,
+        amount: finalPrice,
         paymentOrderId: payment.paymentOrderId,
       };
 
@@ -134,6 +158,8 @@ export const useCheckoutStore = create<CheckoutStore>()((set, get) => ({
       paymentInfo: null,
       paymentStatus: 'pending',
       submitting: false,
+      selectedCoupon: '',
+      couponDiscount: 0,
     });
   },
 }));

@@ -50,11 +50,53 @@ export const getHotProducts = (limit = 10) =>
 export const getSimilarProducts = (productId: number, limit = 5) =>
   request<any[]>(`/recommendations/similar/${productId}?limit=${limit}`);
 
-// Auth
-export const login = (username: string, password: string) =>
+// Auth (admin)
+export const adminLogin = (username: string, password: string) =>
   request<{ token: string; user: any }>('/auth/login', {
     method: 'POST',
     body: JSON.stringify({ username, password }),
+  });
+
+// Customer auth
+export const customerRegister = (data: { name?: string; phone: string; password: string }) =>
+  request<{ token: string; user: any }>('/customer/register', {
+    method: 'POST',
+    body: JSON.stringify(data),
+    headers: { 'Content-Type': 'application/json' },
+  });
+
+export const customerLogin = (phone: string, password: string) =>
+  request<{ token: string; user: any }>('/customer/login', {
+    method: 'POST',
+    body: JSON.stringify({ phone, password }),
+    headers: { 'Content-Type': 'application/json' },
+  });
+
+export const getCustomerMe = () =>
+  request<any>('/customer/me', {
+    headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+  });
+
+export const getCustomerOrders = () =>
+  request<any[]>('/customer/orders', {
+    headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+  });
+
+export const getCustomerOrderDetail = (id: number) =>
+  request<any>(`/customer/orders/${id}`, {
+    headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+  });
+
+export const getCustomerCoupons = () =>
+  request<any[]>('/customer/coupons', {
+    headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+  });
+
+export const useCustomerCoupon = (code: string, orderId: number) =>
+  request<any>('/customer/coupons/use', {
+    method: 'POST',
+    body: JSON.stringify({ code, orderId }),
+    headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
   });
 
 // Payment

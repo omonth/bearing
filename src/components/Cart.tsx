@@ -1,4 +1,7 @@
+import { useEffect, useState } from 'react';
 import { useCheckoutStore } from '@/store/checkoutStore';
+import { useAuthStore } from '@/store/authStore';
+import { getCustomerCoupons } from '@/lib/api';
 import type { CartItem } from '@/types';
 
 interface CartProps {
@@ -13,9 +16,26 @@ export default function Cart({ items, onClose, onRemove, onUpdateQuantity, total
   const {
     customerName, customerPhone, province, city, district, addressDetail,
     paymentMethod, checkoutStep, paymentInfo, submitting, paymentStatus,
-    setField, setProvince, setPaymentMethod, setCheckoutStep,
+    selectedCoupon,
+    setField, setProvince, setPaymentMethod, setCheckoutStep, setSelectedCoupon,
     submitOrder, resetCheckout, getCities, getAllProvinces,
   } = useCheckoutStore();
+
+  const { token } = useAuthStore();
+  const [coupons, setCoupons] = useState<any[]>([]);
+  const [couponsLoaded, setCouponsLoaded] = useState(false);
+
+  useEffect(() => {
+    if (checkoutStep === 'form' && token && !couponsLoaded) {
+      getCustomerCoupons().then(data => {
+        setCoupons(data || []);
+        setCouponsLoaded(true);
+      }).catch(() => setCouponsLoaded(true));
+    }
+    if (checkoutStep !== 'form') {
+      setCouponsLoaded(false);
+    }
+  }, [checkoutStep, token, couponsLoaded]);
 
   const cities = getCities();
 
@@ -170,6 +190,25 @@ export default function Cart({ items, onClose, onRemove, onUpdateQuantity, total
                 ))}
               </div>
             </div>
+            {token && coupons.length > 0 && (
+              <div className="form-group">
+                <label>优惠券</label>
+                <select
+                  value={selectedCoupon}
+                  onChange={(e) => setSelectedCoupon(e.target.value)}
+                  style={{ width: '100%', padding: '10px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14 }}
+                >
+                  <option value="">不使用优惠券</option>
+                  {coupons.map((c: any) => (
+                    <option key={c.id} value={c.code}>
+                      {c.coupon_name || c.code}
+                      ({c.type === 'fixed' ? `¥${c.discount_value}` : `${c.discount_value}%`}
+                      {c.min_order_amount > 0 ? ` 满¥${c.min_order_amount}` : ''})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="checkout-actions">
               <button className="back-btn" onClick={() => setCheckoutStep('cart')}>返回购物车</button>
               <button className="checkout-btn" onClick={handleCheckout} disabled={submitting}>
