@@ -21,6 +21,22 @@ function initDatabase() {
       type: 'postgres',
       pool,
 
+      dateTrunc: (granularity, column) => `date_trunc('${granularity}', ${column})`,
+      dateFormat: (period, column) => {
+        switch (period) {
+          case 'hour': return `TO_CHAR(${column}, 'HH24:00')`;
+          case 'week': return `TO_CHAR(${column}, 'IYYY-IW')`;
+          case 'month': return `TO_CHAR(${column}, 'YYYY-MM')`;
+          default: return `TO_CHAR(${column}, 'YYYY-MM-DD')`;
+        }
+      },
+      dateInterval: (offset) => {
+        const match = offset.match(/^-\s*(\d+)\s*(\w+)$/);
+        if (match) return `NOW() - INTERVAL '${match[1]} ${match[2]}'`;
+        return `NOW() - INTERVAL '${offset}'`;
+      },
+      dateNow: () => 'NOW()',
+
       query: async (sql, params = []) => {
         try {
           const pgSql = convertPlaceholders(sql);
@@ -104,6 +120,18 @@ function initDatabase() {
     db = {
       type: 'sqlite',
       sqlite: sqliteDb,
+
+      dateTrunc: (granularity, column) => granularity === 'day' ? `date(${column})` : `date(${column})`,
+      dateFormat: (period, column) => {
+        switch (period) {
+          case 'hour': return `strftime('%H:00', ${column})`;
+          case 'week': return `strftime('%Y-W%W', ${column})`;
+          case 'month': return `strftime('%Y-%m', ${column})`;
+          default: return `strftime('%Y-%m-%d', ${column})`;
+        }
+      },
+      dateInterval: (offset) => `datetime('now', '${offset}')`,
+      dateNow: () => "datetime('now')",
 
       query: (sql, params = []) => {
         return new Promise((resolve, reject) => {

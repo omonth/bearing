@@ -122,9 +122,7 @@ class AIService {
     if (!product) throw new Error('产品不存在');
 
     // Get historical sales data
-    const interval90 = this.db.type === 'postgres'
-      ? "CURRENT_TIMESTAMP - INTERVAL '90 days'"
-      : "datetime('now', '-90 days')";
+    const interval90 = this.db.dateInterval('-90 days');
     const salesHistory = await this.db.all(`
       SELECT
         DATE(o.created_at) as date,
@@ -275,9 +273,7 @@ class AIService {
 
   async forecastSales(days = 30) {
     // Get historical daily sales
-    const interval90 = this.db.type === 'postgres'
-      ? "CURRENT_TIMESTAMP - INTERVAL '90 days'"
-      : "datetime('now', '-90 days')";
+    const interval90 = this.db.dateInterval('-90 days');
     const salesHistory = await this.db.all(`
       SELECT
         DATE(created_at) as date,

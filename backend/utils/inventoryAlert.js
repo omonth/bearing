@@ -18,9 +18,7 @@ class InventoryAlert {
   }
 
   async getInventoryTurnover() {
-    const interval = this.db.type === 'postgres'
-      ? "CURRENT_TIMESTAMP - INTERVAL '30 days'"
-      : "datetime('now', '-30 days')";
+    const interval = this.db.dateInterval('-30 days');
 
     return await this.db.all(`
       SELECT
@@ -43,9 +41,7 @@ class InventoryAlert {
   }
 
   async getSalesTrend(productId, days = 30) {
-    const interval = this.db.type === 'postgres'
-      ? `CURRENT_TIMESTAMP - INTERVAL '${days} days'`
-      : `datetime('now', '-${days} days')`;
+    const interval = this.db.dateInterval(`-${days} days`);
 
     return await this.db.all(`
       SELECT
@@ -63,9 +59,7 @@ class InventoryAlert {
   }
 
   async getRestockSuggestions() {
-    const interval = this.db.type === 'postgres'
-      ? "CURRENT_TIMESTAMP - INTERVAL '30 days'"
-      : "datetime('now', '-30 days')";
+    const interval = this.db.dateInterval('-30 days');
 
     return await this.db.all(`
       SELECT

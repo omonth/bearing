@@ -61,9 +61,7 @@ class RecommendationEngine {
   }
 
   async getHotProducts(limit = 10, days = 30) {
-    const interval = this.db.type === 'postgres'
-      ? `CURRENT_TIMESTAMP - INTERVAL '${days} days'`
-      : `datetime('now', '-${days} days')`;
+    const interval = this.db.dateInterval(`-${days} days`);
 
     const rows = await this.db.all(`
       SELECT

@@ -6,34 +6,10 @@ class Analytics {
   }
 
   async getSalesTrend(period = 'day', days = 30) {
-    let dateFormat;
-    if (this.db.type === 'postgres') {
-      switch (period) {
-        case 'week':
-          dateFormat = "TO_CHAR(o.created_at, 'IYYY-IW')";
-          break;
-        case 'month':
-          dateFormat = "TO_CHAR(o.created_at, 'YYYY-MM')";
-          break;
-        default:
-          dateFormat = "DATE(o.created_at)";
-      }
-    } else {
-      switch (period) {
-        case 'week':
-          dateFormat = "strftime('%Y-W%W', o.created_at)";
-          break;
-        case 'month':
-          dateFormat = "strftime('%Y-%m', o.created_at)";
-          break;
-        default:
-          dateFormat = "DATE(o.created_at)";
-      }
-    }
-
-    const interval = this.db.type === 'postgres'
-      ? `CURRENT_TIMESTAMP - INTERVAL '${days} days'`
-      : `datetime('now', '-${days} days')`;
+    const dateFormat = period === 'day'
+      ? this.db.dateTrunc('day', 'o.created_at')
+      : this.db.dateFormat(period, 'o.created_at');
+    const interval = this.db.dateInterval(`-${days} days`);
 
     const query = `
       SELECT
@@ -53,9 +29,7 @@ class Analytics {
   }
 
   async getTopSellingProducts(limit = 10, days = 30) {
-    const interval = this.db.type === 'postgres'
-      ? `CURRENT_TIMESTAMP - INTERVAL '${days} days'`
-      : `datetime('now', '-${days} days')`;
+    const interval = this.db.dateInterval(`-${days} days`);
 
     return await this.db.all(`
       SELECT
@@ -79,9 +53,7 @@ class Analytics {
   }
 
   async getCategorySales(days = 30) {
-    const interval = this.db.type === 'postgres'
-      ? `CURRENT_TIMESTAMP - INTERVAL '${days} days'`
-      : `datetime('now', '-${days} days')`;
+    const interval = this.db.dateInterval(`-${days} days`);
 
     return await this.db.all(`
       SELECT
@@ -114,9 +86,7 @@ class Analytics {
   }
 
   async getRevenueStats(days = 30) {
-    const interval = this.db.type === 'postgres'
-      ? `CURRENT_TIMESTAMP - INTERVAL '${days} days'`
-      : `datetime('now', '-${days} days')`;
+    const interval = this.db.dateInterval(`-${days} days`);
 
     return await this.db.get(`
       SELECT
@@ -132,16 +102,8 @@ class Analytics {
   }
 
   async getRealtimeSales() {
-    let hourFormat;
-    if (this.db.type === 'postgres') {
-      hourFormat = "TO_CHAR(o.created_at, 'HH24:00')";
-    } else {
-      hourFormat = "strftime('%H:00', o.created_at)";
-    }
-
-    const interval = this.db.type === 'postgres'
-      ? "CURRENT_TIMESTAMP - INTERVAL '24 hours'"
-      : "datetime('now', '-24 hours')";
+    const hourFormat = this.db.dateFormat('hour', 'o.created_at');
+    const interval = this.db.dateInterval('-24 hours');
 
     return await this.db.all(`
       SELECT
