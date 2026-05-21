@@ -5,35 +5,11 @@ const logger = require('../logger');
 module.exports = function(db) {
   const { verifyToken, requireAdmin } = require('../middleware/auth');
 
-  const runAsync = (sql, params = []) =>
-    new Promise((resolve, reject) => {
-      db.run(sql, params, function(err) {
-        if (err) reject(err);
-        else resolve({ lastID: this.lastID, changes: this.changes });
-      });
-    });
-
-  const getAsync = (sql, params = []) =>
-    new Promise((resolve, reject) => {
-      db.get(sql, params, (err, row) => {
-        if (err) reject(err);
-        else resolve(row);
-      });
-    });
-
-  const allAsync = (sql, params = []) =>
-    new Promise((resolve, reject) => {
-      db.all(sql, params, (err, rows) => {
-        if (err) reject(err);
-        else resolve(rows);
-      });
-    });
-
   // Initialize CRM tables
   async function initCRMTables() {
     const tables = [
       `CREATE TABLE IF NOT EXISTS customers (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         name VARCHAR(100) NOT NULL,
         phone VARCHAR(20) UNIQUE NOT NULL,
         email VARCHAR(100),
@@ -47,31 +23,31 @@ module.exports = function(db) {
         notes TEXT,
         status VARCHAR(20) DEFAULT 'active',
         birthday DATE,
-        last_purchase_at DATETIME,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        last_purchase_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`,
       `CREATE TABLE IF NOT EXISTS customer_levels (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         level VARCHAR(20) UNIQUE NOT NULL,
         name VARCHAR(50) NOT NULL,
         min_points INTEGER NOT NULL,
         discount_rate DECIMAL(5,2) DEFAULT 0,
         perks TEXT DEFAULT '[]',
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`,
       `CREATE TABLE IF NOT EXISTS points_records (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         customer_id INTEGER NOT NULL,
         points INTEGER NOT NULL,
         type VARCHAR(50) NOT NULL,
         reason TEXT,
         order_id INTEGER,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (customer_id) REFERENCES customers(id)
       )`,
       `CREATE TABLE IF NOT EXISTS coupons (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         code VARCHAR(50) UNIQUE NOT NULL,
         name VARCHAR(100) NOT NULL,
         type VARCHAR(20) NOT NULL,
@@ -82,49 +58,49 @@ module.exports = function(db) {
         valid_from DATE,
         valid_until DATE,
         status VARCHAR(20) DEFAULT 'active',
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`,
       `CREATE TABLE IF NOT EXISTS customer_coupons (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         customer_id INTEGER NOT NULL,
         coupon_id INTEGER NOT NULL,
         status VARCHAR(20) DEFAULT 'unused',
         used_order_id INTEGER,
-        used_at DATETIME,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        used_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (customer_id) REFERENCES customers(id),
         FOREIGN KEY (coupon_id) REFERENCES coupons(id)
       )`,
       `CREATE TABLE IF NOT EXISTS customer_tags (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         name VARCHAR(50) UNIQUE NOT NULL,
         color VARCHAR(7) DEFAULT '#1890ff',
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`,
       `CREATE TABLE IF NOT EXISTS customer_interactions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         customer_id INTEGER NOT NULL,
         type VARCHAR(50) NOT NULL,
         content TEXT,
         employee VARCHAR(50),
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (customer_id) REFERENCES customers(id)
       )`,
       `CREATE TABLE IF NOT EXISTS customer_feedback (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         customer_id INTEGER NOT NULL,
         order_id INTEGER,
         rating INTEGER CHECK(rating >= 1 AND rating <= 5),
         content TEXT,
         reply TEXT,
         status VARCHAR(20) DEFAULT 'pending',
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (customer_id) REFERENCES customers(id)
       )`
     ];
 
     for (const sql of tables) {
-      try { await runAsync(sql); } catch (e) { /* ignore */ }
+      try { await db.run(sql); } catch (e) { /* ignore */ }
     }
 
     // Seed customer levels
@@ -138,8 +114,10 @@ module.exports = function(db) {
 
     for (const [level, name, minPoints, discount, perks] of levels) {
       try {
-        await runAsync(
-          `INSERT OR IGNORE INTO customer_levels (level, name, min_points, discount_rate, perks) VALUES (?, ?, ?, ?, ?)`,
+        await db.run(
+          `INSERT INTO customer_levels (level, name, min_points, discount_rate, perks)
+           VALUES (?, ?, ?, ?, ?)
+           ON CONFLICT (level) DO NOTHING`,
           [level, name, minPoints, discount, perks]
         );
       } catch (e) { /* ignore duplicates */ }
@@ -167,7 +145,7 @@ module.exports = function(db) {
       params.push(parseInt(pageSize), offset);
       query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
 
-      const rows = await allAsync(query, params);
+      const rows = await db.all(query, params);
 
       // Parse tags
       const customers = rows.map(r => ({ ...r, tags: JSON.parse(r.tags || '[]') }));
@@ -182,16 +160,16 @@ module.exports = function(db) {
   // Get customer detail
   router.get('/customers/:id', verifyToken, requireAdmin, async (req, res) => {
     try {
-      const customer = await getAsync('SELECT * FROM customers WHERE id = ?', [req.params.id]);
+      const customer = await db.get('SELECT * FROM customers WHERE id = ?', [req.params.id]);
       if (!customer) return res.status(404).json({ error: '客户不存在' });
 
       customer.tags = JSON.parse(customer.tags || '[]');
 
       // Get customer stats
       const [orders, interactions, coupons] = await Promise.all([
-        allAsync('SELECT * FROM orders WHERE customer_phone = ? ORDER BY created_at DESC LIMIT 10', [customer.phone]),
-        allAsync('SELECT * FROM customer_interactions WHERE customer_id = ? ORDER BY created_at DESC LIMIT 20', [customer.id]),
-        allAsync(`
+        db.all('SELECT * FROM orders WHERE customer_phone = ? ORDER BY created_at DESC LIMIT 10', [customer.phone]),
+        db.all('SELECT * FROM customer_interactions WHERE customer_id = ? ORDER BY created_at DESC LIMIT 20', [customer.id]),
+        db.all(`
           SELECT cc.*, c.name as coupon_name, c.type as coupon_type, c.discount_value
           FROM customer_coupons cc
           JOIN coupons c ON cc.coupon_id = c.id
@@ -213,7 +191,7 @@ module.exports = function(db) {
       const { name, phone, email, company, address, birthday, notes } = req.body;
       if (!name || !phone) return res.status(400).json({ error: '姓名和电话不能为空' });
 
-      const result = await runAsync(
+      const result = await db.run(
         `INSERT INTO customers (name, phone, email, company, address, birthday, notes)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [name, phone, email || null, company || null, address || null, birthday || null, notes || null]
@@ -251,7 +229,7 @@ module.exports = function(db) {
       updates.push('updated_at = CURRENT_TIMESTAMP');
       params.push(req.params.id);
 
-      await runAsync(`UPDATE customers SET ${updates.join(', ')} WHERE id = ?`, params);
+      await db.run(`UPDATE customers SET ${updates.join(', ')} WHERE id = ?`, params);
 
       logger.info('客户信息更新成功', { id: req.params.id });
       res.json({ message: '客户信息更新成功' });
@@ -266,11 +244,11 @@ module.exports = function(db) {
   // Get points records for customer
   router.get('/customers/:id/points', verifyToken, requireAdmin, async (req, res) => {
     try {
-      const rows = await allAsync(
+      const rows = await db.all(
         'SELECT * FROM points_records WHERE customer_id = ? ORDER BY created_at DESC LIMIT 100',
         [req.params.id]
       );
-      const total = await getAsync(
+      const total = await db.get(
         'SELECT SUM(points) as total FROM points_records WHERE customer_id = ?',
         [req.params.id]
       );
@@ -287,21 +265,21 @@ module.exports = function(db) {
       const { points, type, reason, orderId } = req.body;
       if (!points || !type) return res.status(400).json({ error: '积分和类型不能为空' });
 
-      await runAsync(
+      await db.run(
         'INSERT INTO points_records (customer_id, points, type, reason, order_id) VALUES (?, ?, ?, ?, ?)',
         [req.params.id, points, type, reason || null, orderId || null]
       );
-      await runAsync('UPDATE customers SET points = points + ? WHERE id = ?', [points, req.params.id]);
+      await db.run('UPDATE customers SET points = points + ? WHERE id = ?', [points, req.params.id]);
 
       // Auto-upgrade level
-      const customer = await getAsync('SELECT points FROM customers WHERE id = ?', [req.params.id]);
+      const customer = await db.get('SELECT points FROM customers WHERE id = ?', [req.params.id]);
       if (customer) {
-        const newLevel = await getAsync(
+        const newLevel = await db.get(
           'SELECT level FROM customer_levels WHERE min_points <= ? ORDER BY min_points DESC LIMIT 1',
           [customer.points]
         );
         if (newLevel) {
-          await runAsync('UPDATE customers SET level = ? WHERE id = ?', [newLevel.level, req.params.id]);
+          await db.run('UPDATE customers SET level = ? WHERE id = ?', [newLevel.level, req.params.id]);
         }
       }
 
@@ -317,16 +295,16 @@ module.exports = function(db) {
   router.post('/customers/:id/points/deduct', verifyToken, requireAdmin, async (req, res) => {
     try {
       const { points, reason } = req.body;
-      const customer = await getAsync('SELECT points FROM customers WHERE id = ?', [req.params.id]);
+      const customer = await db.get('SELECT points FROM customers WHERE id = ?', [req.params.id]);
       if (!customer || customer.points < points) {
         return res.status(400).json({ error: '积分不足' });
       }
 
-      await runAsync(
+      await db.run(
         'INSERT INTO points_records (customer_id, points, type, reason) VALUES (?, ?, ?, ?)',
         [req.params.id, -points, 'deduct', reason || '扣减']
       );
-      await runAsync('UPDATE customers SET points = points - ? WHERE id = ?', [points, req.params.id]);
+      await db.run('UPDATE customers SET points = points - ? WHERE id = ?', [points, req.params.id]);
       res.json({ message: '积分扣减成功' });
     } catch (error) {
       logger.error('扣减积分失败', { error: error.message });
@@ -345,7 +323,7 @@ module.exports = function(db) {
       if (status) { query += ' AND status = ?'; params.push(status); }
       query += ' ORDER BY created_at DESC';
 
-      const rows = await allAsync(query, params);
+      const rows = await db.all(query, params);
       res.json(rows);
     } catch (error) {
       logger.error('获取优惠券列表失败', { error: error.message });
@@ -358,7 +336,7 @@ module.exports = function(db) {
     try {
       const { code, name, type, discountValue, minOrderAmount, totalQuantity, validFrom, validUntil } = req.body;
 
-      const result = await runAsync(
+      const result = await db.run(
         `INSERT INTO coupons (code, name, type, discount_value, min_order_amount, total_quantity, valid_from, valid_until)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [code, name, type, discountValue || 0, minOrderAmount || 0, totalQuantity || 1000, validFrom, validUntil]
@@ -384,7 +362,7 @@ module.exports = function(db) {
       }
 
       for (const customerId of customerIds) {
-        await runAsync(
+        await db.run(
           'INSERT INTO customer_coupons (customer_id, coupon_id) VALUES (?, ?)',
           [customerId, req.params.id]
         );
@@ -406,10 +384,10 @@ module.exports = function(db) {
         return res.status(400).json({ error: '缺少参数' });
       }
 
-      const coupon = await getAsync('SELECT * FROM coupons WHERE code = ? AND status = ?', [code, 'active']);
+      const coupon = await db.get('SELECT * FROM coupons WHERE code = ? AND status = ?', [code, 'active']);
       if (!coupon) return res.status(400).json({ error: '优惠券不存在或已失效' });
 
-      const customerCoupon = await getAsync(
+      const customerCoupon = await db.get(
         'SELECT * FROM customer_coupons WHERE customer_id = ? AND coupon_id = ? AND status = ?',
         [customerId, coupon.id, 'unused']
       );
@@ -424,17 +402,17 @@ module.exports = function(db) {
       if (coupon.type === 'fixed') {
         discountAmount = coupon.discount_value;
       } else if (coupon.type === 'percentage') {
-        const order = await getAsync('SELECT total_price FROM orders WHERE id = ?', [orderId]);
+        const order = await db.get('SELECT total_price FROM orders WHERE id = ?', [orderId]);
         if (order) {
           discountAmount = order.total_price * (coupon.discount_value / 100);
         }
       }
 
-      await runAsync(
+      await db.run(
         'UPDATE customer_coupons SET status = ?, used_order_id = ?, used_at = CURRENT_TIMESTAMP WHERE id = ?',
         ['used', orderId, customerCoupon.id]
       );
-      await runAsync('UPDATE coupons SET used_quantity = used_quantity + 1 WHERE id = ?', [coupon.id]);
+      await db.run('UPDATE coupons SET used_quantity = used_quantity + 1 WHERE id = ?', [coupon.id]);
 
       logger.info('优惠券使用成功', { code, customerId, orderId, discountAmount });
       res.json({ message: '优惠券使用成功', discountAmount: Math.round(discountAmount * 100) / 100 });
@@ -450,7 +428,7 @@ module.exports = function(db) {
   router.post('/interactions', verifyToken, requireAdmin, async (req, res) => {
     try {
       const { customerId, type, content, employee } = req.body;
-      const result = await runAsync(
+      const result = await db.run(
         'INSERT INTO customer_interactions (customer_id, type, content, employee) VALUES (?, ?, ?, ?)',
         [customerId, type, content, employee || req.user?.username]
       );
@@ -477,7 +455,7 @@ module.exports = function(db) {
       if (status) { query += ' AND cf.status = ?'; params.push(status); }
       query += ' ORDER BY cf.created_at DESC';
 
-      const rows = await allAsync(query, params);
+      const rows = await db.all(query, params);
       res.json(rows);
     } catch (error) {
       logger.error('获取反馈列表失败', { error: error.message });
@@ -489,7 +467,7 @@ module.exports = function(db) {
   router.put('/feedback/:id/reply', verifyToken, requireAdmin, async (req, res) => {
     try {
       const { reply } = req.body;
-      await runAsync(
+      await db.run(
         'UPDATE customer_feedback SET reply = ?, status = ? WHERE id = ?',
         [reply, 'replied', req.params.id]
       );
@@ -506,10 +484,10 @@ module.exports = function(db) {
   router.get('/dashboard', verifyToken, requireAdmin, async (req, res) => {
     try {
       const [totalCustomers, levelDistribution, pointsSummary, couponStats] = await Promise.all([
-        getAsync('SELECT COUNT(*) as total FROM customers'),
-        allAsync('SELECT level, COUNT(*) as count FROM customers GROUP BY level'),
-        getAsync('SELECT SUM(points) as totalPoints FROM customers'),
-        getAsync(`
+        db.get('SELECT COUNT(*) as total FROM customers'),
+        db.all('SELECT level, COUNT(*) as count FROM customers GROUP BY level'),
+        db.get('SELECT SUM(points) as totalPoints FROM customers'),
+        db.get(`
           SELECT
             COUNT(*) as totalCoupons,
             SUM(used_quantity) as usedCoupons,
@@ -533,7 +511,7 @@ module.exports = function(db) {
   // Customer levels config
   router.get('/levels', async (req, res) => {
     try {
-      const levels = await allAsync('SELECT * FROM customer_levels ORDER BY min_points ASC');
+      const levels = await db.all('SELECT * FROM customer_levels ORDER BY min_points ASC');
       res.json(levels.map(l => ({ ...l, perks: JSON.parse(l.perks || '[]') })));
     } catch (error) {
       res.status(500).json({ error: error.message });

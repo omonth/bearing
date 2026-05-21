@@ -5,24 +5,6 @@ class AIService {
     this.db = db;
   }
 
-  getAsync(sql, params = []) {
-    return new Promise((resolve, reject) => {
-      this.db.get(sql, params, (err, row) => {
-        if (err) reject(err);
-        else resolve(row);
-      });
-    });
-  }
-
-  allAsync(sql, params = []) {
-    return new Promise((resolve, reject) => {
-      this.db.all(sql, params, (err, rows) => {
-        if (err) reject(err);
-        else resolve(rows);
-      });
-    });
-  }
-
   // ==================== Smart Chatbot ====================
 
   async chat(message, context = {}) {
@@ -34,7 +16,7 @@ class AIService {
 
     // Product inquiry patterns
     if (msg.includes('产品') || msg.includes('轴承') || msg.includes('型号') || msg.includes('推荐')) {
-      const products = await this.allAsync('SELECT id, name, model, price, category, stock FROM bearings LIMIT 10');
+      const products = await this.db.all('SELECT id, name, model, price, category, stock FROM bearings LIMIT 10');
       const productList = products.map(p =>
         `${p.name} (${p.model}) - ¥${p.price} [库存:${p.stock}]`
       ).join('\n');
@@ -45,7 +27,7 @@ class AIService {
     // Order inquiry
     else if (msg.includes('订单') || msg.includes('物流') || msg.includes('发货')) {
       if (context.orderId) {
-        const order = await this.getAsync('SELECT * FROM orders WHERE id = ?', [context.orderId]);
+        const order = await this.db.get('SELECT * FROM orders WHERE id = ?', [context.orderId]);
         if (order) {
           const statusMap = { pending: '待处理', paid: '已支付', shipped: '已发货', completed: '已完成', cancelled: '已取消' };
           response = `订单 #${order.id} 状态：${statusMap[order.status] || order.status}\n收货人：${order.customer_name}\n金额：¥${order.total_price}\n时间：${order.created_at}`;
@@ -61,7 +43,7 @@ class AIService {
     }
     // Phone order lookup
     else if (/^1[3-9]\d{9}$/.test(msg.trim())) {
-      const orders = await this.allAsync(
+      const orders = await this.db.all(
         'SELECT id, status, total_price, created_at FROM orders WHERE customer_phone = ? ORDER BY created_at DESC LIMIT 5',
         [msg.trim()]
       );
@@ -76,7 +58,7 @@ class AIService {
     }
     // Price inquiry
     else if (msg.includes('价格') || msg.includes('多少钱') || msg.includes('优惠') || msg.includes('折扣')) {
-      const priceRange = await this.getAsync(
+      const priceRange = await this.db.get(
         'SELECT MIN(price) as minPrice, MAX(price) as maxPrice, AVG(price) as avgPrice FROM bearings'
       );
       response = `我们轴承产品的价格范围：¥${priceRange.minPrice} - ¥${priceRange.maxPrice}\n平均价格：¥${Math.round(priceRange.avgPrice * 100) / 100}\n\n目前有会员折扣和优惠券活动，最高可享20%折扣！`;
@@ -85,9 +67,9 @@ class AIService {
     // Stock inquiry
     else if (msg.includes('库存') || msg.includes('有货') || msg.includes('缺货')) {
       const [inStock, lowStock, outOfStock] = await Promise.all([
-        this.getAsync('SELECT COUNT(*) as count FROM bearings WHERE stock > 5'),
-        this.getAsync('SELECT COUNT(*) as count FROM bearings WHERE stock > 0 AND stock <= 5'),
-        this.getAsync('SELECT COUNT(*) as count FROM bearings WHERE stock = 0')
+        this.db.get('SELECT COUNT(*) as count FROM bearings WHERE stock > 5'),
+        this.db.get('SELECT COUNT(*) as count FROM bearings WHERE stock > 0 AND stock <= 5'),
+        this.db.get('SELECT COUNT(*) as count FROM bearings WHERE stock = 0')
       ]);
       response = `库存概况：\n充足库存：${inStock.count}种\n低库存：${lowStock.count}种\n缺货：${outOfStock.count}种\n\n需要查看具体哪些产品呢？`;
     }
@@ -136,17 +118,20 @@ class AIService {
   // ==================== Demand Prediction ====================
 
   async predictDemand(productId, days = 30) {
-    const product = await this.getAsync('SELECT * FROM bearings WHERE id = ?', [productId]);
+    const product = await this.db.get('SELECT * FROM bearings WHERE id = ?', [productId]);
     if (!product) throw new Error('产品不存在');
 
     // Get historical sales data
-    const salesHistory = await this.allAsync(`
+    const interval90 = this.db.type === 'postgres'
+      ? "CURRENT_TIMESTAMP - INTERVAL '90 days'"
+      : "datetime('now', '-90 days')";
+    const salesHistory = await this.db.all(`
       SELECT
         DATE(o.created_at) as date,
         SUM(oi.quantity) as quantity
       FROM order_items oi
       JOIN orders o ON oi.order_id = o.id
-      WHERE oi.bearing_id = ? AND o.created_at >= DATE('now', '-90 days')
+      WHERE oi.bearing_id = ? AND o.created_at >= ${interval90}
       GROUP BY DATE(o.created_at)
       ORDER BY date
     `, [productId]);
@@ -190,7 +175,7 @@ class AIService {
   }
 
   async predictAllDemand() {
-    const products = await this.allAsync('SELECT id FROM bearings');
+    const products = await this.db.all('SELECT id FROM bearings');
     const predictions = [];
 
     for (const p of products) {
@@ -211,7 +196,7 @@ class AIService {
     let customerContext = {};
 
     if (customerPhone) {
-      const orders = await this.allAsync(`
+      const orders = await this.db.all(`
         SELECT oi.bearing_id, b.category, b.name
         FROM order_items oi
         JOIN orders o ON oi.order_id = o.id
@@ -251,7 +236,7 @@ class AIService {
     }
 
     // Also get hot products as fallback
-    const hotProducts = await this.allAsync(`
+    const hotProducts = await this.db.all(`
       SELECT b.*, COUNT(oi.id) as order_count
       FROM bearings b
       LEFT JOIN order_items oi ON b.id = oi.bearing_id
@@ -260,7 +245,7 @@ class AIService {
       LIMIT ?
     `, [limit]);
 
-    const recommended = await this.allAsync(query + ' LIMIT ?', [...params, limit]);
+    const recommended = await this.db.all(query + ' LIMIT ?', [...params, limit]);
 
     const combined = [...recommended];
     // Fill with hot products if not enough
@@ -290,13 +275,16 @@ class AIService {
 
   async forecastSales(days = 30) {
     // Get historical daily sales
-    const salesHistory = await this.allAsync(`
+    const interval90 = this.db.type === 'postgres'
+      ? "CURRENT_TIMESTAMP - INTERVAL '90 days'"
+      : "datetime('now', '-90 days')";
+    const salesHistory = await this.db.all(`
       SELECT
         DATE(created_at) as date,
         SUM(total_price) as revenue,
         COUNT(*) as orderCount
       FROM orders
-      WHERE created_at >= DATE('now', '-90 days')
+      WHERE created_at >= ${interval90}
       GROUP BY DATE(created_at)
       ORDER BY date
     `);

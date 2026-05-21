@@ -6,6 +6,12 @@ const logger = require('../logger');
 let db;
 let dbType = process.env.DB_TYPE || 'sqlite';
 
+// 将 ? 占位符转换为 PostgreSQL 的 $1, $2, ... 格式
+function convertPlaceholders(sql) {
+  let index = 0;
+  return sql.replace(/\?/g, () => `$${++index}`);
+}
+
 // 初始化数据库连接
 function initDatabase() {
   if (dbType === 'postgres') {
@@ -17,7 +23,8 @@ function initDatabase() {
 
       query: async (sql, params = []) => {
         try {
-          const result = await pool.query(sql, params);
+          const pgSql = convertPlaceholders(sql);
+          const result = await pool.query(pgSql, params);
           return result.rows;
         } catch (error) {
           logger.error('PostgreSQL查询失败', { sql, error: error.message });
@@ -32,7 +39,8 @@ function initDatabase() {
 
       run: async (sql, params = []) => {
         try {
-          const result = await pool.query(sql, params);
+          const pgSql = convertPlaceholders(sql);
+          const result = await pool.query(pgSql, params);
           return {
             lastID: result.rows[0]?.id,
             changes: result.rowCount
@@ -45,6 +53,38 @@ function initDatabase() {
 
       all: async (sql, params = []) => {
         return await db.query(sql, params);
+      },
+
+      transaction: async (callback) => {
+        const client = await pool.connect();
+        try {
+          await client.query('BEGIN');
+          const tx = {
+            get: async (sql, params = []) => {
+              const pgSql = convertPlaceholders(sql);
+              const result = await client.query(pgSql, params);
+              return result.rows[0] || null;
+            },
+            run: async (sql, params = []) => {
+              const pgSql = convertPlaceholders(sql);
+              const result = await client.query(pgSql, params);
+              return { lastID: result.rows[0]?.id, changes: result.rowCount };
+            },
+            all: async (sql, params = []) => {
+              const pgSql = convertPlaceholders(sql);
+              const result = await client.query(pgSql, params);
+              return result.rows;
+            }
+          };
+          const result = await callback(tx);
+          await client.query('COMMIT');
+          return result;
+        } catch (error) {
+          await client.query('ROLLBACK');
+          throw error;
+        } finally {
+          client.release();
+        }
       }
     };
 
@@ -92,6 +132,44 @@ function initDatabase() {
             else resolve(rows);
           });
         });
+      },
+
+      transaction: async (callback) => {
+        return new Promise((resolve, reject) => {
+          sqliteDb.serialize(async () => {
+            sqliteDb.run('BEGIN TRANSACTION');
+            try {
+              const result = await callback({
+                run: (sql, params = []) => new Promise((res, rej) => {
+                  sqliteDb.run(sql, params, function(err) {
+                    if (err) rej(err);
+                    else res({ lastID: this.lastID, changes: this.changes });
+                  });
+                }),
+                get: (sql, params = []) => new Promise((res, rej) => {
+                  sqliteDb.get(sql, params, (err, row) => {
+                    if (err) rej(err);
+                    else res(row || null);
+                  });
+                }),
+                all: (sql, params = []) => new Promise((res, rej) => {
+                  sqliteDb.all(sql, params, (err, rows) => {
+                    if (err) rej(err);
+                    else res(rows);
+                  });
+                })
+              });
+              sqliteDb.run('COMMIT', (err) => {
+                if (err) reject(err);
+                else resolve(result);
+              });
+            } catch (error) {
+              sqliteDb.run('ROLLBACK', () => {
+                reject(error);
+              });
+            }
+          });
+        });
       }
     };
 
@@ -124,5 +202,6 @@ async function closeDatabase() {
 module.exports = {
   initDatabase,
   getDatabase,
-  closeDatabase
+  closeDatabase,
+  convertPlaceholders
 };

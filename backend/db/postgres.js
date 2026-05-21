@@ -1,5 +1,5 @@
 const { Pool } = require('pg');
-const logger = require('./logger');
+const logger = require('../logger');
 
 // 数据库配置
 const dbConfig = {

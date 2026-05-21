@@ -199,24 +199,6 @@ const schemaSDL = `
 function createGraphQLMiddleware(services) {
   const { db, analytics, recommendationEngine, paymentService, aiService } = services;
 
-  const runAsync = (sql, params = []) =>
-    new Promise((resolve, reject) => {
-      db.run(sql, params, function(err) {
-        if (err) reject(err);
-        else resolve({ lastID: this.lastID, changes: this.changes });
-      });
-    });
-
-  const getAsync = (sql, params = []) =>
-    new Promise((resolve, reject) => {
-      db.get(sql, params, (err, row) => { if (err) reject(err); else resolve(row || null); });
-    });
-
-  const allAsync = (sql, params = []) =>
-    new Promise((resolve, reject) => {
-      db.all(sql, params, (err, rows) => { if (err) reject(err); else resolve(rows); });
-    });
-
   const rootValue = {
     // === Query ===
     bearings: async ({ category, search, limit, offset }) => {
@@ -227,15 +209,15 @@ function createGraphQLMiddleware(services) {
       query += ' ORDER BY id ASC';
       if (limit) { query += ' LIMIT ?'; params.push(limit); }
       if (offset) { query += ' OFFSET ?'; params.push(offset); }
-      const rows = await allAsync(query, params);
+      const rows = await db.all(query, params);
       return rows.map(r => ({ ...r, specs: { innerDiameter: r.inner_diameter, outerDiameter: r.outer_diameter, width: r.width } }));
     },
     bearing: async ({ id }) => {
-      const row = await getAsync('SELECT * FROM bearings WHERE id = ?', [id]);
+      const row = await db.get('SELECT * FROM bearings WHERE id = ?', [id]);
       return row ? { ...row, specs: { innerDiameter: row.inner_diameter, outerDiameter: row.outer_diameter, width: row.width } } : null;
     },
     categories: async () => {
-      const rows = await allAsync('SELECT DISTINCT category FROM bearings', []);
+      const rows = await db.all('SELECT DISTINCT category FROM bearings', []);
       return rows.map(r => r.category);
     },
     orders: async ({ status, limit, offset }) => {
@@ -245,9 +227,9 @@ function createGraphQLMiddleware(services) {
       query += ' ORDER BY created_at DESC';
       if (limit) { query += ' LIMIT ?'; params.push(limit); }
       if (offset) { query += ' OFFSET ?'; params.push(offset); }
-      const rows = await allAsync(query, params);
+      const rows = await db.all(query, params);
       return Promise.all(rows.map(async (o) => {
-        const items = await allAsync(
+        const items = await db.all(
           `SELECT oi.*, b.name, b.model, b.image FROM order_items oi JOIN bearings b ON oi.bearing_id = b.id WHERE oi.order_id = ?`,
           [o.id]
         );
@@ -268,9 +250,9 @@ function createGraphQLMiddleware(services) {
       }));
     },
     order: async ({ id }) => {
-      const o = await getAsync('SELECT * FROM orders WHERE id = ?', [id]);
+      const o = await db.get('SELECT * FROM orders WHERE id = ?', [id]);
       if (!o) return null;
-      const items = await allAsync(
+      const items = await db.all(
         `SELECT oi.*, b.name, b.model, b.image FROM order_items oi JOIN bearings b ON oi.bearing_id = b.id WHERE oi.order_id = ?`,
         [id]
       );
@@ -298,7 +280,7 @@ function createGraphQLMiddleware(services) {
       query += ' ORDER BY created_at DESC';
       if (limit) { query += ' LIMIT ?'; params.push(limit); }
       if (offset) { query += ' OFFSET ?'; params.push(offset); }
-      const rows = await allAsync(query, params);
+      const rows = await db.all(query, params);
       return rows.map(r => {
         let tags = [];
         try { tags = JSON.parse(r.tags || '[]'); } catch {}
@@ -306,7 +288,7 @@ function createGraphQLMiddleware(services) {
       });
     },
     customer: async ({ id }) => {
-      const row = await getAsync('SELECT * FROM customers WHERE id = ?', [id]);
+      const row = await db.get('SELECT * FROM customers WHERE id = ?', [id]);
       if (!row) return null;
       let tags = [];
       try { tags = JSON.parse(row.tags || '[]'); } catch {}
@@ -317,7 +299,7 @@ function createGraphQLMiddleware(services) {
       const params = [];
       if (status) { query += ' AND status = ?'; params.push(status); }
       query += ' ORDER BY created_at DESC';
-      return await allAsync(query, params);
+      return await db.all(query, params);
     },
     payments: async ({ status, paymentMethod }) => {
       let query = 'SELECT * FROM payment_orders WHERE 1=1';
@@ -325,9 +307,9 @@ function createGraphQLMiddleware(services) {
       if (status) { query += ' AND status = ?'; params.push(status); }
       if (paymentMethod) { query += ' AND payment_method = ?'; params.push(paymentMethod); }
       query += ' ORDER BY created_at DESC LIMIT 50';
-      return await allAsync(query, params);
+      return await db.all(query, params);
     },
-    payment: async ({ id }) => getAsync('SELECT * FROM payment_orders WHERE id = ?', [id]),
+    payment: async ({ id }) => db.get('SELECT * FROM payment_orders WHERE id = ?', [id]),
     dashboard: async () => {
       try {
         return await analytics.getDashboardSummary();
@@ -359,38 +341,27 @@ function createGraphQLMiddleware(services) {
 
     // === Mutation ===
     createOrder: async ({ customerName, customerPhone, province, city, district, addressDetail, items, totalPrice }) => {
-      return new Promise((resolve, reject) => {
-        db.serialize(() => {
-          db.run('BEGIN TRANSACTION');
-          db.run(
-            'INSERT INTO orders (customer_name, customer_phone, province, city, district, address_detail, total_price) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [customerName, customerPhone, province || '', city || '', district || '', addressDetail || '', totalPrice],
-            function(err) {
-              if (err) { db.run('ROLLBACK'); reject(err); return; }
-              const orderId = this.lastID;
-              let completed = 0;
-              items.forEach(item => {
-                db.run('INSERT INTO order_items (order_id, bearing_id, quantity, price) VALUES (?, ?, ?, ?)',
-                  [orderId, item.id, item.quantity, item.price],
-                  (err) => {
-                    if (err) { db.run('ROLLBACK'); reject(err); return; }
-                    db.run('UPDATE bearings SET stock = stock - ? WHERE id = ?', [item.quantity, item.id], (err) => {
-                      if (err) { db.run('ROLLBACK'); reject(err); return; }
-                      completed++;
-                      if (completed >= items.length) {
-                        db.run('COMMIT', (err) => {
-                          if (err) { db.run('ROLLBACK'); reject(err); }
-                          else resolve({ success: true, message: '订单创建成功', orderId });
-                        });
-                      }
-                    });
-                  }
-                );
-              });
-            }
+      const result = await db.transaction(async (tx) => {
+        const orderResult = await tx.run(
+          'INSERT INTO orders (customer_name, customer_phone, province, city, district, address_detail, total_price) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          [customerName, customerPhone, province || '', city || '', district || '', addressDetail || '', totalPrice]
+        );
+        const orderId = orderResult.lastID;
+
+        for (const item of items) {
+          await tx.run(
+            'INSERT INTO order_items (order_id, bearing_id, quantity, price) VALUES (?, ?, ?, ?)',
+            [orderId, item.id, item.quantity, item.price]
           );
-        });
+          await tx.run(
+            'UPDATE bearings SET stock = stock - ? WHERE id = ?',
+            [item.quantity, item.id]
+          );
+        }
+
+        return { orderId };
       });
+      return { success: true, message: '订单创建成功', orderId: result.orderId };
     },
     updateOrderStatus: async ({ orderId, status, trackingNumber, note }) => {
       let query = 'UPDATE orders SET status = ?';
@@ -399,23 +370,23 @@ function createGraphQLMiddleware(services) {
       if (status === 'completed') { query += ', completed_at = CURRENT_TIMESTAMP'; }
       query += ' WHERE id = ?';
       params.push(orderId);
-      await runAsync(query, params);
-      await runAsync('INSERT INTO order_status_history (order_id, new_status, note) VALUES (?, ?, ?)', [orderId, status, note || 'GraphQL']);
+      await db.run(query, params);
+      await db.run('INSERT INTO order_status_history (order_id, new_status, note) VALUES (?, ?, ?)', [orderId, status, note || 'GraphQL']);
       return { success: true, message: '订单状态已更新' };
     },
     addBearing: async (args) => {
-      const result = await runAsync(
+      const result = await db.run(
         `INSERT INTO bearings (name, model, price, category, inner_diameter, outer_diameter, width, stock, image, description) VALUES (?,?,?,?,?,?,?,?,?,?)`,
         [args.name, args.model, args.price, args.category, args.innerDiameter, args.outerDiameter, args.width, args.stock, args.image, args.description]
       );
       return { success: true, message: '产品添加成功', id: result.lastID };
     },
     deleteBearing: async ({ id }) => {
-      await runAsync('DELETE FROM bearings WHERE id = ?', [id]);
+      await db.run('DELETE FROM bearings WHERE id = ?', [id]);
       return { success: true, message: '产品删除成功' };
     },
     updateStock: async ({ id, stock }) => {
-      await runAsync('UPDATE bearings SET stock = ? WHERE id = ?', [stock, id]);
+      await db.run('UPDATE bearings SET stock = ? WHERE id = ?', [stock, id]);
       return { success: true, message: '库存更新成功' };
     },
     createPayment: async (args) => {
@@ -431,7 +402,7 @@ function createGraphQLMiddleware(services) {
       return { success: true, ...result };
     },
     createCustomer: async (args) => {
-      const result = await runAsync(
+      const result = await db.run(
         'INSERT INTO customers (name, phone, email, company, address) VALUES (?, ?, ?, ?, ?)',
         [args.name, args.phone, args.email, args.company, args.address]
       );
@@ -445,16 +416,16 @@ function createGraphQLMiddleware(services) {
       if (updates.length === 0) return { success: true, message: '没有要更新的字段' };
       updates.push('updated_at = CURRENT_TIMESTAMP');
       params.push(id);
-      await runAsync(`UPDATE customers SET ${updates.join(', ')} WHERE id = ?`, params);
+      await db.run(`UPDATE customers SET ${updates.join(', ')} WHERE id = ?`, params);
       return { success: true, message: '客户信息更新成功' };
     },
     addPoints: async ({ customerId, points, type, reason }) => {
-      await runAsync('INSERT INTO points_records (customer_id, points, type, reason) VALUES (?, ?, ?, ?)', [customerId, points, type, reason]);
-      await runAsync('UPDATE customers SET points = points + ? WHERE id = ?', [points, customerId]);
+      await db.run('INSERT INTO points_records (customer_id, points, type, reason) VALUES (?, ?, ?, ?)', [customerId, points, type, reason]);
+      await db.run('UPDATE customers SET points = points + ? WHERE id = ?', [points, customerId]);
       return { success: true, message: '积分添加成功' };
     },
     createCoupon: async (args) => {
-      const result = await runAsync(
+      const result = await db.run(
         `INSERT INTO coupons (code, name, type, discount_value, min_order_amount, total_quantity, valid_from, valid_until) VALUES (?,?,?,?,?,?,?,?)`,
         [args.code, args.name, args.type, args.discountValue || 0, args.minOrderAmount || 0, args.totalQuantity || 1000, args.validFrom, args.validUntil]
       );
@@ -462,18 +433,18 @@ function createGraphQLMiddleware(services) {
     },
     issueCoupon: async ({ couponId, customerIds }) => {
       for (const customerId of customerIds) {
-        await runAsync('INSERT INTO customer_coupons (customer_id, coupon_id) VALUES (?, ?)', [customerId, couponId]);
+        await db.run('INSERT INTO customer_coupons (customer_id, coupon_id) VALUES (?, ?)', [customerId, couponId]);
       }
       return { success: true, message: `成功发放给${customerIds.length}个客户` };
     },
     useCoupon: async ({ code, customerId, orderId }) => {
-      const coupon = await getAsync('SELECT * FROM coupons WHERE code = ? AND status = ?', [code, 'active']);
+      const coupon = await db.get('SELECT * FROM coupons WHERE code = ? AND status = ?', [code, 'active']);
       if (!coupon) throw new Error('优惠券不存在或已失效');
-      const cc = await getAsync('SELECT * FROM customer_coupons WHERE customer_id = ? AND coupon_id = ? AND status = ?', [customerId, coupon.id, 'unused']);
+      const cc = await db.get('SELECT * FROM customer_coupons WHERE customer_id = ? AND coupon_id = ? AND status = ?', [customerId, coupon.id, 'unused']);
       if (!cc) throw new Error('该客户没有此优惠券或已使用');
       const discountAmount = coupon.type === 'fixed' ? coupon.discount_value : 0;
-      await runAsync('UPDATE customer_coupons SET status = ?, used_order_id = ?, used_at = CURRENT_TIMESTAMP WHERE id = ?', ['used', orderId, cc.id]);
-      await runAsync('UPDATE coupons SET used_quantity = used_quantity + 1 WHERE id = ?', [coupon.id]);
+      await db.run('UPDATE customer_coupons SET status = ?, used_order_id = ?, used_at = CURRENT_TIMESTAMP WHERE id = ?', ['used', orderId, cc.id]);
+      await db.run('UPDATE coupons SET used_quantity = used_quantity + 1 WHERE id = ?', [coupon.id]);
       return { success: true, message: '优惠券使用成功', discountAmount };
     }
   };

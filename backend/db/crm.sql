@@ -1,8 +1,8 @@
--- CRM客户管理系统数据库表
+-- CRM客户管理系统数据库表 (PostgreSQL)
 
 -- 1. 客户表
 CREATE TABLE IF NOT EXISTS customers (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     phone VARCHAR(20) UNIQUE NOT NULL,
     email VARCHAR(255),
@@ -15,8 +15,8 @@ CREATE TABLE IF NOT EXISTS customers (
     tags TEXT,
     notes TEXT,
     status VARCHAR(20) DEFAULT 'active',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone);
@@ -25,7 +25,7 @@ CREATE INDEX IF NOT EXISTS idx_customers_status ON customers(status);
 
 -- 2. 客户等级配置表
 CREATE TABLE IF NOT EXISTS customer_levels (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     level VARCHAR(20) UNIQUE NOT NULL,
     name VARCHAR(50) NOT NULL,
     min_points INTEGER NOT NULL,
@@ -46,13 +46,13 @@ ON CONFLICT DO NOTHING;
 
 -- 3. 积分记录表
 CREATE TABLE IF NOT EXISTS points_records (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     customer_id INTEGER NOT NULL,
     points INTEGER NOT NULL,
     type VARCHAR(20) NOT NULL,
     reason VARCHAR(255),
     order_id INTEGER,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
 );
 
@@ -61,7 +61,7 @@ CREATE INDEX IF NOT EXISTS idx_points_date ON points_records(created_at);
 
 -- 4. 优惠券表
 CREATE TABLE IF NOT EXISTS coupons (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     code VARCHAR(50) UNIQUE NOT NULL,
     name VARCHAR(255) NOT NULL,
     type VARCHAR(20) NOT NULL,
@@ -70,10 +70,10 @@ CREATE TABLE IF NOT EXISTS coupons (
     max_discount DECIMAL(10, 2),
     total_quantity INTEGER,
     used_quantity INTEGER DEFAULT 0,
-    valid_from DATETIME,
-    valid_until DATETIME,
+    valid_from TIMESTAMP,
+    valid_until TIMESTAMP,
     status VARCHAR(20) DEFAULT 'active',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_coupons_code ON coupons(code);
@@ -81,13 +81,13 @@ CREATE INDEX IF NOT EXISTS idx_coupons_status ON coupons(status);
 
 -- 5. 客户优惠券关联表
 CREATE TABLE IF NOT EXISTS customer_coupons (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     customer_id INTEGER NOT NULL,
     coupon_id INTEGER NOT NULL,
     status VARCHAR(20) DEFAULT 'unused',
-    used_at DATETIME,
+    used_at TIMESTAMP,
     order_id INTEGER,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE,
     FOREIGN KEY (coupon_id) REFERENCES coupons(id) ON DELETE CASCADE
 );
@@ -97,11 +97,11 @@ CREATE INDEX IF NOT EXISTS idx_customer_coupons_status ON customer_coupons(statu
 
 -- 6. 客户标签表
 CREATE TABLE IF NOT EXISTS customer_tags (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     name VARCHAR(50) UNIQUE NOT NULL,
     color VARCHAR(20),
     description TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 插入默认标签
@@ -116,12 +116,12 @@ ON CONFLICT DO NOTHING;
 
 -- 7. 客户互动记录表
 CREATE TABLE IF NOT EXISTS customer_interactions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     customer_id INTEGER NOT NULL,
     type VARCHAR(20) NOT NULL,
     content TEXT,
     operator VARCHAR(100),
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
 );
 
@@ -130,15 +130,15 @@ CREATE INDEX IF NOT EXISTS idx_interactions_date ON customer_interactions(create
 
 -- 8. 客户反馈表
 CREATE TABLE IF NOT EXISTS customer_feedback (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     customer_id INTEGER NOT NULL,
     order_id INTEGER,
     rating INTEGER,
     content TEXT,
     reply TEXT,
     status VARCHAR(20) DEFAULT 'pending',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    replied_at DATETIME,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    replied_at TIMESTAMP,
     FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
 );
 

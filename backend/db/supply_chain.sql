@@ -1,8 +1,8 @@
--- 供应链管理数据库表
+-- 供应链管理数据库表 (PostgreSQL)
 
 -- 1. 供应商表
 CREATE TABLE IF NOT EXISTS suppliers (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     contact_person VARCHAR(100),
     phone VARCHAR(20),
@@ -13,8 +13,8 @@ CREATE TABLE IF NOT EXISTS suppliers (
     rating INTEGER DEFAULT 5,
     status VARCHAR(20) DEFAULT 'active',
     notes TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_suppliers_status ON suppliers(status);
@@ -22,17 +22,17 @@ CREATE INDEX IF NOT EXISTS idx_suppliers_rating ON suppliers(rating);
 
 -- 2. 采购订单表
 CREATE TABLE IF NOT EXISTS purchase_orders (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     order_number VARCHAR(50) UNIQUE NOT NULL,
     supplier_id INTEGER NOT NULL,
     total_amount DECIMAL(10, 2) NOT NULL,
     status VARCHAR(20) DEFAULT 'pending',
-    order_date DATETIME DEFAULT CURRENT_TIMESTAMP,
-    expected_date DATETIME,
-    received_date DATETIME,
+    order_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expected_date TIMESTAMP,
+    received_date TIMESTAMP,
     notes TEXT,
     created_by INTEGER,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
 );
 
@@ -42,7 +42,7 @@ CREATE INDEX IF NOT EXISTS idx_purchase_orders_date ON purchase_orders(order_dat
 
 -- 3. 采购订单明细表
 CREATE TABLE IF NOT EXISTS purchase_order_items (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     purchase_order_id INTEGER NOT NULL,
     bearing_id INTEGER NOT NULL,
     quantity INTEGER NOT NULL,
@@ -57,7 +57,7 @@ CREATE INDEX IF NOT EXISTS idx_purchase_order_items_bearing ON purchase_order_it
 
 -- 4. 入库记录表
 CREATE TABLE IF NOT EXISTS stock_in_records (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     purchase_order_id INTEGER,
     bearing_id INTEGER NOT NULL,
     quantity INTEGER NOT NULL,
@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS stock_in_records (
     warehouse_location VARCHAR(100),
     operator VARCHAR(100),
     notes TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (purchase_order_id) REFERENCES purchase_orders(id),
     FOREIGN KEY (bearing_id) REFERENCES bearings(id)
 );
@@ -76,7 +76,7 @@ CREATE INDEX IF NOT EXISTS idx_stock_in_date ON stock_in_records(created_at);
 
 -- 5. 出库记录表
 CREATE TABLE IF NOT EXISTS stock_out_records (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     order_id INTEGER,
     bearing_id INTEGER NOT NULL,
     quantity INTEGER NOT NULL,
@@ -84,7 +84,7 @@ CREATE TABLE IF NOT EXISTS stock_out_records (
     batch_number VARCHAR(50),
     operator VARCHAR(100),
     notes TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (order_id) REFERENCES orders(id),
     FOREIGN KEY (bearing_id) REFERENCES bearings(id)
 );
@@ -95,14 +95,14 @@ CREATE INDEX IF NOT EXISTS idx_stock_out_date ON stock_out_records(created_at);
 
 -- 6. 库存成本表（用于成本核算）
 CREATE TABLE IF NOT EXISTS inventory_costs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     bearing_id INTEGER NOT NULL,
     batch_number VARCHAR(50),
     quantity INTEGER NOT NULL,
     unit_cost DECIMAL(10, 2) NOT NULL,
     remaining_quantity INTEGER NOT NULL,
-    purchase_date DATETIME,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    purchase_date TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (bearing_id) REFERENCES bearings(id)
 );
 
@@ -111,14 +111,14 @@ CREATE INDEX IF NOT EXISTS idx_inventory_costs_batch ON inventory_costs(batch_nu
 
 -- 7. 供应商产品关联表
 CREATE TABLE IF NOT EXISTS supplier_products (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     supplier_id INTEGER NOT NULL,
     bearing_id INTEGER NOT NULL,
     supplier_price DECIMAL(10, 2),
     lead_time_days INTEGER,
     min_order_quantity INTEGER,
-    is_preferred BOOLEAN DEFAULT 0,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    is_preferred BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE CASCADE,
     FOREIGN KEY (bearing_id) REFERENCES bearings(id) ON DELETE CASCADE,
     UNIQUE(supplier_id, bearing_id)

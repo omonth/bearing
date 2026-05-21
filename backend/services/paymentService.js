@@ -10,35 +10,6 @@ class PaymentService {
   }
 
   enable() {
-    const runAsync = (sql, params = []) =>
-      new Promise((resolve, reject) => {
-        this.db.run(sql, params, function(err) {
-          if (err) reject(err);
-          else resolve({ lastID: this.lastID, changes: this.changes });
-        });
-      });
-
-    const getAsync = (sql, params = []) =>
-      new Promise((resolve, reject) => {
-        this.db.get(sql, params, (err, row) => {
-          if (err) reject(err);
-          else resolve(row);
-        });
-      });
-
-    const allAsync = (sql, params = []) =>
-      new Promise((resolve, reject) => {
-        this.db.all(sql, params, (err, rows) => {
-          if (err) reject(err);
-          else resolve(rows);
-        });
-      });
-
-    this.run = runAsync;
-    this.get = getAsync;
-    this.all = allAsync;
-
-    this._initTables();
     this._initClients();
   }
 
@@ -102,8 +73,8 @@ class PaymentService {
 
   async _initTables() {
     try {
-      await this.run(`CREATE TABLE IF NOT EXISTS payment_orders (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+      await this.db.run(`CREATE TABLE IF NOT EXISTS payment_orders (
+        id SERIAL PRIMARY KEY,
         order_id INTEGER NOT NULL,
         payment_method VARCHAR(20) NOT NULL,
         amount DECIMAL(10, 2) NOT NULL,
@@ -111,26 +82,26 @@ class PaymentService {
         transaction_id VARCHAR(100),
         trade_no VARCHAR(100),
         payer_info TEXT,
-        paid_at DATETIME,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        paid_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (order_id) REFERENCES orders(id)
       )`);
-      await this.run(`CREATE INDEX IF NOT EXISTS idx_po_order ON payment_orders(order_id)`);
-      await this.run(`CREATE INDEX IF NOT EXISTS idx_po_status ON payment_orders(status)`);
-      await this.run(`CREATE INDEX IF NOT EXISTS idx_po_trade_no ON payment_orders(trade_no)`);
+      await this.db.run(`CREATE INDEX IF NOT EXISTS idx_po_order ON payment_orders(order_id)`);
+      await this.db.run(`CREATE INDEX IF NOT EXISTS idx_po_status ON payment_orders(status)`);
+      await this.db.run(`CREATE INDEX IF NOT EXISTS idx_po_trade_no ON payment_orders(trade_no)`);
 
-      await this.run(`CREATE TABLE IF NOT EXISTS refund_records (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+      await this.db.run(`CREATE TABLE IF NOT EXISTS refund_records (
+        id SERIAL PRIMARY KEY,
         payment_order_id INTEGER NOT NULL,
         refund_amount DECIMAL(10, 2) NOT NULL,
         refund_reason TEXT,
         status VARCHAR(20) DEFAULT 'pending',
         refund_no VARCHAR(100),
-        refunded_at DATETIME,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        refunded_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (payment_order_id) REFERENCES payment_orders(id)
       )`);
-      await this.run(`CREATE INDEX IF NOT EXISTS idx_rr_po ON refund_records(payment_order_id)`);
+      await this.db.run(`CREATE INDEX IF NOT EXISTS idx_rr_po ON refund_records(payment_order_id)`);
     } catch (err) {
       // Tables may already exist
     }
@@ -158,7 +129,7 @@ class PaymentService {
 
     const orderNo = this.generateOrderNo();
 
-    const result = await this.run(
+    const result = await this.db.run(
       `INSERT INTO payment_orders (order_id, payment_method, amount, status, transaction_id)
        VALUES (?, ?, ?, 'pending', ?)`,
       [orderId, paymentMethod, amount, orderNo]
@@ -178,7 +149,7 @@ class PaymentService {
           return await this._createUnionPayPayment(paymentOrderId, orderNo, amount, subject, paymentInfo);
         case 'cod':
           paymentInfo.message = '货到付款';
-          await this.run('UPDATE payment_orders SET status = ? WHERE id = ?', ['processing', paymentOrderId]);
+          await this.db.run('UPDATE payment_orders SET status = ? WHERE id = ?', ['processing', paymentOrderId]);
           return paymentInfo;
         case 'balance':
           paymentInfo.message = '余额支付';
@@ -186,7 +157,7 @@ class PaymentService {
       }
     } catch (error) {
       // 支付网关调用失败，标记订单为失败状态
-      await this.run('UPDATE payment_orders SET status = ? WHERE id = ?', ['failed', paymentOrderId]);
+      await this.db.run('UPDATE payment_orders SET status = ? WHERE id = ?', ['failed', paymentOrderId]);
       throw error;
     }
   }
@@ -340,7 +311,7 @@ class PaymentService {
   // ==================== 查询支付状态 ====================
 
   async queryPaymentStatus(paymentOrderId) {
-    const paymentOrder = await this.get(
+    const paymentOrder = await this.db.get(
       'SELECT * FROM payment_orders WHERE id = ?',
       [paymentOrderId]
     );
@@ -363,7 +334,7 @@ class PaymentService {
   }
 
   async queryPaymentByTransaction(transactionId) {
-    return await this.get(
+    return await this.db.get(
       'SELECT * FROM payment_orders WHERE transaction_id = ?',
       [transactionId]
     );
@@ -371,7 +342,7 @@ class PaymentService {
 
   // 主动查询第三方支付状态（用于轮询补单）
   async queryExternalStatus(paymentOrderId) {
-    const paymentOrder = await this.get(
+    const paymentOrder = await this.db.get(
       'SELECT * FROM payment_orders WHERE id = ?',
       [paymentOrderId]
     );
@@ -425,26 +396,26 @@ class PaymentService {
 
   async updatePaymentStatus(paymentOrderId, status, paymentInfo = {}) {
     if (status === 'paid') {
-      await this.run(
+      await this.db.run(
         `UPDATE payment_orders
          SET status = ?, trade_no = ?, payer_info = ?, paid_at = CURRENT_TIMESTAMP
          WHERE id = ?`,
         [status, paymentInfo.trade_no || `TRADE${Date.now()}`, JSON.stringify(paymentInfo.payer || {}), paymentOrderId]
       );
 
-      const paymentOrder = await this.get(
+      const paymentOrder = await this.db.get(
         'SELECT order_id FROM payment_orders WHERE id = ?',
         [paymentOrderId]
       );
 
       if (paymentOrder) {
-        await this.run(
+        await this.db.run(
           "UPDATE orders SET status = 'paid' WHERE id = ?",
           [paymentOrder.order_id]
         );
       }
     } else {
-      await this.run(
+      await this.db.run(
         'UPDATE payment_orders SET status = ? WHERE id = ?',
         [status, paymentOrderId]
       );
@@ -467,7 +438,7 @@ class PaymentService {
 
     const { out_trade_no, trade_status, trade_no, buyer_id } = params;
 
-    const paymentOrder = await this.get(
+    const paymentOrder = await this.db.get(
       'SELECT * FROM payment_orders WHERE transaction_id = ?',
       [out_trade_no]
     );
@@ -499,7 +470,7 @@ class PaymentService {
         );
         const result = JSON.parse(notification);
 
-        const paymentOrder = await this.get(
+        const paymentOrder = await this.db.get(
           'SELECT * FROM payment_orders WHERE transaction_id = ?',
           [result.out_trade_no]
         );
@@ -523,7 +494,7 @@ class PaymentService {
 
     // 沙箱模式：直接信任回调
     const { out_trade_no, trade_state, transaction_id } = body;
-    const paymentOrder = await this.get(
+    const paymentOrder = await this.db.get(
       'SELECT * FROM payment_orders WHERE transaction_id = ?',
       [out_trade_no]
     );
@@ -548,7 +519,7 @@ class PaymentService {
 
     const { orderId, respCode, queryId } = params;
 
-    const paymentOrder = await this.get(
+    const paymentOrder = await this.db.get(
       'SELECT * FROM payment_orders WHERE transaction_id = ?',
       [orderId]
     );
@@ -587,7 +558,7 @@ class PaymentService {
   // ==================== 模拟支付（测试用） ====================
 
   async simulatePayment(paymentOrderId) {
-    const paymentOrder = await this.get(
+    const paymentOrder = await this.db.get(
       'SELECT * FROM payment_orders WHERE id = ?',
       [paymentOrderId]
     );
@@ -607,7 +578,7 @@ class PaymentService {
   // ==================== 退款 ====================
 
   async createRefund({ paymentOrderId, amount, reason }) {
-    const paymentOrder = await this.get(
+    const paymentOrder = await this.db.get(
       'SELECT * FROM payment_orders WHERE id = ?',
       [paymentOrderId]
     );
@@ -664,23 +635,23 @@ class PaymentService {
     }
 
     // 记录退款
-    const result = await this.run(
+    const result = await this.db.run(
       `INSERT INTO refund_records (payment_order_id, refund_amount, refund_reason, refund_no, status)
        VALUES (?, ?, ?, ?, 'success')`,
       [paymentOrderId, amount, reason || '无', refundNo]
     );
 
-    await this.run(
+    await this.db.run(
       `UPDATE refund_records SET refunded_at = CURRENT_TIMESTAMP WHERE id = ?`,
       [result.lastID]
     );
 
-    await this.run(
+    await this.db.run(
       'UPDATE payment_orders SET status = ? WHERE id = ?',
       ['refunded', paymentOrderId]
     );
 
-    await this.run(
+    await this.db.run(
       "UPDATE orders SET status = 'cancelled' WHERE id = ?",
       [paymentOrder.order_id]
     );
@@ -715,8 +686,8 @@ class PaymentService {
     const countQuery = query.split('LIMIT')[0].replace('SELECT *', 'SELECT COUNT(*) as total');
 
     const [rows, countResult] = await Promise.all([
-      this.all(query, params),
-      this.get(countQuery, params.slice(0, -2))
+      this.db.all(query, params),
+      this.db.get(countQuery, params.slice(0, -2))
     ]);
 
     return {
@@ -728,14 +699,14 @@ class PaymentService {
   }
 
   async getRefundList(paymentOrderId) {
-    return await this.all(
+    return await this.db.all(
       'SELECT * FROM refund_records WHERE payment_order_id = ? ORDER BY created_at DESC',
       [paymentOrderId]
     );
   }
 
   async getPaymentStats() {
-    return await this.get(`
+    return await this.db.get(`
       SELECT
         COUNT(*) as totalPayments,
         SUM(CASE WHEN status = 'paid' THEN 1 ELSE 0 END) as paidCount,

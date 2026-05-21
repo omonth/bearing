@@ -1,29 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { createOrder, createPayment, queryPaymentStatus } from '@/lib/api';
+import { useCheckoutStore } from '@/store/checkoutStore';
 import type { CartItem } from '@/types';
-
-// Province/city data for cascading selector
-const REGION_DATA: Record<string, string[]> = {
-  '北京市': ['东城区', '西城区', '朝阳区', '丰台区', '石景山区', '海淀区', '顺义区', '通州区', '大兴区', '房山区'],
-  '上海市': ['黄浦区', '徐汇区', '长宁区', '静安区', '普陀区', '虹口区', '杨浦区', '闵行区', '宝山区', '浦东新区'],
-  '广东省': ['广州市', '深圳市', '珠海市', '汕头市', '佛山市', '韶关市', '湛江市', '肇庆市', '江门市', '茂名市', '惠州市', '梅州市', '汕尾市', '河源市', '阳江市', '清远市', '东莞市', '中山市', '潮州市', '揭阳市', '云浮市'],
-  '浙江省': ['杭州市', '宁波市', '温州市', '嘉兴市', '湖州市', '绍兴市', '金华市', '衢州市', '舟山市', '台州市', '丽水市'],
-  '江苏省': ['南京市', '无锡市', '徐州市', '常州市', '苏州市', '南通市', '连云港市', '淮安市', '盐城市', '扬州市', '镇江市', '泰州市', '宿迁市'],
-  '山东省': ['济南市', '青岛市', '淄博市', '枣庄市', '东营市', '烟台市', '潍坊市', '济宁市', '泰安市', '威海市', '日照市', '临沂市', '德州市', '聊城市', '滨州市', '菏泽市'],
-  '四川省': ['成都市', '自贡市', '攀枝花市', '泸州市', '德阳市', '绵阳市', '广元市', '遂宁市', '内江市', '乐山市', '南充市', '眉山市', '宜宾市', '广安市', '达州市', '雅安市', '巴中市', '资阳市'],
-  '湖北省': ['武汉市', '黄石市', '十堰市', '宜昌市', '襄阳市', '鄂州市', '荆门市', '孝感市', '荆州市', '黄冈市', '咸宁市', '随州市', '恩施州'],
-  '湖南省': ['长沙市', '株洲市', '湘潭市', '衡阳市', '邵阳市', '岳阳市', '常德市', '张家界市', '益阳市', '郴州市', '永州市', '怀化市', '娄底市'],
-  '福建省': ['福州市', '厦门市', '莆田市', '三明市', '泉州市', '漳州市', '南平市', '龙岩市', '宁德市'],
-  '河南省': ['郑州市', '开封市', '洛阳市', '平顶山市', '安阳市', '鹤壁市', '新乡市', '焦作市', '濮阳市', '许昌市', '漯河市', '三门峡市', '南阳市', '商丘市', '信阳市', '周口市', '驻马店市'],
-  '河北省': ['石家庄市', '唐山市', '秦皇岛市', '邯郸市', '邢台市', '保定市', '张家口市', '承德市', '沧州市', '廊坊市', '衡水市'],
-  '辽宁省': ['沈阳市', '大连市', '鞍山市', '抚顺市', '本溪市', '丹东市', '锦州市', '营口市', '阜新市', '辽阳市', '盘锦市', '铁岭市', '朝阳市', '葫芦岛市'],
-  '陕西省': ['西安市', '铜川市', '宝鸡市', '咸阳市', '渭南市', '延安市', '汉中市', '榆林市', '安康市', '商洛市'],
-  '重庆市': ['渝中区', '江北区', '南岸区', '九龙坡区', '沙坪坝区', '大渡口区', '北碚区', '渝北区', '巴南区'],
-  '天津市': ['和平区', '河东区', '河西区', '南开区', '河北区', '红桥区', '东丽区', '西青区', '津南区', '北辰区', '武清区', '宝坻区', '滨海新区'],
-};
-
-const PROVINCES = Object.keys(REGION_DATA);
-const OTHER_PROVINCES = ['安徽省', '山西省', '贵州省', '云南省', '甘肃省', '青海省', '吉林省', '黑龙江省', '海南省', '广西壮族自治区', '宁夏回族自治区', '新疆维吾尔自治区', '西藏自治区', '内蒙古自治区', '香港特别行政区', '澳门特别行政区'];
 
 interface CartProps {
   items: CartItem[];
@@ -34,45 +10,14 @@ interface CartProps {
 }
 
 export default function Cart({ items, onClose, onRemove, onUpdateQuantity, totalPrice }: CartProps) {
-  const [customerName, setCustomerName] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
-  const [province, setProvince] = useState('');
-  const [city, setCity] = useState('');
-  const [district, setDistrict] = useState('');
-  const [addressDetail, setAddressDetail] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('alipay');
-  const [checkoutStep, setCheckoutStep] = useState<'cart' | 'form' | 'payment'>('cart');
-  const [paymentInfo, setPaymentInfo] = useState<any>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [paymentStatus, setPaymentStatus] = useState<string>('pending');
-  const pollingRef = useRef<NodeJS.Timeout | null>(null);
+  const {
+    customerName, customerPhone, province, city, district, addressDetail,
+    paymentMethod, checkoutStep, paymentInfo, submitting, paymentStatus,
+    setField, setProvince, setPaymentMethod, setCheckoutStep,
+    submitOrder, resetCheckout, getCities, getAllProvinces,
+  } = useCheckoutStore();
 
-  const cities = province ? (REGION_DATA[province] || ['其他']) : [];
-  const allProvinces = [...PROVINCES, ...OTHER_PROVINCES].sort();
-
-  // 支付状态轮询
-  useEffect(() => {
-    if (checkoutStep === 'payment' && paymentInfo?.paymentOrderId && paymentStatus === 'pending') {
-      pollingRef.current = setInterval(async () => {
-        try {
-          const result = await queryPaymentStatus(paymentInfo.paymentOrderId);
-          if (result.status === 'paid') {
-            setPaymentStatus('paid');
-            if (pollingRef.current) clearInterval(pollingRef.current);
-          }
-        } catch {}
-      }, 2000);
-    }
-    return () => {
-      if (pollingRef.current) clearInterval(pollingRef.current);
-    };
-  }, [checkoutStep, paymentInfo, paymentStatus]);
-
-  const handleProvinceChange = (value: string) => {
-    setProvince(value);
-    setCity('');
-    setDistrict('');
-  };
+  const cities = getCities();
 
   const handleCheckout = async () => {
     if (checkoutStep === 'cart') {
@@ -81,49 +26,12 @@ export default function Cart({ items, onClose, onRemove, onUpdateQuantity, total
     }
 
     if (checkoutStep === 'form') {
-      if (!customerName || !customerPhone || !province || !city || !addressDetail) {
-        alert('请填写完整的收货信息');
-        return;
-      }
-      setSubmitting(true);
       try {
-        const orderResult = await createOrder({
-          customerName,
-          customerPhone,
-          province,
-          city,
-          district,
-          addressDetail,
-          items: items.map(item => ({
-            id: item.id,
-            quantity: item.quantity,
-            price: item.price
-          })),
-          totalPrice
-        });
-
-        const payment = await createPayment({
-          orderId: orderResult.orderId,
-          amount: totalPrice,
-          paymentMethod,
-          subject: `订单 #${orderResult.orderId}`
-        });
-
-        setPaymentInfo({ ...payment, amount: totalPrice, paymentOrderId: payment.paymentOrderId });
-        setCheckoutStep('payment');
+        await submitOrder(items, totalPrice);
       } catch (error: any) {
         alert(error.message || '下单失败');
-      } finally {
-        setSubmitting(false);
       }
     }
-  };
-
-  const resetCheckout = () => {
-    setCheckoutStep('cart');
-    setPaymentInfo(null);
-    setPaymentStatus('pending');
-    if (pollingRef.current) clearInterval(pollingRef.current);
   };
 
   return (
@@ -184,7 +92,7 @@ export default function Cart({ items, onClose, onRemove, onUpdateQuantity, total
               <input
                 type="text"
                 value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
+                onChange={(e) => setField('customerName', e.target.value)}
                 placeholder="请输入收货人姓名"
               />
             </div>
@@ -193,7 +101,7 @@ export default function Cart({ items, onClose, onRemove, onUpdateQuantity, total
               <input
                 type="tel"
                 value={customerPhone}
-                onChange={(e) => setCustomerPhone(e.target.value)}
+                onChange={(e) => setField('customerPhone', e.target.value)}
                 placeholder="请输入手机号"
               />
             </div>
@@ -201,10 +109,10 @@ export default function Cart({ items, onClose, onRemove, onUpdateQuantity, total
               <label>省份</label>
               <select
                 value={province}
-                onChange={(e) => handleProvinceChange(e.target.value)}
+                onChange={(e) => setProvince(e.target.value)}
               >
                 <option value="">请选择省份</option>
-                {allProvinces.map(p => (
+                {getAllProvinces().map(p => (
                   <option key={p} value={p}>{p}</option>
                 ))}
               </select>
@@ -213,7 +121,7 @@ export default function Cart({ items, onClose, onRemove, onUpdateQuantity, total
               <label>城市</label>
               <select
                 value={city}
-                onChange={(e) => setCity(e.target.value)}
+                onChange={(e) => setField('city', e.target.value)}
                 disabled={!province}
               >
                 <option value="">请选择城市</option>
@@ -227,7 +135,7 @@ export default function Cart({ items, onClose, onRemove, onUpdateQuantity, total
               <input
                 type="text"
                 value={district}
-                onChange={(e) => setDistrict(e.target.value)}
+                onChange={(e) => setField('district', e.target.value)}
                 placeholder="请输入区/县（选填）"
               />
             </div>
@@ -235,7 +143,7 @@ export default function Cart({ items, onClose, onRemove, onUpdateQuantity, total
               <label>详细地址</label>
               <textarea
                 value={addressDetail}
-                onChange={(e) => setAddressDetail(e.target.value)}
+                onChange={(e) => setField('addressDetail', e.target.value)}
                 placeholder="街道、门牌号等详细信息"
                 rows={3}
               />
@@ -255,7 +163,7 @@ export default function Cart({ items, onClose, onRemove, onUpdateQuantity, total
                       name="payment"
                       value={m.value}
                       checked={paymentMethod === m.value}
-                      onChange={() => setPaymentMethod(m.value)}
+                      onChange={() => setPaymentMethod(m.value as any)}
                     />
                     {m.label}
                   </label>
@@ -297,11 +205,7 @@ export default function Cart({ items, onClose, onRemove, onUpdateQuantity, total
                 {paymentInfo.paymentMethod === 'unionpay' && paymentInfo.formParams && (
                   <div>
                     <p>点击下方按钮跳转到银联支付页面:</p>
-                    <form method="POST" action={paymentInfo.payUrl} ref={(form) => {
-                      if (form && paymentInfo.formParams) {
-                        // 自动提交表单跳转到银联
-                      }
-                    }}>
+                    <form method="POST" action={paymentInfo.payUrl}>
                       {Object.entries(paymentInfo.formParams).map(([key, value]) => (
                         <input key={key} type="hidden" name={key} value={value as string} />
                       ))}
