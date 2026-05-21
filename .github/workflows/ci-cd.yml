@@ -42,7 +42,7 @@ jobs:
   build:
     needs: test
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && secrets.DOCKER_USERNAME != ''
 
     steps:
     - uses: actions/checkout@v4
@@ -81,7 +81,7 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && secrets.DEPLOY_HOST != ''
 
     steps:
     - name: 部署到服务器
