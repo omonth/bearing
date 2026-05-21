@@ -1,24 +1,14 @@
 const express = require('express');
 const router = express.Router();
-const { verifyToken, requireAdmin } = require('../middleware/auth');
-const {
-  getAllSuppliers,
-  createSupplier,
-  updateSupplier,
-  createPurchaseOrder,
-  getPurchaseOrders,
-  getPurchaseOrderDetails,
-  updatePurchaseOrderStatus,
-  createStockInRecord,
-  getStockInRecords,
-  createStockOutRecord,
-  getStockOutRecords,
-  getProductCost,
-  getProfitAnalysis
-} = require('../services/supplyChainService');
+const logger = require('../logger');
 
-// 所有供应链API都需要管理员权限
-router.use(verifyToken, requireAdmin);
+module.exports = function(supplyChainService) {
+  const { verifyToken, requireAdmin } = require('../middleware/auth');
+
+  const svc = supplyChainService;
+
+  // 所有供应链API都需要管理员权限
+  router.use(verifyToken, requireAdmin);
 
 // ==================== 供应商管理 ====================
 
@@ -26,7 +16,7 @@ router.use(verifyToken, requireAdmin);
 router.get('/suppliers', async (req, res) => {
   try {
     const { status } = req.query;
-    const suppliers = await getAllSuppliers(status);
+    const suppliers = await svc.getAllSuppliers(status);
     res.json(suppliers);
   } catch (error) {
     res.status(500).json({ error: '获取供应商列表失败' });
@@ -36,7 +26,7 @@ router.get('/suppliers', async (req, res) => {
 // 创建供应商
 router.post('/suppliers', async (req, res) => {
   try {
-    const result = await createSupplier(req.body);
+    const result = await svc.createSupplier(req.body);
     res.json({ message: '供应商创建成功', id: result.id });
   } catch (error) {
     res.status(500).json({ error: '创建供应商失败' });
@@ -47,7 +37,7 @@ router.post('/suppliers', async (req, res) => {
 router.put('/suppliers/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    await updateSupplier(id, req.body);
+    await svc.updateSupplier(id, req.body);
     res.json({ message: '供应商更新成功' });
   } catch (error) {
     res.status(500).json({ error: '更新供应商失败' });
@@ -60,7 +50,7 @@ router.put('/suppliers/:id', async (req, res) => {
 router.get('/purchase-orders', async (req, res) => {
   try {
     const { status } = req.query;
-    const orders = await getPurchaseOrders(status);
+    const orders = await svc.getPurchaseOrders(status);
     res.json(orders);
   } catch (error) {
     res.status(500).json({ error: '获取采购订单列表失败' });
@@ -71,7 +61,7 @@ router.get('/purchase-orders', async (req, res) => {
 router.get('/purchase-orders/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const order = await getPurchaseOrderDetails(id);
+    const order = await svc.getPurchaseOrderDetails(id);
     if (!order) {
       return res.status(404).json({ error: '采购订单不存在' });
     }
@@ -84,7 +74,7 @@ router.get('/purchase-orders/:id', async (req, res) => {
 // 创建采购订单
 router.post('/purchase-orders', async (req, res) => {
   try {
-    const result = await createPurchaseOrder({
+    const result = await svc.createPurchaseOrder({
       ...req.body,
       createdBy: req.user.userId
     });
@@ -99,7 +89,7 @@ router.put('/purchase-orders/:id/status', async (req, res) => {
   try {
     const { id } = req.params;
     const { status, receivedDate } = req.body;
-    await updatePurchaseOrderStatus(id, status, receivedDate);
+    await svc.updatePurchaseOrderStatus(id, status, receivedDate);
     res.json({ message: '采购订单状态已更新' });
   } catch (error) {
     res.status(500).json({ error: '更新采购订单状态失败' });
@@ -112,7 +102,7 @@ router.put('/purchase-orders/:id/status', async (req, res) => {
 router.get('/stock-in', async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
-    const records = await getStockInRecords(startDate, endDate);
+    const records = await svc.getStockInRecords(startDate, endDate);
     res.json(records);
   } catch (error) {
     res.status(500).json({ error: '获取入库记录失败' });
@@ -122,7 +112,7 @@ router.get('/stock-in', async (req, res) => {
 // 创建入库记录
 router.post('/stock-in', async (req, res) => {
   try {
-    const result = await createStockInRecord({
+    const result = await svc.createStockInRecord({
       ...req.body,
       operator: req.user.username
     });
@@ -138,7 +128,7 @@ router.post('/stock-in', async (req, res) => {
 router.get('/stock-out', async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
-    const records = await getStockOutRecords(startDate, endDate);
+    const records = await svc.getStockOutRecords(startDate, endDate);
     res.json(records);
   } catch (error) {
     res.status(500).json({ error: '获取出库记录失败' });
@@ -148,7 +138,7 @@ router.get('/stock-out', async (req, res) => {
 // 创建出库记录
 router.post('/stock-out', async (req, res) => {
   try {
-    const result = await createStockOutRecord({
+    const result = await svc.createStockOutRecord({
       ...req.body,
       operator: req.user.username
     });
@@ -164,7 +154,7 @@ router.post('/stock-out', async (req, res) => {
 router.get('/costs/:bearingId', async (req, res) => {
   try {
     const { bearingId } = req.params;
-    const cost = await getProductCost(bearingId);
+    const cost = await svc.getProductCost(bearingId);
     res.json(cost);
   } catch (error) {
     res.status(500).json({ error: '获取产品成本失败' });
@@ -178,11 +168,12 @@ router.get('/profit-analysis', async (req, res) => {
     if (!startDate || !endDate) {
       return res.status(400).json({ error: '请提供开始和结束日期' });
     }
-    const analysis = await getProfitAnalysis(startDate, endDate);
+    const analysis = await svc.getProfitAnalysis(startDate, endDate);
     res.json(analysis);
   } catch (error) {
     res.status(500).json({ error: '获取利润分析失败' });
   }
 });
 
-module.exports = router;
+  return router;
+};

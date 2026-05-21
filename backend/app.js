@@ -26,6 +26,7 @@ function createApp(db, services = {}) {
     customerService,
     couponService,
     pointsService,
+    supplyChainService,
   } = services;
 
   const app = express();
@@ -423,6 +424,11 @@ function createApp(db, services = {}) {
 
   const crmRoutes = require('./routes/crm')(db, { customerService, couponService, pointsService });
   app.use('/api/crm', crmRoutes);
+
+  if (supplyChainService) {
+    const supplyChainRoutes = require('./routes/supplyChain')(supplyChainService);
+    app.use('/api/supply-chain', supplyChainRoutes);
+  }
 
   if (aiService) {
     const aiRoutes = require('./routes/ai')(db, aiService);

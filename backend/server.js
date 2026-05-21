@@ -12,6 +12,7 @@ const OrderService = require('./services/orderService');
 const CustomerService = require('./services/customerService');
 const CouponService = require('./services/couponService');
 const PointsService = require('./services/pointsService');
+const SupplyChainService = require('./services/supplyChainService');
 const createApp = require('./app');
 
 const PORT = process.env.PORT || 3001;
@@ -29,6 +30,7 @@ const orderService = new OrderService(db, clearCache);
 const customerService = new CustomerService(db);
 const couponService = new CouponService(db);
 const pointsService = new PointsService(db, customerService);
+const supplyChainService = new SupplyChainService(db);
 
 const paymentService = new PaymentOrchestrator(db, orderService);
 
@@ -46,6 +48,7 @@ const app = createApp(db, {
   customerService,
   couponService,
   pointsService,
+  supplyChainService,
 });
 
 app.listen(PORT, '0.0.0.0', () => {
