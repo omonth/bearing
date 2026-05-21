@@ -4,7 +4,7 @@ const { getDatabase } = require('./db/adapter');
 const InventoryAlert = require('./utils/inventoryAlert');
 const Analytics = require('./utils/analytics');
 const RecommendationEngine = require('./utils/recommendation');
-const PaymentService = require('./services/paymentService');
+const PaymentOrchestrator = require('./services/payment/PaymentOrchestrator');
 const AIService = require('./services/aiService');
 const AuthService = require('./services/authService');
 const BearingService = require('./services/bearingService');
@@ -30,7 +30,7 @@ const customerService = new CustomerService(db);
 const couponService = new CouponService(db);
 const pointsService = new PointsService(db, customerService);
 
-const paymentService = new PaymentService(db, orderService);
+const paymentService = new PaymentOrchestrator(db, orderService);
 
 paymentService.enable();
 
