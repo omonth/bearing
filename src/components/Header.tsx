@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
 interface HeaderProps {
@@ -6,6 +7,9 @@ interface HeaderProps {
 }
 
 export default function Header({ cartCount, onCartClick }: HeaderProps) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   return (
     <header className="header">
       <div className="header-content">
@@ -16,7 +20,7 @@ export default function Header({ cartCount, onCartClick }: HeaderProps) {
           <button className="nav-link">关于我们</button>
           <button className="cart-button" onClick={onCartClick}>
             <span className="cart-icon">🛒</span>
-            {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
+            {mounted && cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
           </button>
         </nav>
       </div>
