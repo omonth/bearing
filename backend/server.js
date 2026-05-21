@@ -27,7 +27,7 @@ const app = createApp(db, {
   aiService,
 });
 
-app.listen(PORT, () => {
-  console.log(`后端服务器运行在 http://localhost:${PORT}`);
-  logger.info('服务器启动', { port: PORT, env: process.env.NODE_ENV });
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`后端服务器运行在端口 ${PORT}`);
+  logger.info('服务器启动', { port: PORT, env: process.env.NODE_ENV || 'development' });
 });

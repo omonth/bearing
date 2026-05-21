@@ -77,6 +77,8 @@ function createApp(db, services = {}) {
     next();
   };
 
+  app.get('/health', (req, res) => res.json({ status: 'ok' }));
+
   app.get('/', (req, res) => {
     res.json({ message: '轴承销售系统 API', version: '5.1.0' });
   });
