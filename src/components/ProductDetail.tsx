@@ -29,7 +29,7 @@ export default function ProductDetail({
 
       <div className="detail-content">
         <div className="detail-image">
-          <img src={product.image} alt={product.name} />
+          <img src={product.image || '/placeholder.svg'} alt={product.name} onError={(e) => { (e.target as HTMLImageElement).src = '/placeholder.svg'; }} />
         </div>
 
         <div className="detail-info">

@@ -41,7 +41,7 @@ export default function ProductList({
         {filteredProducts.map(product => (
           <div key={product.id} className="product-card">
             <div className="product-image" onClick={() => onProductClick(product)}>
-              <img src={product.image} alt={product.name} />
+              <img src={product.image || '/placeholder.svg'} alt={product.name} onError={(e) => { (e.target as HTMLImageElement).src = '/placeholder.svg'; }} />
               <div className="stock-badge">库存: {product.stock}</div>
             </div>
             <div className="product-info">
