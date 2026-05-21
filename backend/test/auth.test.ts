@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import { createTestDb, seedTestData } from './helpers';
 const createApp = require('../app');
+const AuthService = require('../services/authService');
 
 let app: any;
 let db: any;
@@ -9,7 +10,8 @@ let db: any;
 beforeAll(async () => {
   db = await createTestDb();
   await seedTestData(db);
-  app = createApp(db, {});
+  const authService = new AuthService(db);
+  app = createApp(db, { authService });
 });
 
 afterAll(async () => {

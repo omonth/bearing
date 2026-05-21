@@ -1,5 +1,8 @@
-const { Pool } = require('pg');
+const { Pool, types } = require('pg');
 const logger = require('../logger');
+
+// 将 PostgreSQL DECIMAL/NUMERIC 转为 JavaScript Number
+types.setTypeParser(1700, parseFloat);
 
 // 数据库配置
 const dbConfig = {

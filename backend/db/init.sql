@@ -152,7 +152,7 @@ ON CONFLICT DO NOTHING;
 -- 9. 创建默认管理员（密码: admin123，已用bcrypt加密）
 -- 注意：这是示例密码的hash，生产环境请使用脚本生成
 INSERT INTO admins (username, password, email, role)
-VALUES ('admin', '$2a$10$YourBcryptHashHere', 'admin@bearing-sales.com', 'admin')
+VALUES ('admin', '$2b$10$jRp./B/fJ5WJSK3BFs2n9Ow4cUyZx96qFxOxKvKmG3eo575wk9L.m', 'admin@bearing-sales.com', 'admin')
 ON CONFLICT (username) DO NOTHING;
 
 -- 10. 创建视图：产品销售统计

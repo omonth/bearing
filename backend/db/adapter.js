@@ -39,7 +39,11 @@ function initDatabase() {
 
       run: async (sql, params = []) => {
         try {
-          const pgSql = convertPlaceholders(sql);
+          let pgSql = convertPlaceholders(sql);
+          // 为 INSERT 自动加 RETURNING id，兼容 lastID 语义
+          if (sql.trim().toUpperCase().startsWith('INSERT') && !sql.toUpperCase().includes('RETURNING')) {
+            pgSql = convertPlaceholders(sql) + ' RETURNING id';
+          }
           const result = await pool.query(pgSql, params);
           return {
             lastID: result.rows[0]?.id,
@@ -66,7 +70,10 @@ function initDatabase() {
               return result.rows[0] || null;
             },
             run: async (sql, params = []) => {
-              const pgSql = convertPlaceholders(sql);
+              let pgSql = convertPlaceholders(sql);
+              if (sql.trim().toUpperCase().startsWith('INSERT') && !sql.toUpperCase().includes('RETURNING')) {
+                pgSql = convertPlaceholders(sql) + ' RETURNING id';
+              }
               const result = await client.query(pgSql, params);
               return { lastID: result.rows[0]?.id, changes: result.rowCount };
             },

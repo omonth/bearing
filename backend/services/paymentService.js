@@ -2,8 +2,9 @@ const { randomUUID } = require('crypto');
 const { paymentConfig, checkConfig } = require('../config/payment');
 
 class PaymentService {
-  constructor(db) {
+  constructor(db, orderService) {
     this.db = db;
+    this.orderService = orderService || null;
     this.alipayClient = null;
     this.wechatClient = null;
     this.configStatus = { alipay: false, wechat: false, unionpay: false };
@@ -409,10 +410,14 @@ class PaymentService {
       );
 
       if (paymentOrder) {
-        await this.db.run(
-          "UPDATE orders SET status = 'paid' WHERE id = ?",
-          [paymentOrder.order_id]
-        );
+        if (this.orderService) {
+          await this.orderService.updateStatus(paymentOrder.order_id, 'paid');
+        } else {
+          await this.db.run(
+            "UPDATE orders SET status = 'paid' WHERE id = ?",
+            [paymentOrder.order_id]
+          );
+        }
       }
     } else {
       await this.db.run(
@@ -651,10 +656,14 @@ class PaymentService {
       ['refunded', paymentOrderId]
     );
 
-    await this.db.run(
-      "UPDATE orders SET status = 'cancelled' WHERE id = ?",
-      [paymentOrder.order_id]
-    );
+    if (this.orderService) {
+      await this.orderService.updateStatus(paymentOrder.order_id, 'cancelled');
+    } else {
+      await this.db.run(
+        "UPDATE orders SET status = 'cancelled' WHERE id = ?",
+        [paymentOrder.order_id]
+      );
+    }
 
     return {
       refundId: result.lastID,

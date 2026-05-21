@@ -179,7 +179,7 @@ const schemaSDL = `
   }
 
   type Mutation {
-    createOrder(customerName: String!, customerPhone: String!, province: String, city: String, district: String, addressDetail: String, items: [OrderItemInput!]!, totalPrice: Float!): MutationResult!
+    createOrder(customerName: String!, customerPhone: String!, province: String, city: String, district: String, addressDetail: String, items: [OrderItemInput!]!, totalPrice: Float): MutationResult!
     updateOrderStatus(orderId: ID!, status: String!, trackingNumber: String, note: String): MutationResult!
     addBearing(name: String!, model: String!, price: Float!, category: String!, stock: Int!, innerDiameter: Float, outerDiameter: Float, width: Float, image: String, description: String): MutationResult!
     deleteBearing(id: ID!): MutationResult!
@@ -197,30 +197,55 @@ const schemaSDL = `
 `;
 
 function createGraphQLMiddleware(services) {
-  const { db, analytics, recommendationEngine, paymentService, aiService } = services;
+  const { db, analytics, recommendationEngine, paymentService, aiService, authService, bearingService, orderService } = services;
 
   const rootValue = {
     // === Query ===
-    bearings: async ({ category, search, limit, offset }) => {
-      let query = 'SELECT * FROM bearings WHERE 1=1';
+    bearings: async ({ category }) => {
+      if (bearingService) {
+        const { data, error } = await bearingService.list(category);
+        return (data || []).map(r => ({ ...r, specs: r.specs }));
+      }
       const params = [];
+      let query = 'SELECT * FROM bearings WHERE 1=1';
       if (category && category !== '全部') { query += ' AND category = ?'; params.push(category); }
-      if (search) { query += ' AND (name LIKE ? OR model LIKE ?)'; params.push(`%${search}%`, `%${search}%`); }
-      query += ' ORDER BY id ASC';
-      if (limit) { query += ' LIMIT ?'; params.push(limit); }
-      if (offset) { query += ' OFFSET ?'; params.push(offset); }
-      const rows = await db.all(query, params);
+      const rows = await db.all(query + ' ORDER BY id ASC', params);
       return rows.map(r => ({ ...r, specs: { innerDiameter: r.inner_diameter, outerDiameter: r.outer_diameter, width: r.width } }));
     },
     bearing: async ({ id }) => {
+      if (bearingService) {
+        const { data } = await bearingService.getById(id);
+        return data ? { ...data, specs: data.specs || {} } : null;
+      }
       const row = await db.get('SELECT * FROM bearings WHERE id = ?', [id]);
       return row ? { ...row, specs: { innerDiameter: row.inner_diameter, outerDiameter: row.outer_diameter, width: row.width } } : null;
     },
     categories: async () => {
+      if (bearingService) {
+        const { data } = await bearingService.getCategories();
+        return data || [];
+      }
       const rows = await db.all('SELECT DISTINCT category FROM bearings', []);
       return rows.map(r => r.category);
     },
     orders: async ({ status, limit, offset }) => {
+      if (orderService) {
+        const { data: rows } = await orderService.list();
+        let filtered = rows || [];
+        if (status) filtered = filtered.filter(o => o.status === status);
+        if (offset) filtered = filtered.slice(offset);
+        if (limit) filtered = filtered.slice(0, limit);
+        return Promise.all(filtered.map(async (o) => {
+          const { data: items } = await orderService.getItems(o.id);
+          return {
+            id: o.id, customerName: o.customer_name, customerPhone: o.customer_phone,
+            province: o.province, city: o.city, district: o.district,
+            addressDetail: o.address_detail, totalPrice: o.total_price,
+            status: o.status, trackingNumber: o.tracking_number, createdAt: o.created_at,
+            items: (items || []).map(it => ({ ...it, bearingId: it.bearing_id }))
+          };
+        }));
+      }
       let query = 'SELECT * FROM orders WHERE 1=1';
       const params = [];
       if (status) { query += ' AND status = ?'; params.push(status); }
@@ -234,22 +259,27 @@ function createGraphQLMiddleware(services) {
           [o.id]
         );
         return {
-          id: o.id,
-          customerName: o.customer_name,
-          customerPhone: o.customer_phone,
-          province: o.province,
-          city: o.city,
-          district: o.district,
-          addressDetail: o.address_detail,
-          totalPrice: o.total_price,
-          status: o.status,
-          trackingNumber: o.tracking_number,
-          createdAt: o.created_at,
+          id: o.id, customerName: o.customer_name, customerPhone: o.customer_phone,
+          province: o.province, city: o.city, district: o.district,
+          addressDetail: o.address_detail, totalPrice: o.total_price,
+          status: o.status, trackingNumber: o.tracking_number, createdAt: o.created_at,
           items: items.map(it => ({ ...it, bearingId: it.bearing_id }))
         };
       }));
     },
     order: async ({ id }) => {
+      if (orderService) {
+        const { data: o } = await orderService.getById(id);
+        if (!o) return null;
+        const { data: items } = await orderService.getItems(id);
+        return {
+          id: o.id, customerName: o.customer_name, customerPhone: o.customer_phone,
+          province: o.province, city: o.city, district: o.district,
+          addressDetail: o.address_detail, totalPrice: o.total_price,
+          status: o.status, trackingNumber: o.tracking_number, createdAt: o.created_at,
+          items: (items || []).map(it => ({ ...it, bearingId: it.bearing_id }))
+        };
+      }
       const o = await db.get('SELECT * FROM orders WHERE id = ?', [id]);
       if (!o) return null;
       const items = await db.all(
@@ -257,17 +287,10 @@ function createGraphQLMiddleware(services) {
         [id]
       );
       return {
-        id: o.id,
-        customerName: o.customer_name,
-        customerPhone: o.customer_phone,
-        province: o.province,
-        city: o.city,
-        district: o.district,
-        addressDetail: o.address_detail,
-        totalPrice: o.total_price,
-        status: o.status,
-        trackingNumber: o.tracking_number,
-        createdAt: o.created_at,
+        id: o.id, customerName: o.customer_name, customerPhone: o.customer_phone,
+        province: o.province, city: o.city, district: o.district,
+        addressDetail: o.address_detail, totalPrice: o.total_price,
+        status: o.status, trackingNumber: o.tracking_number, createdAt: o.created_at,
         items: items.map(it => ({ ...it, bearingId: it.bearing_id }))
       };
     },
@@ -340,30 +363,35 @@ function createGraphQLMiddleware(services) {
     },
 
     // === Mutation ===
-    createOrder: async ({ customerName, customerPhone, province, city, district, addressDetail, items, totalPrice }) => {
+    createOrder: async ({ customerName, customerPhone, province, city, district, addressDetail, items }) => {
+      if (orderService) {
+        const { data, error } = await orderService.create({
+          customerName, customerPhone, province, city, district, addressDetail, items
+        });
+        if (error) return { success: false, message: error };
+        return { success: true, message: '订单创建成功', orderId: data.orderId };
+      }
       const result = await db.transaction(async (tx) => {
+        const totalPrice = items.reduce((s, i) => s + i.price * i.quantity, 0);
         const orderResult = await tx.run(
           'INSERT INTO orders (customer_name, customer_phone, province, city, district, address_detail, total_price) VALUES (?, ?, ?, ?, ?, ?, ?)',
           [customerName, customerPhone, province || '', city || '', district || '', addressDetail || '', totalPrice]
         );
         const orderId = orderResult.lastID;
-
         for (const item of items) {
-          await tx.run(
-            'INSERT INTO order_items (order_id, bearing_id, quantity, price) VALUES (?, ?, ?, ?)',
-            [orderId, item.id, item.quantity, item.price]
-          );
-          await tx.run(
-            'UPDATE bearings SET stock = stock - ? WHERE id = ?',
-            [item.quantity, item.id]
-          );
+          await tx.run('INSERT INTO order_items (order_id, bearing_id, quantity, price) VALUES (?, ?, ?, ?)', [orderId, item.id, item.quantity, item.price]);
+          await tx.run('UPDATE bearings SET stock = stock - ? WHERE id = ?', [item.quantity, item.id]);
         }
-
         return { orderId };
       });
       return { success: true, message: '订单创建成功', orderId: result.orderId };
     },
     updateOrderStatus: async ({ orderId, status, trackingNumber, note }) => {
+      if (orderService) {
+        const { data, error } = await orderService.updateStatus(orderId, status, note, trackingNumber);
+        if (error) return { success: false, message: error };
+        return { success: true, message: data.message };
+      }
       let query = 'UPDATE orders SET status = ?';
       const params = [status];
       if (status === 'shipped' && trackingNumber) { query += ', tracking_number = ?, shipped_at = CURRENT_TIMESTAMP'; params.push(trackingNumber); }
@@ -375,6 +403,11 @@ function createGraphQLMiddleware(services) {
       return { success: true, message: '订单状态已更新' };
     },
     addBearing: async (args) => {
+      if (bearingService) {
+        const { data, error } = await bearingService.create(args);
+        if (error) return { success: false, message: error };
+        return { success: true, message: data.message, id: data.id };
+      }
       const result = await db.run(
         `INSERT INTO bearings (name, model, price, category, inner_diameter, outer_diameter, width, stock, image, description) VALUES (?,?,?,?,?,?,?,?,?,?)`,
         [args.name, args.model, args.price, args.category, args.innerDiameter, args.outerDiameter, args.width, args.stock, args.image, args.description]
@@ -382,10 +415,20 @@ function createGraphQLMiddleware(services) {
       return { success: true, message: '产品添加成功', id: result.lastID };
     },
     deleteBearing: async ({ id }) => {
+      if (bearingService) {
+        const { data, error } = await bearingService.delete(id);
+        if (error) return { success: false, message: error };
+        return { success: true, message: data.message };
+      }
       await db.run('DELETE FROM bearings WHERE id = ?', [id]);
       return { success: true, message: '产品删除成功' };
     },
     updateStock: async ({ id, stock }) => {
+      if (bearingService) {
+        const { data, error } = await bearingService.updateStock(id, stock);
+        if (error) return { success: false, message: error };
+        return { success: true, message: data.message };
+      }
       await db.run('UPDATE bearings SET stock = ? WHERE id = ?', [stock, id]);
       return { success: true, message: '库存更新成功' };
     },
