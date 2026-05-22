@@ -42,21 +42,36 @@ jobs:
   build:
     needs: test
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && secrets.DOCKER_USERNAME != ''
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
     - uses: actions/checkout@v4
 
+    - name: 检查 Docker Hub 密钥
+      id: guard
+      env:
+        USER: ${{ secrets.DOCKER_USERNAME }}
+      run: |
+        if [ -n "$USER" ]; then
+          echo "enabled=true" >> $GITHUB_OUTPUT
+        else
+          echo "Docker Hub 密钥未配置，跳过镜像构建"
+          echo "enabled=false" >> $GITHUB_OUTPUT
+        fi
+
     - name: 设置Docker Buildx
+      if: steps.guard.outputs.enabled == 'true'
       uses: docker/setup-buildx-action@v2
 
     - name: 登录Docker Hub
+      if: steps.guard.outputs.enabled == 'true'
       uses: docker/login-action@v2
       with:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
 
     - name: 构建并推送后端镜像
+      if: steps.guard.outputs.enabled == 'true'
       uses: docker/build-push-action@v4
       with:
         context: ./backend
@@ -68,6 +83,7 @@ jobs:
         cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/bearing-sales-backend:buildcache,mode=max
 
     - name: 构建并推送前端镜像
+      if: steps.guard.outputs.enabled == 'true'
       uses: docker/build-push-action@v4
       with:
         context: .
@@ -81,10 +97,23 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && secrets.DEPLOY_HOST != ''
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
+    - name: 检查部署密钥
+      id: guard
+      env:
+        HOST: ${{ secrets.DEPLOY_HOST }}
+      run: |
+        if [ -n "$HOST" ]; then
+          echo "enabled=true" >> $GITHUB_OUTPUT
+        else
+          echo "部署密钥未配置，跳过部署"
+          echo "enabled=false" >> $GITHUB_OUTPUT
+        fi
+
     - name: 部署到服务器
+      if: steps.guard.outputs.enabled == 'true'
       uses: appleboy/ssh-action@master
       with:
         host: ${{ secrets.DEPLOY_HOST }}
