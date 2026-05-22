@@ -29,6 +29,7 @@ interface CheckoutStore {
   setSelectedCoupon: (code: string) => void;
   submitOrder: (items: CartItem[], totalPrice: number) => Promise<void>;
   resetCheckout: () => void;
+  clearPolling: () => void;
   getCities: () => string[];
   getAllProvinces: () => string[];
   getFinalPrice: (totalPrice: number) => number;
@@ -161,5 +162,9 @@ export const useCheckoutStore = create<CheckoutStore>()((set, get) => ({
       selectedCoupon: '',
       couponDiscount: 0,
     });
+  },
+
+  clearPolling: () => {
+    clearPolling();
   },
 }));

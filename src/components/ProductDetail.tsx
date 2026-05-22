@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import type { Bearing } from '@/types';
+import { useState } from "react";
+import type { Bearing } from "@/types";
 
 interface ProductDetailProps {
   product: Bearing;
@@ -12,7 +12,7 @@ export default function ProductDetail({
   product,
   similarProducts = [],
   onBack,
-  onAddToCart
+  onAddToCart,
 }: ProductDetailProps) {
   const [quantity, setQuantity] = useState(1);
 
@@ -22,76 +22,145 @@ export default function ProductDetail({
   };
 
   return (
-    <div className="product-detail">
-      <button className="back-btn" onClick={onBack}>
+    <div>
+      <button
+        onClick={onBack}
+        className="mb-6 px-4 py-2 text-sm text-neutral-400 hover:text-amber-400 transition-colors"
+      >
         ← 返回列表
       </button>
 
-      <div className="detail-content">
-        <div className="detail-image">
-          <img src={product.image || '/placeholder.svg'} alt={product.name} onError={(e) => { (e.target as HTMLImageElement).src = '/placeholder.svg'; }} />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Image */}
+        <div className="bg-neutral-900 border border-neutral-800 rounded-lg overflow-hidden">
+          <img
+            src={product.image || "/placeholder.svg"}
+            alt={product.name}
+            className="w-full aspect-square object-cover"
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = "/placeholder.svg";
+            }}
+          />
         </div>
 
-        <div className="detail-info">
-          <h1 className="detail-title">{product.name}</h1>
-          <p className="detail-category">{product.category}</p>
-
-          <div className="detail-price-section">
-            <span className="detail-price">¥{product.price.toFixed(2)}</span>
-            <span className="detail-stock">库存: {product.stock} 件</span>
+        {/* Info */}
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-2xl font-bold text-white mb-2">
+              {product.name}
+            </h1>
+            <p className="text-sm text-neutral-400">{product.category}</p>
           </div>
 
-          <div className="detail-specs">
-            <h3>产品规格</h3>
-            <table>
-              <tbody>
-                <tr><td>型号</td><td>{product.model}</td></tr>
-                <tr><td>内径</td><td>{product.specs?.innerDiameter}</td></tr>
-                <tr><td>外径</td><td>{product.specs?.outerDiameter}</td></tr>
-                <tr><td>宽度</td><td>{product.specs?.width}</td></tr>
-              </tbody>
-            </table>
+          <div className="flex items-center justify-between py-4 border-y border-neutral-800">
+            <span className="text-[28px] font-bold text-amber-400">
+              ¥{product.price.toFixed(2)}
+            </span>
+            <span className="text-sm text-neutral-500">
+              库存 {product.stock} 件
+            </span>
+          </div>
+
+          {/* Specs table */}
+          <div>
+            <h3 className="text-sm font-medium text-neutral-300 mb-3">
+              产品规格
+            </h3>
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div className="flex justify-between py-2 px-3 bg-neutral-900 rounded">
+                <span className="text-neutral-400">型号</span>
+                <span className="font-mono text-neutral-200">{product.model}</span>
+              </div>
+              <div className="flex justify-between py-2 px-3 bg-neutral-900 rounded">
+                <span className="text-neutral-400">内径</span>
+                <span className="text-neutral-200">{product.specs?.innerDiameter}</span>
+              </div>
+              <div className="flex justify-between py-2 px-3 bg-neutral-900 rounded">
+                <span className="text-neutral-400">外径</span>
+                <span className="text-neutral-200">{product.specs?.outerDiameter}</span>
+              </div>
+              <div className="flex justify-between py-2 px-3 bg-neutral-900 rounded">
+                <span className="text-neutral-400">宽度</span>
+                <span className="text-neutral-200">{product.specs?.width}</span>
+              </div>
+            </div>
           </div>
 
           {product.description && (
-            <div className="detail-description">
-              <h3>产品描述</h3>
-              <p>{product.description}</p>
+            <div>
+              <h3 className="text-sm font-medium text-neutral-300 mb-2">
+                产品描述
+              </h3>
+              <p className="text-sm text-neutral-400 leading-relaxed">
+                {product.description}
+              </p>
             </div>
           )}
 
-          <div className="detail-actions">
-            <div className="quantity-selector">
+          {/* Actions */}
+          <div className="flex gap-3 items-end">
+            <div className="flex items-center border border-neutral-700 rounded-md">
               <button
                 onClick={() => setQuantity(Math.max(1, quantity - 1))}
                 disabled={quantity <= 1}
-              >-</button>
+                className="px-3 py-2.5 text-neutral-400 hover:text-white disabled:text-neutral-700 transition-colors"
+              >
+                −
+              </button>
               <input
                 type="number"
                 value={quantity}
-                onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                onChange={(e) =>
+                  setQuantity(Math.max(1, parseInt(e.target.value) || 1))
+                }
                 min="1"
                 max={product.stock}
+                className="w-14 text-center bg-transparent text-sm font-medium text-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
               />
               <button
-                onClick={() => setQuantity(Math.min(product.stock, quantity + 1))}
+                onClick={() =>
+                  setQuantity(Math.min(product.stock, quantity + 1))
+                }
                 disabled={quantity >= product.stock}
-              >+</button>
+                className="px-3 py-2.5 text-neutral-400 hover:text-white disabled:text-neutral-700 transition-colors"
+              >
+                +
+              </button>
             </div>
-            <button className="detail-add-btn" onClick={handleAddToCart}>
+            <button
+              onClick={handleAddToCart}
+              className="flex-1 py-2.5 text-sm font-medium text-neutral-950 bg-amber-500 hover:bg-amber-400 rounded-md transition-colors"
+            >
               加入购物车
             </button>
           </div>
 
+          {/* Similar products */}
           {similarProducts.length > 0 && (
-            <div className="similar-products">
-              <h3>相似产品推荐</h3>
-              <div className="similar-grid">
-                {similarProducts.map(p => (
-                  <div key={p.id} className="similar-card">
-                    <img src={p.image} alt={p.name} />
-                    <p>{p.name}</p>
-                    <span>¥{p.price.toFixed(2)}</span>
+            <div className="pt-6 border-t border-neutral-800">
+              <h3 className="text-sm font-medium text-neutral-300 mb-3">
+                相似产品推荐
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {similarProducts.map((p) => (
+                  <div
+                    key={p.id}
+                    className="bg-neutral-900 border border-neutral-800 rounded-md p-2.5 cursor-pointer hover:border-neutral-700 transition-colors"
+                  >
+                    <img
+                      src={p.image || "/placeholder.svg"}
+                      alt={p.name}
+                      className="w-full aspect-square object-cover rounded mb-2"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = "/placeholder.svg";
+                      }}
+                    />
+                    <p className="text-xs text-neutral-400 line-clamp-1">
+                      {p.name}
+                    </p>
+                    <p className="text-sm font-bold text-amber-400 mt-1">
+                      ¥{p.price.toFixed(2)}
+                    </p>
                   </div>
                 ))}
               </div>

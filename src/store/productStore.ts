@@ -6,6 +6,7 @@ interface ProductStore {
   products: Bearing[];
   selectedProduct: Bearing | null;
   loading: boolean;
+  error: string | null;
   activeCategory: string;
   categories: string[];
   currentProduct: Bearing | null;
@@ -23,6 +24,7 @@ export const useProductStore = create<ProductStore>()((set) => ({
   products: [],
   selectedProduct: null,
   loading: false,
+  error: null,
   activeCategory: '全部',
   categories: [],
   currentProduct: null,
@@ -30,11 +32,12 @@ export const useProductStore = create<ProductStore>()((set) => ({
   detailLoading: false,
 
   fetchProducts: async (category) => {
-    set({ loading: true });
+    set({ loading: true, error: null });
     try {
       const data = await getProducts(category);
       set({ products: data });
     } catch (error) {
+      set({ error: '加载产品失败，请检查网络连接后重试' });
       console.error('获取产品失败:', error);
     } finally {
       set({ loading: false });
