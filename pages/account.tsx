@@ -1,67 +1,99 @@
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/router';
-import Head from 'next/head';
-import Header from '@/components/Header';
-import { useCartStore } from '@/store/cartStore';
-import { useAuthStore } from '@/store/authStore';
-import { getCustomerOrders, getCustomerCoupons } from '@/lib/api';
+import { useEffect, useState } from "react";
+import { useRouter } from "next/router";
+import Head from "next/head";
+import Header from "@/components/Header";
+import { useCartStore } from "@/store/cartStore";
+import { useAuthStore } from "@/store/authStore";
+import { getCustomerOrders, getCustomerCoupons } from "@/lib/api";
 
-type Tab = 'orders' | 'coupons';
+type Tab = "orders" | "coupons";
 
 const statusLabels: Record<string, string> = {
-  pending: '待支付',
-  paid: '已支付',
-  shipped: '已发货',
-  completed: '已完成',
-  cancelled: '已取消',
+  pending: "待支付",
+  paid: "已支付",
+  shipped: "已发货",
+  completed: "已完成",
+  cancelled: "已取消",
 };
 
 const statusColors: Record<string, string> = {
-  pending: '#faad14',
-  paid: '#1890ff',
-  shipped: '#722ed1',
-  completed: '#52c41a',
-  cancelled: '#999',
+  pending: "bg-amber-500/20 text-amber-400",
+  paid: "bg-blue-500/20 text-blue-400",
+  shipped: "bg-purple-500/20 text-purple-400",
+  completed: "bg-emerald-500/20 text-emerald-400",
+  cancelled: "bg-neutral-500/20 text-neutral-400",
 };
 
 const levelLabels: Record<string, string> = {
-  bronze: '铜牌会员',
-  silver: '银牌会员',
-  gold: '金牌会员',
-  platinum: '铂金会员',
-  diamond: '钻石会员',
+  bronze: "铜牌会员",
+  silver: "银牌会员",
+  gold: "金牌会员",
+  platinum: "铂金会员",
+  diamond: "钻石会员",
+};
+
+const levelColors: Record<string, string> = {
+  bronze: "bg-amber-900/20 text-amber-600",
+  silver: "bg-neutral-700/20 text-neutral-400",
+  gold: "bg-amber-500/20 text-amber-400",
+  platinum: "bg-blue-500/20 text-blue-400",
+  diamond: "bg-purple-500/20 text-purple-400",
+};
+
+const couponStatusLabel: Record<string, string> = {
+  unused: "可用",
+  used: "已使用",
+  expired: "已过期",
+};
+
+const couponStatusColor: Record<string, string> = {
+  unused: "text-emerald-400",
+  used: "text-neutral-500",
+  expired: "text-red-400",
 };
 
 export default function AccountPage() {
   const router = useRouter();
   const { user, token, loading, fetchMe, logout } = useAuthStore();
   const { getTotalCount, toggleCart } = useCartStore();
-  const [tab, setTab] = useState<Tab>('orders');
+  const [tab, setTab] = useState<Tab>("orders");
   const [orders, setOrders] = useState<any[]>([]);
   const [coupons, setCoupons] = useState<any[]>([]);
   const [fetching, setFetching] = useState(false);
+  const [fetchError, setFetchError] = useState(false);
+
+  const fetchData = () => {
+    if (!token) return;
+    setFetching(true);
+    setFetchError(false);
+    if (tab === "orders") {
+      getCustomerOrders()
+        .then((data) => setOrders(data))
+        .catch(() => setFetchError(true))
+        .finally(() => setFetching(false));
+    } else {
+      getCustomerCoupons()
+        .then((data) => setCoupons(data))
+        .catch(() => setFetchError(true))
+        .finally(() => setFetching(false));
+    }
+  };
 
   useEffect(() => {
     if (!token) {
-      router.push('/login');
+      router.push("/login");
       return;
     }
     fetchMe();
   }, [token]);
 
   useEffect(() => {
-    if (!token) return;
-    setFetching(true);
-    if (tab === 'orders') {
-      getCustomerOrders().then(setOrders).catch(() => {}).finally(() => setFetching(false));
-    } else {
-      getCustomerCoupons().then(setCoupons).catch(() => {}).finally(() => setFetching(false));
-    }
+    fetchData();
   }, [tab, token]);
 
   const handleLogout = () => {
     logout();
-    router.push('/');
+    router.push("/");
   };
 
   if (!token) return null;
@@ -71,125 +103,171 @@ export default function AccountPage() {
       <Head>
         <title>个人中心 - 轴承商城</title>
       </Head>
-      <div className="App">
+      <div className="min-h-screen bg-neutral-950">
         <Header cartCount={getTotalCount()} onCartClick={toggleCart} />
-        <main className="main-content">
-          <div style={{ maxWidth: 800, margin: '20px auto' }}>
-            {/* User info card */}
-            <div style={{ background: '#fff', borderRadius: 8, padding: 24, marginBottom: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-              <div>
-                <h2 style={{ fontSize: 20, marginBottom: 8 }}>{user?.name || user?.phone}</h2>
-                <p style={{ color: '#666', fontSize: 14, marginBottom: 4 }}>手机号: {user?.phone}</p>
-                <p style={{ color: '#666', fontSize: 14 }}>
-                  <span style={{
-                    display: 'inline-block', padding: '2px 10px', borderRadius: 12, fontSize: 12,
-                    background: user?.level === 'diamond' ? '#e6f7ff' : '#fff7e6',
-                    color: user?.level === 'diamond' ? '#1890ff' : '#fa8c16',
-                    marginRight: 12,
-                  }}>
-                    {levelLabels[user?.level || 'bronze'] || user?.level}
-                  </span>
-                  积分: <strong>{user?.points || 0}</strong>
-                </p>
-              </div>
-              <button
-                onClick={handleLogout}
-                style={{ padding: '8px 20px', background: '#fff', color: '#ff4d4f', border: '1px solid #ff4d4f', borderRadius: 6, fontSize: 14 }}
-              >
-                退出登录
-              </button>
+        <main className="max-w-2xl mx-auto px-6 py-8 space-y-6">
+          {/* User info card */}
+          <div className="flex flex-wrap items-center justify-between gap-4 bg-neutral-900 border border-neutral-800 rounded-lg p-6">
+            <div>
+              <h2 className="text-lg font-bold text-white mb-1">
+                {user?.name || user?.phone}
+              </h2>
+              <p className="text-sm text-neutral-400 mb-2">
+                手机号: {user?.phone}
+              </p>
+              <p className="text-sm">
+                <span
+                  className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                    levelColors[user?.level || "bronze"] || levelColors.bronze
+                  }`}
+                >
+                  {levelLabels[user?.level || "bronze"] || user?.level}
+                </span>
+                <span className="text-neutral-400 ml-3">
+                  积分:{" "}
+                  <strong className="text-neutral-200">
+                    {user?.points || 0}
+                  </strong>
+                </span>
+              </p>
             </div>
+            <button
+              onClick={handleLogout}
+              className="px-4 py-2 text-sm text-red-400 border border-red-400 rounded-md hover:bg-red-400/10 transition-colors"
+            >
+              退出登录
+            </button>
+          </div>
 
-            {/* Tabs */}
-            <div style={{ display: 'flex', marginBottom: 20, borderRadius: 8, overflow: 'hidden', border: '1px solid #e8e8e8', background: '#fff' }}>
-              {[
-                { key: 'orders', label: '我的订单' },
-                { key: 'coupons', label: '我的优惠券' },
-              ].map(t => (
+          {/* Tab switcher */}
+          <div className="flex border-b border-neutral-800">
+            {[
+              { key: "orders", label: "我的订单" },
+              { key: "coupons", label: "我的优惠券" },
+            ].map((t) => {
+              const isActive = tab === t.key;
+              return (
                 <button
                   key={t.key}
                   onClick={() => setTab(t.key as Tab)}
-                  style={{
-                    flex: 1, padding: '12px', border: 'none', cursor: 'pointer', fontSize: 15,
-                    background: tab === t.key ? '#1890ff' : 'transparent',
-                    color: tab === t.key ? '#fff' : '#333',
-                    fontWeight: tab === t.key ? 600 : 400,
-                  }}
+                  className={`relative flex-1 py-3 text-sm font-medium transition-colors ${
+                    isActive
+                      ? "text-amber-400"
+                      : "text-neutral-500 hover:text-neutral-300"
+                  }`}
                 >
                   {t.label}
+                  {isActive && (
+                    <span className="absolute bottom-0 left-1/4 right-1/4 h-0.5 bg-amber-400 rounded-full" />
+                  )}
                 </button>
+              );
+            })}
+          </div>
+
+          {/* Content */}
+          {fetching ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-4">
+              <div className="w-8 h-8 border-2 border-neutral-800 border-t-amber-500 rounded-full animate-spin" />
+              <p className="text-neutral-400 text-sm">加载中...</p>
+            </div>
+          ) : fetchError ? (
+            <div className="text-center py-16 bg-neutral-900 border border-neutral-800 rounded-lg">
+              <p className="text-sm text-red-400 mb-4">加载失败，请重试</p>
+              <button
+                onClick={fetchData}
+                className="px-4 py-2 text-sm font-medium text-neutral-950 bg-amber-500 hover:bg-amber-400 rounded-md transition-colors"
+              >
+                重试
+              </button>
+            </div>
+          ) : tab === "orders" ? (
+            orders.length === 0 ? (
+              <div className="text-center py-16 bg-neutral-900 border border-neutral-800 rounded-lg">
+                <p className="text-neutral-500 text-sm mb-4">暂无订单</p>
+                <button
+                  onClick={() => router.push("/")}
+                  className="px-4 py-2 text-sm font-medium text-neutral-950 bg-amber-500 hover:bg-amber-400 rounded-md transition-colors"
+                >
+                  去逛逛
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {orders.map((order) => (
+                  <div
+                    key={order.id}
+                    className="bg-neutral-900 border border-neutral-800 rounded-lg p-5"
+                  >
+                    <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
+                      <div>
+                        <span className="text-xs text-neutral-500">订单号 </span>
+                        <strong className="text-sm text-white">
+                          #{order.id}
+                        </strong>
+                      </div>
+                      <span
+                        className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          statusColors[order.status] || statusColors.cancelled
+                        }`}
+                      >
+                        {statusLabels[order.status] || order.status}
+                      </span>
+                    </div>
+                    <p className="text-sm text-neutral-400 mb-3">
+                      {order.province} {order.city} {order.address_detail}
+                    </p>
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-neutral-600">
+                        {order.created_at}
+                      </span>
+                      <span className="text-lg font-bold text-amber-400">
+                        ¥{order.total_price?.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
+          ) : coupons.length === 0 ? (
+            <div className="text-center py-16 bg-neutral-900 border border-neutral-800 rounded-lg">
+              <p className="text-neutral-500 text-sm">暂无优惠券</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {coupons.map((c: any) => (
+                <div
+                  key={c.id}
+                  className="flex justify-between items-center flex-wrap gap-3 bg-neutral-900 border border-neutral-800 rounded-lg p-5"
+                >
+                  <div>
+                    <strong className="text-sm text-white">
+                      {c.coupon_name || c.code}
+                    </strong>
+                    <p className="text-xs text-neutral-400 mt-1">
+                      {c.type === "fixed"
+                        ? `¥${c.discount_value} 直减`
+                        : `${c.discount_value}% 折扣`}
+                      {c.min_order_amount > 0
+                        ? ` · 满¥${c.min_order_amount}可用`
+                        : ""}
+                    </p>
+                    <p className="text-xs text-neutral-600 mt-0.5">
+                      有效期: {c.valid_from || "即日"} ~{" "}
+                      {c.valid_until || "长期"}
+                    </p>
+                  </div>
+                  <span
+                    className={`text-xs font-medium ${
+                      couponStatusColor[c.status] || couponStatusColor.unused
+                    }`}
+                  >
+                    {couponStatusLabel[c.status] || c.status || "可用"}
+                  </span>
+                </div>
               ))}
             </div>
-
-            {/* Content */}
-            {fetching ? (
-              <p style={{ textAlign: 'center', padding: 40, color: '#999' }}>加载中...</p>
-            ) : tab === 'orders' ? (
-              orders.length === 0 ? (
-                <div style={{ background: '#fff', borderRadius: 8, padding: 60, textAlign: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
-                  <p style={{ color: '#999', fontSize: 16, marginBottom: 16 }}>暂无订单</p>
-                  <button
-                    onClick={() => router.push('/')}
-                    style={{ padding: '10px 24px', background: '#1890ff', color: '#fff', borderRadius: 6, fontSize: 14 }}
-                  >
-                    去逛逛
-                  </button>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  {orders.map(order => (
-                    <div key={order.id} style={{ background: '#fff', borderRadius: 8, padding: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
-                        <div>
-                          <span style={{ fontSize: 14, color: '#999' }}>订单号: </span>
-                          <strong style={{ fontSize: 16 }}>#{order.id}</strong>
-                        </div>
-                        <span style={{
-                          display: 'inline-block', padding: '2px 10px', borderRadius: 12, fontSize: 12,
-                          background: (statusColors[order.status] || '#999') + '20',
-                          color: statusColors[order.status] || '#999',
-                          fontWeight: 600,
-                        }}>
-                          {statusLabels[order.status] || order.status}
-                        </span>
-                      </div>
-                      <div style={{ fontSize: 14, color: '#666', marginBottom: 8 }}>
-                        {order.province} {order.city} {order.address_detail}
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: 13, color: '#999' }}>{order.created_at}</span>
-                        <span style={{ fontSize: 18, fontWeight: 700, color: '#ff4d4f' }}>¥{order.total_price?.toFixed(2)}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )
-            ) : (
-              coupons.length === 0 ? (
-                <div style={{ background: '#fff', borderRadius: 8, padding: 60, textAlign: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
-                  <p style={{ color: '#999', fontSize: 16 }}>暂无优惠券</p>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  {coupons.map((c: any) => (
-                    <div key={c.id} style={{ background: '#fff', borderRadius: 8, padding: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-                      <div>
-                        <strong style={{ fontSize: 16 }}>{c.coupon_name || c.code}</strong>
-                        <p style={{ fontSize: 13, color: '#666', marginTop: 4 }}>
-                          {c.type === 'fixed' ? `¥${c.discount_value} 直减` : `${c.discount_value}% 折扣`}
-                          {c.min_order_amount > 0 ? ` · 满¥${c.min_order_amount}可用` : ''}
-                        </p>
-                        <p style={{ fontSize: 12, color: '#999', marginTop: 2 }}>
-                          有效期: {c.valid_from || '即日'} ~ {c.valid_until || '长期'}
-                        </p>
-                      </div>
-                      <span style={{ fontSize: 13, color: '#52c41a', fontWeight: 600 }}>可用</span>
-                    </div>
-                  ))}
-                </div>
-              )
-            )}
-          </div>
+          )}
         </main>
       </div>
     </>

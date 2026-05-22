@@ -83,13 +83,12 @@ export const useCheckoutStore = create<CheckoutStore>()((set, get) => ({
 
   submitOrder: async (items, totalPrice) => {
     const state = get();
-    if (!state.customerName || !state.customerPhone || !state.province || !state.city || !state.addressDetail) {
+    if (!state.customerName || !state.customerPhone || !state.province || !state.city || !state.district || !state.addressDetail) {
       throw new Error('请填写完整的收货信息');
     }
 
     set({ submitting: true });
     try {
-      const finalPrice = Math.max(0, totalPrice - state.couponDiscount);
       const orderResult = await createOrder({
         customerName: state.customerName,
         customerPhone: state.customerPhone,
@@ -102,29 +101,33 @@ export const useCheckoutStore = create<CheckoutStore>()((set, get) => ({
           quantity: item.quantity,
           price: item.price,
         })),
-        totalPrice: Math.max(0, finalPrice),
+        totalPrice: Math.max(0, totalPrice),
       });
 
-      // Apply coupon if selected
+      // Apply coupon if selected — must run before payment
+      let discountAmount = 0;
       if (state.selectedCoupon) {
         try {
           const couponResult = await useCustomerCoupon(state.selectedCoupon, orderResult.orderId);
           if (couponResult.discountAmount) {
-            set({ couponDiscount: couponResult.discountAmount });
+            discountAmount = couponResult.discountAmount;
+            set({ couponDiscount: discountAmount });
           }
         } catch {}
       }
 
+      const paymentAmount = Math.max(0, Math.round((totalPrice - discountAmount) * 100) / 100);
+
       const payment = await createPayment({
         orderId: orderResult.orderId,
-        amount: Math.max(0, finalPrice),
+        amount: paymentAmount,
         paymentMethod: state.paymentMethod,
         subject: `订单 #${orderResult.orderId}`,
       });
 
       const paymentInfo = {
         ...payment,
-        amount: finalPrice,
+        amount: paymentAmount,
         paymentOrderId: payment.paymentOrderId,
       };
 
