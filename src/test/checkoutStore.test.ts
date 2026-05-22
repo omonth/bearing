@@ -84,6 +84,7 @@ describe('checkoutStore', () => {
     store.setField('customerPhone', '13800138000');
     store.setProvince('广东省');
     store.setField('city', '广州市');
+    store.setField('district', '天河区');
     store.setField('addressDetail', '体育西路100号');
 
     await store.submitOrder(mockItems as any, 20);
@@ -110,6 +111,7 @@ describe('checkoutStore', () => {
     store.setField('customerPhone', '13900139000');
     store.setProvince('北京市');
     store.setField('city', '东城区');
+    store.setField('district', '东华门街道');
     store.setField('addressDetail', '王府井');
 
     await store.submitOrder(mockItems as any, 20);
@@ -147,6 +149,7 @@ describe('checkoutStore', () => {
     store.setField('customerPhone', '13700137000');
     store.setProvince('上海市');
     store.setField('city', '徐汇区');
+    store.setField('district', '徐家汇街道');
     store.setField('addressDetail', '淮海中路');
 
     await expect(store.submitOrder(mockItems as any, 20)).rejects.toThrow('库存不足');
