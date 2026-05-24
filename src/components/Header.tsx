@@ -66,14 +66,14 @@ export default function Header({ cartCount, onCartClick }: HeaderProps) {
               浏览产品
             </Link>
             <button onClick={toggleLang} className="text-left text-sm text-neutral-400 hover:text-amber-400 py-2">
-              {i18n.language === 'zh' ? 'English' : '中文'}
+              {mounted ? (i18n.language === 'zh' ? 'English' : '中文') : 'English'}
             </button>
           </div>
         )}
 
         <nav className="hidden sm:flex items-center gap-2">
           <button onClick={toggleLang} className="text-xs font-medium text-neutral-500 hover:text-amber-400 transition-colors px-2 py-1 rounded border border-neutral-700">
-            {i18n.language === 'zh' ? 'EN' : '中文'}
+            {mounted ? (i18n.language === 'zh' ? 'EN' : '中文') : 'EN'}
           </button>
 
           <Link href="/account" aria-label={t("header.account")} className="p-2 text-neutral-400 hover:text-amber-400 transition-colors">
