@@ -1,5 +1,7 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { Bearing } from "@/types";
+import { localized } from "@/lib/utils";
 
 interface ProductDetailProps {
   product: Bearing;
@@ -14,11 +16,12 @@ export default function ProductDetail({
   onBack,
   onAddToCart,
 }: ProductDetailProps) {
+  const { t } = useTranslation();
   const [quantity, setQuantity] = useState(1);
 
   const handleAddToCart = () => {
     onAddToCart(product, quantity);
-    alert(`已添加 ${quantity} 件 ${product.name} 到购物车`);
+    alert(`已添加 ${quantity} 件 ${localized(product.name)} 到购物车`);
   };
 
   return (
@@ -27,7 +30,7 @@ export default function ProductDetail({
         onClick={onBack}
         className="mb-6 px-4 py-2 text-sm text-neutral-400 hover:text-amber-400 transition-colors"
       >
-        ← 返回列表
+        {t("product.backToList")}
       </button>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -35,7 +38,7 @@ export default function ProductDetail({
         <div className="bg-neutral-900 border border-neutral-800 rounded-lg overflow-hidden">
           <img
             src={product.image || "/placeholder.svg"}
-            alt={product.name}
+            alt={localized(product.name)}
             className="w-full aspect-square object-cover"
             onError={(e) => {
               (e.target as HTMLImageElement).src = "/placeholder.svg";
@@ -47,7 +50,7 @@ export default function ProductDetail({
         <div className="space-y-6">
           <div>
             <h1 className="text-2xl font-bold text-white mb-2">
-              {product.name}
+              {localized(product.name)}
             </h1>
             <p className="text-sm text-neutral-400">{product.category}</p>
           </div>
@@ -64,23 +67,23 @@ export default function ProductDetail({
           {/* Specs table */}
           <div>
             <h3 className="text-sm font-medium text-neutral-300 mb-3">
-              产品规格
+              {t("product.specs")}
             </h3>
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div className="flex justify-between py-2 px-3 bg-neutral-900 rounded">
-                <span className="text-neutral-400">型号</span>
+                <span className="text-neutral-400">{t("product.model")}</span>
                 <span className="font-mono text-neutral-200">{product.model}</span>
               </div>
               <div className="flex justify-between py-2 px-3 bg-neutral-900 rounded">
-                <span className="text-neutral-400">内径</span>
+                <span className="text-neutral-400">{t("product.innerDiameter")}</span>
                 <span className="text-neutral-200">{product.specs?.innerDiameter}</span>
               </div>
               <div className="flex justify-between py-2 px-3 bg-neutral-900 rounded">
-                <span className="text-neutral-400">外径</span>
+                <span className="text-neutral-400">{t("product.outerDiameter")}</span>
                 <span className="text-neutral-200">{product.specs?.outerDiameter}</span>
               </div>
               <div className="flex justify-between py-2 px-3 bg-neutral-900 rounded">
-                <span className="text-neutral-400">宽度</span>
+                <span className="text-neutral-400">{t("product.width")}</span>
                 <span className="text-neutral-200">{product.specs?.width}</span>
               </div>
             </div>
@@ -89,10 +92,10 @@ export default function ProductDetail({
           {product.description && (
             <div>
               <h3 className="text-sm font-medium text-neutral-300 mb-2">
-                产品描述
+                {t("product.description")}
               </h3>
               <p className="text-sm text-neutral-400 leading-relaxed">
-                {product.description}
+                {localized(product.description)}
               </p>
             </div>
           )}
@@ -131,7 +134,7 @@ export default function ProductDetail({
               onClick={handleAddToCart}
               className="flex-1 py-2.5 text-sm font-medium text-neutral-950 bg-amber-500 hover:bg-amber-400 rounded-md transition-colors"
             >
-              加入购物车
+              {t("product.addToCart")}
             </button>
           </div>
 
@@ -139,7 +142,7 @@ export default function ProductDetail({
           {similarProducts.length > 0 && (
             <div className="pt-6 border-t border-neutral-800">
               <h3 className="text-sm font-medium text-neutral-300 mb-3">
-                相似产品推荐
+                {t("product.similarProducts")}
               </h3>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {similarProducts.map((p) => (
@@ -149,14 +152,14 @@ export default function ProductDetail({
                   >
                     <img
                       src={p.image || "/placeholder.svg"}
-                      alt={p.name}
+                      alt={localized(p.name)}
                       className="w-full aspect-square object-cover rounded mb-2"
                       onError={(e) => {
                         (e.target as HTMLImageElement).src = "/placeholder.svg";
                       }}
                     />
                     <p className="text-xs text-neutral-400 line-clamp-1">
-                      {p.name}
+                      {localized(p.name)}
                     </p>
                     <p className="text-sm font-bold text-amber-400 mt-1">
                       ¥{p.price.toFixed(2)}

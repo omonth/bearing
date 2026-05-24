@@ -1,0 +1,80 @@
+{
+  "header": {
+    "title": "轴承商城",
+    "account": "账户",
+    "cart": "购物车"
+  },
+  "product": {
+    "stock": "库存",
+    "specs": "产品规格",
+    "model": "型号",
+    "innerDiameter": "内径",
+    "outerDiameter": "外径",
+    "width": "宽度",
+    "description": "产品描述",
+    "addToCart": "加入购物车",
+    "backToList": "← 返回列表",
+    "similarProducts": "相似产品推荐",
+    "searchPlaceholder": "搜索型号或轴承名称…",
+    "allCategories": "全部分类",
+    "category": "分类"
+  },
+  "cart": {
+    "title": "购物车",
+    "empty": "购物车是空的",
+    "total": "合计",
+    "checkout": "去结算",
+    "close": "关闭"
+  },
+  "checkout": {
+    "title": "结算",
+    "step_cart": "购物车",
+    "step_address": "收货地址",
+    "step_payment": "支付",
+    "customerName": "收货人姓名",
+    "customerPhone": "手机号码",
+    "province": "省份",
+    "city": "城市",
+    "district": "区/县",
+    "addressDetail": "详细地址",
+    "next": "下一步",
+    "back": "上一步",
+    "placeOrder": "提交订单",
+    "orderSuccess": "下单成功",
+    "orderId": "订单号",
+    "paymentMethod": "支付方式",
+    "wechat": "微信支付",
+    "alipay": "支付宝",
+    "cod": "货到付款",
+    "totalAmount": "应付金额"
+  },
+  "account": {
+    "title": "我的账户",
+    "login": "登录",
+    "register": "注册",
+    "phone": "手机号",
+    "password": "密码",
+    "name": "姓名",
+    "loginBtn": "登录",
+    "registerBtn": "注册",
+    "logout": "退出登录",
+    "myOrders": "我的订单",
+    "myCoupons": "我的优惠券",
+    "points": "积分",
+    "level": "会员等级",
+    "noOrders": "暂无订单",
+    "orderId": "订单号",
+    "status": "状态",
+    "amount": "金额",
+    "time": "时间",
+    "switchToLogin": "已有账号？去登录",
+    "switchToRegister": "没有账号？去注册"
+  },
+  "common": {
+    "loading": "加载中…",
+    "error": "出错了",
+    "retry": "重试",
+    "confirm": "确认",
+    "cancel": "取消"
+  }
+}

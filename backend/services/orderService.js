@@ -97,21 +97,50 @@ class OrderService {
   }
 
   async batchUpdateStatus(orderIds, newStatus, note) {
+    if (!orderIds || orderIds.length === 0) {
+      return { data: null, error: '订单ID列表不能为空', status: 400 };
+    }
+
     try {
-      const placeholders = orderIds.map(() => '?').join(',');
-      const result = await this.db.run(
-        `UPDATE orders SET status = ? WHERE id IN (${placeholders})`,
-        [newStatus, ...orderIds]
-      );
-      for (const orderId of orderIds) {
-        await this.db.run(
-          'INSERT INTO order_status_history (order_id, new_status, note) VALUES (?, ?, ?)',
-          [orderId, newStatus, note || '批量操作']
-        );
-      }
-      logger.info('批量更新订单状态成功', { count: result.changes, status: newStatus });
-      return { data: { message: `成功更新${result.changes}个订单`, count: result.changes }, error: null };
+      const result = await this.db.transaction(async (tx) => {
+        let updated = 0;
+        for (const orderId of orderIds) {
+          const order = await tx.get('SELECT id, status FROM orders WHERE id = ?', [orderId]);
+          if (!order) {
+            throw new Error(JSON.stringify({ type: 'NOT_FOUND', orderId }));
+          }
+          const oldStatus = order.status;
+
+          let updateQuery = 'UPDATE orders SET status = ?';
+          let params = [newStatus];
+          if (newStatus === 'shipped') {
+            updateQuery += ', shipped_at = CURRENT_TIMESTAMP';
+          }
+          if (newStatus === 'completed') {
+            updateQuery += ', completed_at = CURRENT_TIMESTAMP';
+          }
+          updateQuery += ' WHERE id = ?';
+          params.push(orderId);
+
+          await tx.run(updateQuery, params);
+          await tx.run(
+            'INSERT INTO order_status_history (order_id, old_status, new_status, note) VALUES (?, ?, ?, ?)',
+            [orderId, oldStatus, newStatus, note || '批量操作']
+          );
+          updated++;
+        }
+        return { updated };
+      });
+
+      logger.info('批量更新订单状态成功', { count: result.updated, status: newStatus });
+      return { data: { updated: result.updated, message: `成功更新${result.updated}个订单` }, error: null };
     } catch (err) {
+      try {
+        const parsed = JSON.parse(err.message);
+        if (parsed.type === 'NOT_FOUND') {
+          return { data: null, error: `订单 #${parsed.orderId} 不存在`, status: 404 };
+        }
+      } catch {}
       logger.error('批量更新订单状态失败', { error: err.message });
       return { data: null, error: '批量更新失败', status: 500 };
     }

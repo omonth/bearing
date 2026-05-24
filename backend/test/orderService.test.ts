@@ -315,15 +315,41 @@ describe("OrderService", () => {
       orderId2 = r2.data.orderId;
     });
 
-    it("批量更新订单状态", async () => {
+    it("批量更新订单状态（事务成功）", async () => {
       const { data, error } = await orderService.batchUpdateStatus([orderId1, orderId2], "cancelled", "批量取消");
       expect(error).toBeNull();
-      expect(data.count).toBe(2);
+      expect(data.updated).toBe(2);
 
       const o1 = await db.get("SELECT status FROM orders WHERE id = ?", [orderId1]);
       const o2 = await db.get("SELECT status FROM orders WHERE id = ?", [orderId2]);
       expect(o1.status).toBe("cancelled");
       expect(o2.status).toBe("cancelled");
+
+      const history1 = await db.all("SELECT * FROM order_status_history WHERE order_id = ?", [orderId1]);
+      const history2 = await db.all("SELECT * FROM order_status_history WHERE order_id = ?", [orderId2]);
+      expect(history1.length).toBeGreaterThan(0);
+      expect(history2.length).toBeGreaterThan(0);
+    });
+
+    it("混合状态——任一订单不存在则事务回滚", async () => {
+      const { data, error } = await orderService.batchUpdateStatus(
+        [orderId1, 99999],
+        "shipped",
+        "批量发货"
+      );
+      expect(data).toBeNull();
+      expect(error).toContain("不存在");
+
+      // orderId1 should NOT have been updated (transaction rolled back)
+      const o1 = await db.get("SELECT status FROM orders WHERE id = ?", [orderId1]);
+      expect(o1.status).toBe("cancelled");
+    });
+
+    it("空 ID 数组返回错误", async () => {
+      const { data, error, status } = await orderService.batchUpdateStatus([], "shipped");
+      expect(data).toBeNull();
+      expect(error).toBe("订单ID列表不能为空");
+      expect(status).toBe(400);
     });
   });
 });

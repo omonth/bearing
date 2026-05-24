@@ -6,14 +6,16 @@ class AuthService {
   constructor(db, config = {}) {
     this.db = db;
     this.jwtSecret = config.jwtSecret || process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-    this.jwtExpiresIn = config.jwtExpiresIn || process.env.JWT_EXPIRES_IN || '24h';
+    this.adminExpiresIn = config.adminExpiresIn || process.env.JWT_ADMIN_EXPIRES_IN || '8h';
+    this.customerExpiresIn = config.customerExpiresIn || process.env.JWT_CUSTOMER_EXPIRES_IN || '7d';
   }
 
   _generateToken(userId, username, role = 'admin') {
+    const expiresIn = role === 'customer' ? this.customerExpiresIn : this.adminExpiresIn;
     return jwt.sign(
       { userId, username, role },
       this.jwtSecret,
-      { expiresIn: this.jwtExpiresIn }
+      { expiresIn }
     );
   }
 

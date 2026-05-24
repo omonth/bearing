@@ -1,19 +1,24 @@
 export interface BearingSpecs {
-  innerDiameter: number;
-  outerDiameter: number;
-  width: number;
+  innerDiameter: number | string;
+  outerDiameter: number | string;
+  width: number | string;
+}
+
+export interface LocalizedField {
+  zh: string;
+  en: string;
 }
 
 export interface Bearing {
   id: number;
-  name: string;
+  name: LocalizedField;
   model: string;
   price: number;
   image: string;
   category: string;
   specs: BearingSpecs;
   stock: number;
-  description: string;
+  description: LocalizedField;
 }
 
 export interface CartItem extends Bearing {

@@ -1,5 +1,7 @@
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import type { Bearing } from "@/types";
+import { localized } from "@/lib/utils";
 
 interface ProductListProps {
   products: Bearing[];
@@ -18,10 +20,11 @@ export default function ProductList({
   onProductClick,
   onAddToCart,
 }: ProductListProps) {
+  const { t } = useTranslation();
   const cats = useMemo(
     () =>
       categories || [
-        "全部",
+        t("product.allCategories"),
         ...Array.from(new Set(products.map((p) => p.category))),
       ],
     [categories, products]
@@ -74,14 +77,14 @@ export default function ProductList({
             >
               <img
                 src={product.image || "/placeholder.svg"}
-                alt={product.name}
+                alt={localized(product.name)}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                 onError={(e) => {
                   (e.target as HTMLImageElement).src = "/placeholder.svg";
                 }}
               />
               <span className="absolute top-2 right-2 px-2 py-0.5 text-[10px] text-neutral-400 bg-neutral-950/80 rounded">
-                库存 {product.stock}
+                {t("product.stock")} {product.stock}
               </span>
             </div>
 
@@ -91,7 +94,7 @@ export default function ProductList({
                 className="text-sm font-medium text-neutral-200 cursor-pointer hover:text-amber-400 transition-colors line-clamp-1"
                 onClick={() => onProductClick(product)}
               >
-                {product.name}
+                {localized(product.name)}
               </h3>
 
               <p className="text-xs font-mono text-neutral-400">
@@ -99,8 +102,8 @@ export default function ProductList({
               </p>
 
               <div className="flex gap-3 text-[11px] text-neutral-400">
-                <span>内径 {product.specs?.innerDiameter}</span>
-                <span>外径 {product.specs?.outerDiameter}</span>
+                <span>{t("product.innerDiameter")} {product.specs?.innerDiameter}</span>
+                <span>{t("product.outerDiameter")} {product.specs?.outerDiameter}</span>
               </div>
 
               <div className="flex items-center justify-between pt-2 border-t border-neutral-800">
@@ -111,7 +114,7 @@ export default function ProductList({
                   onClick={() => onAddToCart(product)}
                   className="px-3 py-1.5 text-xs font-medium text-neutral-950 bg-amber-500 hover:bg-amber-400 rounded-md transition-colors"
                 >
-                  加入购物车
+                  {t("product.addToCart")}
                 </button>
               </div>
             </div>

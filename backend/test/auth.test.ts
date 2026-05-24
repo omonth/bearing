@@ -91,4 +91,18 @@ describe('Auth API', () => {
       .send({ username: 'admin', password: 'newpass123' });
     expect(newRes.status).toBe(200);
   });
+
+  it('should reject admin endpoint with invalid token', async () => {
+    const res = await request(app)
+      .get('/api/orders')
+      .set('Authorization', 'Bearer invalid-token-here');
+    expect(res.status).toBe(401);
+  });
+
+  it('should reject admin endpoint with invalid token', async () => {
+    const res = await request(app)
+      .get('/api/orders')
+      .set('Authorization', 'Bearer invalid-garbled-token');
+    expect(res.status).toBe(401);
+  });
 });

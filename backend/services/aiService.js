@@ -3,105 +3,167 @@ const logger = require('../logger');
 class AIService {
   constructor(db) {
     this.db = db;
+    this.ragEngine = null;
   }
 
-  // ==================== Smart Chatbot ====================
+  setRagEngine(engine) {
+    this.ragEngine = engine;
+  }
 
-  async chat(message, context = {}) {
+  // ==================== Smart Chatbot (Rule-based FastPath) ====================
+
+  async _fastPath(message, context = {}) {
     const msg = message.toLowerCase().trim();
 
-    let response = '';
-    let suggestions = [];
-    let actions = [];
-
-    // Product inquiry patterns
-    if (msg.includes('产品') || msg.includes('轴承') || msg.includes('型号') || msg.includes('推荐')) {
-      const products = await this.db.all('SELECT id, name, model, price, category, stock FROM bearings LIMIT 10');
-      const productList = products.map(p =>
-        `${p.name} (${p.model}) - ¥${p.price} [库存:${p.stock}]`
-      ).join('\n');
-
-      response = `以下是我们的轴承产品：\n\n${productList}\n\n您对哪款产品感兴趣？我可以为您详细介绍。`;
-      suggestions = ['热销产品', '新品推荐', '按分类查看'];
-    }
-    // Order inquiry
-    else if (msg.includes('订单') || msg.includes('物流') || msg.includes('发货')) {
-      if (context.orderId) {
-        const order = await this.db.get('SELECT * FROM orders WHERE id = ?', [context.orderId]);
-        if (order) {
-          const statusMap = { pending: '待处理', paid: '已支付', shipped: '已发货', completed: '已完成', cancelled: '已取消' };
-          response = `订单 #${order.id} 状态：${statusMap[order.status] || order.status}\n收货人：${order.customer_name}\n金额：¥${order.total_price}\n时间：${order.created_at}`;
-          if (order.tracking_number) {
-            response += `\n物流单号：${order.tracking_number}`;
-          }
-        } else {
-          response = '未找到该订单，请检查订单号是否正确。';
-        }
-      } else {
-        response = '请提供您的订单号，我可以帮您查询订单状态。您也可以告诉我手机号来查询订单。';
-      }
-    }
-    // Phone order lookup
-    else if (/^1[3-9]\d{9}$/.test(msg.trim())) {
+    // Phone number → order lookup
+    if (/^1[3-9]\d{9}$/.test(msg.trim())) {
       const orders = await this.db.all(
         'SELECT id, status, total_price, created_at FROM orders WHERE customer_phone = ? ORDER BY created_at DESC LIMIT 5',
         [msg.trim()]
       );
       if (orders.length > 0) {
         const statusMap = { pending: '待处理', paid: '已支付', shipped: '已发货', completed: '已完成', cancelled: '已取消' };
-        response = `找到 ${orders.length} 个订单：\n\n` +
-          orders.map(o => `#${o.id} - ${statusMap[o.status]} - ¥${o.total_price} - ${o.created_at}`).join('\n');
-      } else {
-        response = '未找到相关订单。如果您是新客户，欢迎浏览我们的产品！';
+        return {
+          message: `找到 ${orders.length} 个订单：\n\n` + orders.map(o => `#${o.id} - ${statusMap[o.status]} - ¥${o.total_price} - ${o.created_at}`).join('\n'),
+          suggestions: ['查看产品', '热销推荐'],
+          intent: 'order_lookup',
+          fastPath: true,
+        };
       }
-      suggestions = ['查看产品', '热销推荐', '联系客服'];
+      return { message: '未找到相关订单。如果您是新客户，欢迎浏览我们的产品！', suggestions: ['查看产品', '热销推荐'], intent: 'order_lookup', fastPath: true };
     }
-    // Price inquiry
-    else if (msg.includes('价格') || msg.includes('多少钱') || msg.includes('优惠') || msg.includes('折扣')) {
-      const priceRange = await this.db.get(
-        'SELECT MIN(price) as minPrice, MAX(price) as maxPrice, AVG(price) as avgPrice FROM bearings'
-      );
-      response = `我们轴承产品的价格范围：¥${priceRange.minPrice} - ¥${priceRange.maxPrice}\n平均价格：¥${Math.round(priceRange.avgPrice * 100) / 100}\n\n目前有会员折扣和优惠券活动，最高可享20%折扣！`;
-      suggestions = ['查看优惠券', '会员权益', '全部产品'];
-    }
+
     // Stock inquiry
-    else if (msg.includes('库存') || msg.includes('有货') || msg.includes('缺货')) {
+    if (msg.includes('库存') || msg.includes('有货') || msg.includes('缺货')) {
       const [inStock, lowStock, outOfStock] = await Promise.all([
         this.db.get('SELECT COUNT(*) as count FROM bearings WHERE stock > 5'),
         this.db.get('SELECT COUNT(*) as count FROM bearings WHERE stock > 0 AND stock <= 5'),
-        this.db.get('SELECT COUNT(*) as count FROM bearings WHERE stock = 0')
+        this.db.get('SELECT COUNT(*) as count FROM bearings WHERE stock = 0'),
       ]);
-      response = `库存概况：\n充足库存：${inStock.count}种\n低库存：${lowStock.count}种\n缺货：${outOfStock.count}种\n\n需要查看具体哪些产品呢？`;
+      return {
+        message: `库存概况：\n充足库存：${inStock.count}种\n低库存：${lowStock.count}种\n缺货：${outOfStock.count}种`,
+        suggestions: ['查看产品', '热销推荐'],
+        intent: 'stock_inquiry',
+        fastPath: true,
+      };
     }
-    // Help / general
-    else if (msg.includes('帮助') || msg.includes('怎么') || msg.includes('功能') || msg === '') {
-      response = `您好！我是轴承销售系统的智能客服，可以帮您：\n\n` +
-        `🔍 查询产品 - 输入"产品"或"轴承型号"\n` +
-        `📦 查询订单 - 输入"订单"或您的手机号\n` +
-        `💰 价格咨询 - 输入"价格"\n` +
-        `📊 库存查询 - 输入"库存"\n` +
-        `🎫 优惠活动 - 输入"优惠"\n` +
-        `❓ 更多问题 - 随时问我！`;
-      suggestions = ['查看产品', '查询订单', '最新优惠', '库存情况'];
+
+    // Price inquiry
+    if (msg.includes('价格') || msg.includes('多少钱') || msg.includes('优惠') || msg.includes('折扣')) {
+      const priceRange = await this.db.get('SELECT MIN(price) as minPrice, MAX(price) as maxPrice FROM bearings');
+      return {
+        message: `轴承产品价格范围：¥${priceRange.minPrice} - ¥${priceRange.maxPrice}\n欢迎浏览产品目录了解更多！`,
+        suggestions: ['查看产品', '热销推荐'],
+        intent: 'price_inquiry',
+        fastPath: true,
+      };
     }
-    // Greeting
-    else if (msg.includes('你好') || msg.includes('hi') || msg.includes('hello')) {
-      response = '您好！欢迎来到轴承销售系统！有什么可以帮您的吗？';
-      suggestions = ['查看产品', '查询订单', '帮助'];
+
+    // Help
+    if (msg.includes('帮助') || msg.includes('怎么') || msg.includes('功能')) {
+      return {
+        message: '您好！我是智能客服，可以帮您：\n\n🔍 查询产品 — 输入轴承型号\n📦 查询订单 — 输入手机号\n📊 查看库存 — 输入"库存"\n💰 了解价格 — 输入"价格"',
+        suggestions: ['查看产品', '查询订单', '热销推荐'],
+        intent: 'help',
+        fastPath: true,
+      };
     }
-    // Default
-    else {
-      response = `关于"${message}"，我建议：\n\n1. 使用搜索功能查找相关产品\n2. 查看我们的帮助文档\n3. 联系人工客服获取更详细的解答\n\n您还可以输入"帮助"查看我能提供的服务。`;
-      suggestions = ['搜索产品', '帮助', '联系客服'];
+
+    if (msg.includes('订单') || msg.includes('物流')) {
+      return { message: '请提供您的手机号或订单号，我可以帮您查询订单状态。', suggestions: ['查看产品'], intent: 'order_query', fastPath: true };
+    }
+
+    return null;
+  }
+
+  async chat(message, context = {}) {
+    // FastPath: rule-based for common queries (instant, no API call)
+    const fast = await this._fastPath(message, context);
+    if (fast) return fast;
+
+    // RAG: semantic search + LLM
+    if (this.ragEngine) {
+      try {
+        const hits = await this.ragEngine.search(message, 3);
+        const contextParts = hits.map(h =>
+          `[${h.source_type === 'bearing' ? '产品' : 'FAQ'}] ${h.content}`
+        );
+        const prompt = `用户问题：${message}\n\n参考信息：\n${contextParts.join('\n')}\n\n请根据参考信息回答用户问题。如果参考信息不足以回答，请诚实说明。`;
+
+        const stream = await this.ragEngine.chat(prompt);
+        return { stream, intent: 'rag', timestamp: new Date().toISOString() };
+      } catch (e) {
+        logger.warn('RAG失败，降级到规则', { error: e.message });
+      }
     }
 
     return {
-      message: response,
-      suggestions,
-      actions,
-      intent: this._detectIntent(msg),
-      timestamp: new Date().toISOString()
+      message: `关于"${message}"，请尝试搜索产品型号或输入"帮助"查看我能提供的服务。`,
+      suggestions: ['搜索产品', '帮助'],
+      intent: 'fallback',
+      timestamp: new Date().toISOString(),
     };
+  }
+
+  // ==================== Admin NL-to-SQL ====================
+
+  async adminChat(message) {
+    if (!this.ragEngine) {
+      return { message: 'AI 助手未启用（需配置 DEEPSEEK_API_KEY）', type: 'error' };
+    }
+
+    const schema = `
+数据库表结构:
+- bearings(id, name TEXT, model TEXT, price REAL, category TEXT, stock INTEGER, inner_diameter, outer_diameter, width, description TEXT, created_at)
+- orders(id, customer_name TEXT, customer_phone TEXT, total_price REAL, status TEXT, created_at, shipped_at, completed_at)
+- order_items(id, order_id, bearing_id, quantity, price)
+- customers(id, name TEXT, phone TEXT, level TEXT, points INTEGER, total_spent REAL)
+- payment_orders(id, order_id, amount REAL, status TEXT, created_at)
+注意: name 和 description 字段存储的是 JSON 格式 {"zh":"...", "en":"..."}
+
+规则:
+1. 只生成 SELECT 语句
+2. 用 LIMIT 限制结果（最多100行）
+3. 时间过滤用 date(created_at)
+4. 返回纯SQL，不要解释`;
+
+    try {
+      const res = await fetch('https://api.deepseek.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.ragEngine.apiKey}` },
+        body: JSON.stringify({
+          model: 'deepseek-chat',
+          messages: [
+            { role: 'system', content: schema },
+            { role: 'user', content: `生成SQL查询：${message}` },
+          ],
+        }),
+      });
+
+      const data = await res.json();
+      const sql = (data.choices?.[0]?.message?.content || '').replace(/```sql|```/g, '').trim();
+
+      if (!sql.toUpperCase().startsWith('SELECT')) return { message: '仅支持数据查询操作', type: 'error' };
+      if (sql.toUpperCase().includes('DROP') || sql.toUpperCase().includes('DELETE') || sql.toUpperCase().includes('INSERT') || sql.toUpperCase().includes('UPDATE') || sql.toUpperCase().includes('ALTER')) {
+        return { message: '不允许的数据库操作', type: 'error' };
+      }
+
+      const safeSql = sql.includes('LIMIT') ? sql : `${sql} LIMIT 100`;
+      const start = Date.now();
+      const rows = await Promise.race([
+        this.db.all(safeSql, []),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 5000)),
+      ]);
+
+      if (rows.length === 0) return { message: '未找到匹配数据', type: 'result', data: [], sql: safeSql };
+      if (rows.length >= 100) return { message: `查询到 ${rows.length}+ 条数据（仅显示前100条）`, type: 'result', data: rows.slice(0, 100), sql: safeSql };
+
+      return { message: `查询到 ${rows.length} 条数据`, type: 'result', data: rows, sql: safeSql };
+    } catch (e) {
+      if (e.message === 'TIMEOUT') return { message: '查询超时，请简化查询条件', type: 'error' };
+      logger.error('Admin AI查询失败', { error: e.message });
+      return { message: '抱歉，我无法回答这个问题', type: 'error' };
+    }
   }
 
   _detectIntent(message) {

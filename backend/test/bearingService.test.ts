@@ -45,7 +45,9 @@ describe("BearingService", () => {
     it("返回存在的产品", async () => {
       const { data, error } = await bearingService.getById(1);
       expect(error).toBeNull();
-      expect(data.name).toBe("深沟球轴承 6200");
+      expect(data.name.zh).toBe("深沟球轴承 6200");
+      expect(data.name.en).toBeTruthy();
+      expect(data.description.zh).toBeTruthy();
       expect(data.model).toBe("6200");
     });
 

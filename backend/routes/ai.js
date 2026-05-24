@@ -9,15 +9,71 @@ module.exports = function(db, aiService) {
   router.post('/chat', async (req, res) => {
     try {
       const { message, context } = req.body;
-      if (!message) {
-        return res.status(400).json({ error: '请输入消息' });
-      }
+      if (!message) return res.status(400).json({ error: '请输入消息' });
 
       const result = await aiService.chat(message, context || {});
-      logger.info('AI聊天', { message: message.substring(0, 50), intent: result.intent });
-      res.json(result);
+
+      if (result.stream) {
+        // SSE streaming response
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+
+        const reader = result.stream.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) { res.write('data: [DONE]\n\n'); res.end(); break; }
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6).trim();
+              if (data === '[DONE]') { res.write('data: [DONE]\n\n'); res.end(); return; }
+              try {
+                const parsed = JSON.parse(data);
+                const content = parsed.choices?.[0]?.delta?.content;
+                if (content) res.write(`data: ${JSON.stringify({ content })}\n\n`);
+              } catch { /* skip malformed chunks */ }
+            }
+          }
+        }
+      } else {
+        res.json(result);
+      }
     } catch (error) {
       logger.error('AI聊天失败', { error: error.message });
+      if (!res.headersSent) res.status(500).json({ error: error.message });
+    }
+  });
+
+  router.post('/reindex', async (req, res) => {
+    try {
+      if (aiService.ragEngine) {
+        await aiService.ragEngine.buildIndex();
+        res.json({ message: '索引重建完成' });
+      } else {
+        res.status(400).json({ error: 'RAG引擎未初始化' });
+      }
+    } catch (error) {
+      logger.error('重建索引失败', { error: error.message });
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  router.post('/admin-chat', async (req, res) => {
+    try {
+      const { message } = req.body;
+      if (!message) return res.status(400).json({ error: '请输入问题' });
+      const result = await aiService.adminChat(message);
+      res.json(result);
+    } catch (error) {
+      logger.error('Admin AI失败', { error: error.message });
       res.status(500).json({ error: error.message });
     }
   });

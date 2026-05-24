@@ -118,11 +118,4 @@ export const chatWithBot = (message: string, context?: any) =>
     body: JSON.stringify({ message, context }),
   });
 
-// GraphQL
-export const graphql = (query: string, variables?: any) =>
-  request<any>('/graphql', {
-    method: 'POST',
-    body: JSON.stringify({ query, variables }),
-  });
-
 export { getAuthHeaders };

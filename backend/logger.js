@@ -1,4 +1,5 @@
 const winston = require('winston');
+require('winston-daily-rotate-file');
 const path = require('path');
 const fs = require('fs');
 
@@ -20,18 +21,20 @@ const logger = winston.createLogger({
   ),
   defaultMeta: { service: 'bearing-sales-api' },
   transports: [
-    new winston.transports.File({
-      filename: path.join(logDir, 'error.log'),
+    new winston.transports.DailyRotateFile({
+      filename: path.join(logDir, 'error-%DATE%.log'),
+      datePattern: 'YYYY-MM-DD',
       level: 'error',
-      maxsize: 5242880,
-      maxFiles: 5
+      maxSize: '5m',
+      maxFiles: '30d',
     }),
-    new winston.transports.File({
-      filename: path.join(logDir, 'combined.log'),
-      maxsize: 5242880,
-      maxFiles: 5
-    })
-  ]
+    new winston.transports.DailyRotateFile({
+      filename: path.join(logDir, 'combined-%DATE%.log'),
+      datePattern: 'YYYY-MM-DD',
+      maxSize: '5m',
+      maxFiles: '14d',
+    }),
+  ],
 });
 
 if (process.env.NODE_ENV !== 'production') {

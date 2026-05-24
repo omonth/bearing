@@ -13,6 +13,7 @@ const CustomerService = require('./services/customerService');
 const CouponService = require('./services/couponService');
 const PointsService = require('./services/pointsService');
 const SupplyChainService = require('./services/supplyChainService');
+const RAGEngine = require('./services/ragEngine');
 const createApp = require('./app');
 
 const PORT = process.env.PORT || 3001;
@@ -22,6 +23,14 @@ const inventoryAlert = new InventoryAlert(db);
 const analytics = new Analytics(db);
 const recommendationEngine = new RecommendationEngine(db);
 const aiService = new AIService(db);
+if (process.env.DEEPSEEK_API_KEY) {
+  const ragEngine = new RAGEngine(db, process.env.DEEPSEEK_API_KEY);
+  aiService.setRagEngine(ragEngine);
+  ragEngine.buildIndex().catch(err => logger.warn('RAG索引构建失败', { error: err.message }));
+  logger.info('RAG引擎已初始化');
+} else {
+  logger.warn('DEEPSEEK_API_KEY未设置，RAG引擎未启用');
+}
 const authService = new AuthService(db);
 
 const { clearCache } = require('./middleware/cache');

@@ -61,3 +61,4 @@ temp/
 # 操作系统
 Thumbs.db
 .DS_Store
+admin/test-results/

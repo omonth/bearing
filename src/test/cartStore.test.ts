@@ -4,20 +4,20 @@ import type { Bearing } from '@/types';
 
 const mockBearing: Bearing = {
   id: 1,
-  name: '深沟球轴承 6200',
+  name: { zh: '深沟球轴承 6200', en: 'Deep Groove Ball Bearing 6200' },
   model: '6200',
   price: 15.00,
   image: '/images/6200.jpg',
   category: '深沟球轴承',
   specs: { innerDiameter: 10, outerDiameter: 30, width: 9 },
   stock: 100,
-  description: '通用深沟球轴承',
+  description: { zh: '通用深沟球轴承', en: 'General purpose deep groove ball bearing' },
 };
 
 const mockBearing2: Bearing = {
   ...mockBearing,
   id: 2,
-  name: '圆柱滚子轴承 NU205',
+  name: { zh: '圆柱滚子轴承 NU205', en: 'Cylindrical Roller Bearing NU205' },
   model: 'NU205',
   price: 45.00,
 };

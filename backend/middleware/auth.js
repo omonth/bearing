@@ -2,13 +2,15 @@ const jwt = require('jsonwebtoken');
 const logger = require('../logger');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
+const JWT_ADMIN_EXPIRES_IN = process.env.JWT_ADMIN_EXPIRES_IN || '8h';
+const JWT_CUSTOMER_EXPIRES_IN = process.env.JWT_CUSTOMER_EXPIRES_IN || '7d';
 
 const generateToken = (userId, username, role = 'admin') => {
+  const expiresIn = role === 'customer' ? JWT_CUSTOMER_EXPIRES_IN : JWT_ADMIN_EXPIRES_IN;
   return jwt.sign(
     { userId, username, role },
     JWT_SECRET,
-    { expiresIn: JWT_EXPIRES_IN }
+    { expiresIn }
   );
 };
 
@@ -62,5 +64,7 @@ module.exports = {
   verifyToken,
   requireAdmin,
   optionalAuth,
-  JWT_SECRET
+  JWT_SECRET,
+  JWT_ADMIN_EXPIRES_IN,
+  JWT_CUSTOMER_EXPIRES_IN,
 };

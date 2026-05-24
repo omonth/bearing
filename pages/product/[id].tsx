@@ -3,6 +3,7 @@ import { useRouter } from "next/router";
 import Head from "next/head";
 import Header from "@/components/Header";
 import ProductDetail from "@/components/ProductDetail";
+import { localized } from "@/lib/utils";
 import Cart from "@/components/Cart";
 import { useProductStore } from "@/store/productStore";
 import { useCartStore } from "@/store/cartStore";
@@ -68,10 +69,10 @@ export default function ProductPage() {
   return (
     <>
       <Head>
-        <title>{product.name} - 轴承销售系统</title>
+        <title>{localized(product.name)} - 轴承销售系统</title>
         <meta
           name="description"
-          content={product.description || product.name}
+          content={localized(product.description) || localized(product.name)}
         />
       </Head>
       <div className="min-h-screen bg-neutral-950">

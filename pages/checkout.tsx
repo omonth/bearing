@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/router";
 import Head from "next/head";
 import Header from "@/components/Header";
+import { localized } from "@/lib/utils";
 import { useCartStore } from "@/store/cartStore";
 import { useCheckoutStore } from "@/store/checkoutStore";
 import { useAuthStore } from "@/store/authStore";
@@ -184,12 +185,12 @@ export default function CheckoutPage() {
                   >
                     <img
                       src={item.image}
-                      alt={item.name}
+                      alt={localized(item.name)}
                       className="w-20 h-20 object-cover rounded-md shrink-0"
                     />
                     <div className="flex-1 min-w-0">
                       <h4 className="text-sm font-medium text-neutral-200 line-clamp-1">
-                        {item.name}
+                        {localized(item.name)}
                       </h4>
                       <p className="text-xs font-mono text-neutral-500 mt-0.5">
                         {item.model}

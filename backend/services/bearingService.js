@@ -6,16 +6,21 @@ class BearingService {
     this.clearCache = clearCacheFn || (() => {});
   }
 
+  _parseJsonField(value) {
+    if (!value) return { zh: '', en: '' };
+    try { return JSON.parse(value); } catch { return { zh: value, en: '' }; }
+  }
+
   _mapRow(row) {
     return {
-      id: row.id, name: row.name, model: row.model,
+      id: row.id, name: this._parseJsonField(row.name), model: row.model,
       price: Number(row.price), image: row.image, category: row.category,
       specs: {
-        innerDiameter: Number(row.inner_diameter),
-        outerDiameter: Number(row.outer_diameter),
-        width: Number(row.width)
+        innerDiameter: parseFloat(row.inner_diameter) || row.inner_diameter,
+        outerDiameter: parseFloat(row.outer_diameter) || row.outer_diameter,
+        width: parseFloat(row.width) || row.width
       },
-      stock: Number(row.stock), description: row.description
+      stock: Number(row.stock), description: this._parseJsonField(row.description)
     };
   }
 
@@ -87,10 +92,10 @@ class BearingService {
     if (!q || q.trim().length < 2) return { data: [], error: null };
     try {
       const rows = await this.db.all(
-        'SELECT DISTINCT name, model FROM bearings_fts WHERE bearings_fts MATCH ? LIMIT 10',
-        [`${q.trim()}*`]
+        'SELECT DISTINCT name, model FROM bearings WHERE model LIKE ? LIMIT 10',
+        [`%${q.trim()}%`]
       );
-      return { data: rows.map(row => ({ name: row.name, model: row.model })), error: null };
+      return { data: rows.map(row => ({ name: typeof row.name === 'string' ? this._parseJsonField(row.name).zh : row.name, model: row.model })), error: null };
     } catch (err) {
       logger.error('获取搜索建议失败', { error: err.message });
       return { data: [], error: null };
@@ -116,6 +121,22 @@ class BearingService {
       await this.db.run('DELETE FROM bearings WHERE id = ?', [id]);
       this.clearCache('bearings:*');
       return { data: { message: '产品删除成功' }, error: null };
+    } catch (err) {
+      return { data: null, error: err.message, status: 500 };
+    }
+  }
+
+  async update(id, fields) {
+    try {
+      const allowed = ['name', 'model', 'price', 'category', 'stock', 'description', 'inner_diameter', 'outer_diameter', 'width'];
+      const keys = Object.keys(fields).filter(k => allowed.includes(k));
+      if (keys.length === 0) return { data: null, error: '无可更新字段', status: 400 };
+      const setClauses = keys.map(k => `${k} = ?`).join(', ');
+      const values = keys.map(k => fields[k]);
+      values.push(id);
+      await this.db.run(`UPDATE bearings SET ${setClauses} WHERE id = ?`, values);
+      this.clearCache('bearings:*');
+      return { data: { message: '产品更新成功' }, error: null };
     } catch (err) {
       return { data: null, error: err.message, status: 500 };
     }

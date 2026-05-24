@@ -202,4 +202,38 @@ describe('Orders API', () => {
     const afterBearing = await db.get('SELECT stock FROM bearings WHERE id = ?', [2]);
     expect(afterBearing.stock).toBe(stockBefore + 3);
   });
+
+  // ==================== Batch operations ====================
+
+  it('should batch update order status', async () => {
+    const a = await request(app).post('/api/orders').send({
+      customerName: '批量A', customerPhone: '13900000001', province: '北京', city: '北京', district: '东城', addressDetail: '测试路', items: [{ id: 1, quantity: 1 }],
+    });
+    const b = await request(app).post('/api/orders').send({
+      customerName: '批量B', customerPhone: '13900000002', province: '上海', city: '上海', district: '静安', addressDetail: '测试路', items: [{ id: 1, quantity: 1 }],
+    });
+
+    const res = await request(app)
+      .put('/api/orders/batch/status')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({ orderIds: [a.body.orderId, b.body.orderId], status: 'cancelled' });
+    expect(res.status).toBe(200);
+    expect(res.body.updated).toBe(2);
+  });
+
+  it('should reject batch status with nonexistent order (rollback)', async () => {
+    const a = await request(app).post('/api/orders').send({
+      customerName: '回滚测试', customerPhone: '13900000003', province: '广州', city: '广州', district: '天河', addressDetail: '体育西', items: [{ id: 1, quantity: 1 }],
+    });
+
+    const res = await request(app)
+      .put('/api/orders/batch/status')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({ orderIds: [a.body.orderId, 99999], status: 'shipped' });
+    expect(res.status).toBe(404);
+
+    // Verify first order NOT updated (rollback)
+    const o = await db.get('SELECT status FROM orders WHERE id = ?', [a.body.orderId]);
+    expect(o.status).toBe('pending');
+  });
 });

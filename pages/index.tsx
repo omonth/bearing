@@ -4,6 +4,7 @@ import Header from "@/components/Header";
 import ProductList from "@/components/ProductList";
 import ProductDetail from "@/components/ProductDetail";
 import Cart from "@/components/Cart";
+import ChatBot from "@/components/ChatBot";
 import { useProductStore } from "@/store/productStore";
 import { useCartStore } from "@/store/cartStore";
 
@@ -97,6 +98,7 @@ export default function Home() {
           />
         )}
       </div>
+      <ChatBot />
     </>
   );
 }

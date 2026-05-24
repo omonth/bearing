@@ -140,18 +140,20 @@ export async function seedTestData(db: any) {
     ['admin', hashedPassword, 'admin@test.com', 'admin']
   );
 
+  const j = (zh: string, en = '') => JSON.stringify({ zh, en });
+
   await db.run(
     'INSERT INTO bearings (name, model, price, category, inner_diameter, outer_diameter, width, stock, description) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    ['深沟球轴承 6200', '6200', 15.00, '深沟球轴承', 10, 30, 9, 100, '通用深沟球轴承']
+    [j('深沟球轴承 6200', 'Deep Groove Ball Bearing 6200'), '6200', 15.00, '深沟球轴承', 10, 30, 9, 100, j('通用深沟球轴承', 'General purpose deep groove ball bearing')]
   );
 
   await db.run(
     'INSERT INTO bearings (name, model, price, category, inner_diameter, outer_diameter, width, stock, description) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    ['圆柱滚子轴承 NU205', 'NU205', 45.00, '圆柱滚子轴承', 25, 52, 15, 50, '圆柱滚子轴承，高承载']
+    [j('圆柱滚子轴承 NU205', 'Cylindrical Roller Bearing NU205'), 'NU205', 45.00, '圆柱滚子轴承', 25, 52, 15, 50, j('圆柱滚子轴承，高承载', 'Cylindrical roller bearing, high load')]
   );
 
   await db.run(
     'INSERT INTO bearings (name, model, price, category, inner_diameter, outer_diameter, width, stock, description) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    ['推力球轴承 51100', '51100', 22.00, '推力球轴承', 10, 24, 9, 0, '推力球轴承，单向']
+    [j('推力球轴承 51100', 'Thrust Ball Bearing 51100'), '51100', 22.00, '推力球轴承', 10, 24, 9, 0, j('推力球轴承，单向', 'Thrust ball bearing, single direction')]
   );
 }

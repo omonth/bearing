@@ -1,0 +1,80 @@
+{
+  "header": {
+    "title": "Bearing Store",
+    "account": "Account",
+    "cart": "Cart"
+  },
+  "product": {
+    "stock": "Stock",
+    "specs": "Specifications",
+    "model": "Model",
+    "innerDiameter": "Inner Diam.",
+    "outerDiameter": "Outer Diam.",
+    "width": "Width",
+    "description": "Description",
+    "addToCart": "Add to Cart",
+    "backToList": "← Back to List",
+    "similarProducts": "Similar Products",
+    "searchPlaceholder": "Search model or name…",
+    "allCategories": "All Categories",
+    "category": "Category"
+  },
+  "cart": {
+    "title": "Shopping Cart",
+    "empty": "Your cart is empty",
+    "total": "Total",
+    "checkout": "Checkout",
+    "close": "Close"
+  },
+  "checkout": {
+    "title": "Checkout",
+    "step_cart": "Cart",
+    "step_address": "Address",
+    "step_payment": "Payment",
+    "customerName": "Recipient Name",
+    "customerPhone": "Phone Number",
+    "province": "Province",
+    "city": "City",
+    "district": "District",
+    "addressDetail": "Address Detail",
+    "next": "Next",
+    "back": "Back",
+    "placeOrder": "Place Order",
+    "orderSuccess": "Order Placed",
+    "orderId": "Order ID",
+    "paymentMethod": "Payment Method",
+    "wechat": "WeChat Pay",
+    "alipay": "Alipay",
+    "cod": "Cash on Delivery",
+    "totalAmount": "Total Amount"
+  },
+  "account": {
+    "title": "My Account",
+    "login": "Login",
+    "register": "Register",
+    "phone": "Phone",
+    "password": "Password",
+    "name": "Name",
+    "loginBtn": "Login",
+    "registerBtn": "Register",
+    "logout": "Logout",
+    "myOrders": "My Orders",
+    "myCoupons": "My Coupons",
+    "points": "Points",
+    "level": "Member Level",
+    "noOrders": "No orders yet",
+    "orderId": "Order ID",
+    "status": "Status",
+    "amount": "Amount",
+    "time": "Time",
+    "switchToLogin": "Already have an account? Login",
+    "switchToRegister": "No account? Register"
+  },
+  "common": {
+    "loading": "Loading…",
+    "error": "Error",
+    "retry": "Retry",
+    "confirm": "Confirm",
+    "cancel": "Cancel"
+  }
+}
