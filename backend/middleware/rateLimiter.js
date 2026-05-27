@@ -13,7 +13,7 @@ const createLimiter = (windowMs, max, message) => rateLimit({
   },
 });
 
-const apiLimiter = createLimiter(60 * 1000, 100, '请求过于频繁，请稍后再试');
+const apiLimiter = createLimiter(60 * 1000, 500, '请求过于频繁，请稍后再试');
 const loginLimiter = rateLimit({
   windowMs: 5 * 60 * 1000,
   max: 5,
