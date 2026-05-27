@@ -82,7 +82,7 @@ export default function ProductPage() {
             product={product}
             similarProducts={similar}
             onBack={() => router.push("/")}
-            onAddToCart={addItem}
+            onAddToCart={(product, quantity) => { addItem(product, quantity); setShowCart(true); }}
           />
         </main>
         {showCart && (

@@ -74,7 +74,7 @@ export default function Home() {
             <ProductDetail
               product={selectedProduct}
               onBack={() => setSelectedProduct(null)}
-              onAddToCart={addItem}
+              onAddToCart={(product, quantity) => { addItem(product, quantity); setShowCart(true); }}
             />
           ) : (
             <ProductList
@@ -83,7 +83,7 @@ export default function Home() {
               activeCategory={activeCategory}
               onCategoryChange={handleCategoryChange}
               onProductClick={setSelectedProduct}
-              onAddToCart={addItem}
+              onAddToCart={(product) => { addItem(product); setShowCart(true); }}
             />
           )}
         </main>
