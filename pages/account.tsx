@@ -54,7 +54,7 @@ const couponStatusColor: Record<string, string> = {
 
 export default function AccountPage() {
   const router = useRouter();
-  const { user, token, loading, fetchMe, logout } = useAuthStore();
+  const { user, token, loading, fetchMe, logout, _rehydrated } = useAuthStore();
   const { getTotalCount, toggleCart } = useCartStore();
   const [tab, setTab] = useState<Tab>("orders");
   const [orders, setOrders] = useState<any[]>([]);
@@ -80,12 +80,13 @@ export default function AccountPage() {
   };
 
   useEffect(() => {
+    if (!_rehydrated) return;
     if (!token) {
       router.push("/login");
       return;
     }
     fetchMe();
-  }, [token]);
+  }, [token, _rehydrated]);
 
   useEffect(() => {
     fetchData();
@@ -96,7 +97,7 @@ export default function AccountPage() {
     router.push("/");
   };
 
-  if (!token) return null;
+  if (!_rehydrated || !token) return null;
 
   return (
     <>

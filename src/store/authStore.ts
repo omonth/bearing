@@ -14,6 +14,7 @@ interface AuthStore {
   user: AuthUser | null;
   token: string | null;
   loading: boolean;
+  _rehydrated: boolean;
 
   login: (phone: string, password: string) => Promise<void>;
   register: (data: { name?: string; phone: string; password: string }) => Promise<void>;
@@ -27,6 +28,7 @@ export const useAuthStore = create<AuthStore>()(
       user: null,
       token: null,
       loading: false,
+      _rehydrated: false,
 
       login: async (phone, password) => {
         const res = await customerLogin(phone, password);
@@ -60,6 +62,9 @@ export const useAuthStore = create<AuthStore>()(
     {
       name: 'bearing-auth',
       partialize: (state) => ({ token: state.token, user: state.user }),
+      onRehydrateStorage: () => (state) => {
+        if (state) state._rehydrated = true;
+      },
     }
   )
 );
