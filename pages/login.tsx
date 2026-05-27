@@ -34,7 +34,7 @@ export default function LoginPage() {
       } else {
         await register({ name: name || undefined, phone, password });
       }
-      router.push("/account");
+      window.location.href = "/account";
     } catch (err: any) {
       setError(err.message || "操作失败");
     } finally {
