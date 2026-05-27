@@ -53,6 +53,29 @@ db.serialize(async () => {
     )
   `);
 
+  db.run(`
+    CREATE TABLE IF NOT EXISTS customers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      phone TEXT UNIQUE NOT NULL,
+      password TEXT,
+      email TEXT,
+      company TEXT,
+      address TEXT,
+      level TEXT DEFAULT 'bronze',
+      points INTEGER DEFAULT 0,
+      total_spent REAL DEFAULT 0,
+      total_orders INTEGER DEFAULT 0,
+      tags TEXT,
+      notes TEXT,
+      status TEXT DEFAULT 'active',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.run(`CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone)`);
+
   const bearingsData = [
     // ===== 深沟球轴承 (Deep Groove Ball Bearings) =====
     {name:{zh:'深沟球轴承 6200',en:'Deep Groove Ball Bearing 6200'}, model:'6200', price:6.50, category:'深沟球轴承', inner_diameter:'10mm', outer_diameter:'30mm', width:'9mm', stock:500, description:{zh:'适用于高速旋转，低噪音，长寿命',en:'Suitable for high-speed rotation, low noise, long life'}},
