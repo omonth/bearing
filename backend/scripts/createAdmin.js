@@ -2,7 +2,9 @@ const sqlite3 = require('sqlite3').verbose();
 const bcrypt = require('bcryptjs');
 const path = require('path');
 
-const dbPath = path.join(__dirname, '../bearings.db');
+const dbPath = path.isAbsolute(process.env.DB_PATH || '')
+  ? process.env.DB_PATH
+  : path.join(__dirname, '..', process.env.DB_PATH || 'bearings.db');
 const db = new sqlite3.Database(dbPath);
 
 // 创建管理员表

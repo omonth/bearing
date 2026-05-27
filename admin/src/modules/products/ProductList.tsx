@@ -16,19 +16,19 @@ export default function ProductList() {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<string>('');
   const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
   const [createOpen, setCreateOpen] = useState(false);
   const [form] = Form.useForm();
 
   const fetchProducts = useCallback(async () => {
     setLoading(true);
     try {
-      if (search.trim()) {
-        const res = await adminApi.get('/search', { params: { q: search, category: category || undefined, sortBy: 'id', order: 'desc' } });
-        setProducts(res.data.data?.results || []);
-      } else {
-        const res = await adminApi.get('/bearings', { params: { category: category || undefined } });
-        setProducts(Array.isArray(res.data) ? res.data : res.data.data || []);
-      }
+      const res = await adminApi.get('/search', {
+        params: { q: search || undefined, category: category || undefined, sortBy: 'id', order: 'desc' },
+      });
+      const body = res.data;
+      setProducts(body?.results || []);
+      setTotal(body?.total || 0);
     } catch { message.error('加载产品失败'); }
     finally { setLoading(false); }
   }, [search, category]);
@@ -58,7 +58,14 @@ export default function ProductList() {
   const handleCreate = async () => {
     try {
       const values = await form.validateFields();
-      await adminApi.post('/bearings', values);
+      const payload = {
+        ...values,
+        name: JSON.stringify({ zh: values.name, en: values.name_en || '' }),
+        description: JSON.stringify({ zh: values.description || '', en: values.description_en || '' }),
+      };
+      delete payload.name_en;
+      delete payload.description_en;
+      await adminApi.post('/bearings', payload);
       message.success('产品已添加');
       setCreateOpen(false);
       form.resetFields();
@@ -169,6 +176,7 @@ export default function ProductList() {
           current: page,
           onChange: setPage,
           pageSize: 20,
+          total,
           showSizeChanger: false,
           showTotal: (t) => `共 ${t} 个产品`,
         }}
@@ -182,9 +190,14 @@ export default function ProductList() {
         width={560}
       >
         <Form form={form} layout="vertical">
-          <Form.Item name="name" label="产品名称 (中文)" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
+          <div className="flex gap-3">
+            <Form.Item name="name" label="产品名称 (中文)" rules={[{ required: true }]} className="flex-1">
+              <Input />
+            </Form.Item>
+            <Form.Item name="name_en" label="产品名称 (英文)" className="flex-1">
+              <Input />
+            </Form.Item>
+          </div>
           <Form.Item name="model" label="型号" rules={[{ required: true }]}>
             <Input />
           </Form.Item>
@@ -197,6 +210,14 @@ export default function ProductList() {
             </Form.Item>
             <Form.Item name="category" label="分类" rules={[{ required: true }]} className="flex-1">
               <Select options={categories.map(c => ({ value: c, label: c }))} />
+            </Form.Item>
+          </div>
+          <div className="flex gap-3">
+            <Form.Item name="description" label="产品描述 (中文)" className="flex-1">
+              <Input.TextArea rows={2} />
+            </Form.Item>
+            <Form.Item name="description_en" label="产品描述 (英文)" className="flex-1">
+              <Input.TextArea rows={2} />
             </Form.Item>
           </div>
           <Form.Item name="image" label="图片">

@@ -11,6 +11,16 @@ class BearingService {
     try { return JSON.parse(value); } catch { return { zh: value, en: '' }; }
   }
 
+  _ensureJsonField(value) {
+    if (!value) return JSON.stringify({ zh: '', en: '' });
+    if (typeof value !== 'string') return JSON.stringify(value);
+    try {
+      const parsed = JSON.parse(value);
+      if (parsed && typeof parsed === 'object' && 'zh' in parsed) return value;
+    } catch { /* plain string */ }
+    return JSON.stringify({ zh: value, en: '' });
+  }
+
   _mapRow(row) {
     return {
       id: row.id, name: this._parseJsonField(row.name), model: row.model,
@@ -104,9 +114,11 @@ class BearingService {
 
   async create({ name, model, price, category, innerDiameter, outerDiameter, width, stock, image, description }) {
     try {
+      const normalizedName = this._ensureJsonField(name);
+      const normalizedDescription = this._ensureJsonField(description);
       const result = await this.db.run(
         'INSERT INTO bearings (name, model, price, category, inner_diameter, outer_diameter, width, stock, image, description) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [name, model, price, category, innerDiameter, outerDiameter, width, stock, image, description]
+        [normalizedName, model, price, category, innerDiameter, outerDiameter, width, stock, image, normalizedDescription]
       );
       this.clearCache('bearings:*');
       this.clearCache('categories:*');
@@ -129,10 +141,11 @@ class BearingService {
   async update(id, fields) {
     try {
       const allowed = ['name', 'model', 'price', 'category', 'stock', 'description', 'inner_diameter', 'outer_diameter', 'width'];
+      const jsonFields = ['name', 'description'];
       const keys = Object.keys(fields).filter(k => allowed.includes(k));
       if (keys.length === 0) return { data: null, error: '无可更新字段', status: 400 };
       const setClauses = keys.map(k => `${k} = ?`).join(', ');
-      const values = keys.map(k => fields[k]);
+      const values = keys.map(k => jsonFields.includes(k) ? this._ensureJsonField(fields[k]) : fields[k]);
       values.push(id);
       await this.db.run(`UPDATE bearings SET ${setClauses} WHERE id = ?`, values);
       this.clearCache('bearings:*');

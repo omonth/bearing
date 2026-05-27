@@ -115,6 +115,42 @@ describe("BearingService", () => {
       const { data: products } = await bearingService.list();
       expect(products.length).toBe(4);
     });
+
+    it("纯字符串 name 自动转为 {zh, en} JSON", async () => {
+      const { data, error } = await bearingService.create({
+        name: "自动转换轴承",
+        model: "AUTO-001",
+        price: 10,
+        category: "深沟球轴承",
+        innerDiameter: 5,
+        outerDiameter: 10,
+        width: 3,
+        stock: 10,
+      });
+      expect(error).toBeNull();
+
+      const { data: bearing } = await bearingService.getById(data.id);
+      expect(bearing.name).toEqual({ zh: "自动转换轴承", en: "" });
+      expect(bearing.description).toEqual({ zh: "", en: "" });
+    });
+
+    it("已是 JSON 格式的 name 保持不变", async () => {
+      const jsonName = JSON.stringify({ zh: "JSON轴承", en: "JSON Bearing" });
+      const { data, error } = await bearingService.create({
+        name: jsonName,
+        model: "JSON-001",
+        price: 20,
+        category: "深沟球轴承",
+        innerDiameter: 5,
+        outerDiameter: 10,
+        width: 3,
+        stock: 10,
+      });
+      expect(error).toBeNull();
+
+      const { data: bearing } = await bearingService.getById(data.id);
+      expect(bearing.name).toEqual({ zh: "JSON轴承", en: "JSON Bearing" });
+    });
   });
 
   describe("updateStock", () => {
