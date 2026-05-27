@@ -244,7 +244,7 @@ db.serialize(async () => {
       JSON.stringify(bearing.name),
       bearing.model,
       bearing.price,
-      `https://via.placeholder.com/300x300/1a1a2e/4a90e2?text=${bearing.model}`,
+      '',
       bearing.category,
       bearing.inner_diameter,
       bearing.outer_diameter,
