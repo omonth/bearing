@@ -55,7 +55,7 @@ export default function Cart({
             <div className="space-y-4">
               {items.map((item) => (
                 <div key={item.id} className="flex gap-3 pb-4 border-b border-neutral-800">
-                  <img src={item.image} alt={localized(item.name)} className="w-[72px] h-[72px] object-cover rounded-md shrink-0" />
+                  <img src={item.image || "/placeholder.svg"} alt={localized(item.name)} className="w-[72px] h-[72px] object-cover rounded-md shrink-0" onError={(e) => { (e.target as HTMLImageElement).src = "/placeholder.svg"; }} />
                   <div className="flex-1 min-w-0">
                     <h4 className="text-sm font-medium text-neutral-200 line-clamp-1">{localized(item.name)}</h4>
                     <p className="text-xs font-mono text-neutral-600 mt-0.5">{item.model}</p>
