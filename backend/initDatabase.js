@@ -76,6 +76,100 @@ db.serialize(async () => {
 
   db.run(`CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone)`);
 
+  db.run(`
+    CREATE TABLE IF NOT EXISTS customer_levels (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      level TEXT UNIQUE NOT NULL,
+      name TEXT NOT NULL,
+      min_points INTEGER NOT NULL,
+      discount_rate REAL DEFAULT 0,
+      benefits TEXT,
+      color TEXT
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS points_records (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      customer_id INTEGER NOT NULL,
+      points INTEGER NOT NULL,
+      type TEXT NOT NULL,
+      reason TEXT,
+      order_id INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS coupons (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      code TEXT UNIQUE NOT NULL,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL,
+      discount_value REAL NOT NULL,
+      min_order_amount REAL DEFAULT 0,
+      max_discount REAL,
+      total_quantity INTEGER,
+      used_quantity INTEGER DEFAULT 0,
+      valid_from DATETIME,
+      valid_until DATETIME,
+      status TEXT DEFAULT 'active',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS customer_coupons (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      customer_id INTEGER NOT NULL,
+      coupon_id INTEGER NOT NULL,
+      status TEXT DEFAULT 'unused',
+      used_at DATETIME,
+      used_order_id INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE,
+      FOREIGN KEY (coupon_id) REFERENCES coupons(id) ON DELETE CASCADE
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS customer_tags (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL,
+      color TEXT,
+      description TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS customer_interactions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      customer_id INTEGER NOT NULL,
+      type TEXT NOT NULL,
+      content TEXT,
+      operator TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS customer_feedback (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      customer_id INTEGER NOT NULL,
+      order_id INTEGER,
+      rating INTEGER,
+      content TEXT,
+      reply TEXT,
+      status TEXT DEFAULT 'pending',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      replied_at DATETIME,
+      FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
+    )
+  `);
+
   const bearingsData = [
     // ===== 深沟球轴承 (Deep Groove Ball Bearings) =====
     {name:{zh:'深沟球轴承 6200',en:'Deep Groove Ball Bearing 6200'}, model:'6200', price:6.50, category:'深沟球轴承', inner_diameter:'10mm', outer_diameter:'30mm', width:'9mm', stock:500, description:{zh:'适用于高速旋转，低噪音，长寿命',en:'Suitable for high-speed rotation, low noise, long life'}},
