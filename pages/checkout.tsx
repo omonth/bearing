@@ -231,10 +231,10 @@ export default function CheckoutPage() {
                       </div>
                     </div>
                     <div className="text-right shrink-0">
-                      <p className="text-sm font-bold text-amber-400">
+                      <p className="text-sm font-bold text-amber-400" suppressHydrationWarning>
                         ¥{item.price.toFixed(2)}
                       </p>
-                      <p className="text-xs text-neutral-500 mt-1">
+                      <p className="text-xs text-neutral-500 mt-1" suppressHydrationWarning>
                         小计 ¥{(item.price * item.quantity).toFixed(2)}
                       </p>
                     </div>
@@ -279,7 +279,7 @@ export default function CheckoutPage() {
                     <>
                       <div className="flex items-center gap-2 text-sm">
                         <span className="text-neutral-400">小计</span>
-                        <span className="text-neutral-400">
+                        <span className="text-neutral-400" suppressHydrationWarning>
                           ¥{totalPrice.toFixed(2)}
                         </span>
                       </div>
@@ -293,7 +293,7 @@ export default function CheckoutPage() {
                   )}
                   <div className="flex items-center gap-4">
                     <span className="text-sm text-neutral-400">合计</span>
-                    <span className="text-xl font-bold text-amber-400">
+                    <span className="text-xl font-bold text-amber-400" suppressHydrationWarning>
                       ¥{finalPrice.toFixed(2)}
                     </span>
                   </div>
@@ -463,7 +463,7 @@ export default function CheckoutPage() {
                       已优惠 ¥{discountAmount.toFixed(2)}
                     </p>
                   )}
-                  <p className="text-xs text-neutral-500 mb-1">
+                  <p className="text-xs text-neutral-500 mb-1" suppressHydrationWarning>
                     合计 ¥{finalPrice.toFixed(2)}
                   </p>
                   <button
