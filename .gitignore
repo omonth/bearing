@@ -62,3 +62,4 @@ temp/
 Thumbs.db
 .DS_Store
 admin/test-results/
+.worktrees/
