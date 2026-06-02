@@ -114,7 +114,10 @@ function initDatabase() {
     logger.info('使用PostgreSQL数据库');
   } else {
     // 使用SQLite
-    const dbPath = path.join(__dirname, '..', process.env.DB_PATH || 'bearings.db');
+    const defaultDbPath = process.env.NODE_ENV === 'production'
+      ? path.join('/var/data', 'bearings.db')
+      : path.join(__dirname, '..', 'bearings.db');
+    const dbPath = process.env.DB_PATH || defaultDbPath;
     const sqliteDb = new sqlite3.Database(dbPath);
 
     db = {

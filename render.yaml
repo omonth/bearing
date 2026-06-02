@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: bearing-backend
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DB_TYPE
+        value: sqlite
+      - key: DB_PATH
+        value: /var/data/bearings.db
+      - key: CORS_ORIGIN
+        sync: false
+      - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: LOG_LEVEL
+        value: info
+    disk:
+      name: sqlite-disk
+      mountPath: /var/data
+      sizeGB: 1
