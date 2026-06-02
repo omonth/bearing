@@ -14,10 +14,10 @@ bearing-sales/
 │   ├── middleware/           认证/限流/缓存/上传/校验
 │   ├── utils/               工具 (analytics/inventoryAlert/errors/exportOrders)
 │   ├── db/                  SQLite/Postgres 适配器 + SQL文件
-│   └── test/                112条测试
+│   └── test/                114条测试
 ├── admin/                   管理后台 Vite + React (port 5173)
 │   ├── src/modules/          auth/products/orders/dashboard
-│   ├── src/shared/          ProLayout/AdminGuard/adminApi/authStore
+│   ├── src/shared/          Layout/AdminGuard/adminApi/authStore
 │   └── e2e/                 Playwright e2e 测试
 ├── src/                     前台组件 + stores + lib
 ├── pages/                   Next.js Pages Router
@@ -46,12 +46,40 @@ cd admin && npm run dev       # 管理后台 → http://localhost:5173
 
 **默认管理员**: `admin` / `admin123`
 
+## 运行地址
+
+| 服务 | 地址 |
+|---|---|
+| 前台商城 | `http://localhost:3000` |
+| 管理后台 | `http://localhost:5173/admin/login` |
+| 后端 API | `http://localhost:3001` |
+| 后端健康检查 | `http://localhost:3001/health` |
+
+后端分析看板接口：
+
+```text
+http://localhost:3001/api/analytics/dashboard
+```
+
+如果从同一局域网其他设备访问，把 `localhost` 替换为运行后端机器的 IP，例如：
+
+```text
+http://66.183.206.85:3001/api/analytics/dashboard
+```
+
+该接口需要管理员 JWT：
+
+```bash
+curl -H "Authorization: Bearer <token>" \
+  http://localhost:3001/api/analytics/dashboard
+```
+
 ## 技术栈
 
 | 层 | 技术 |
 |---|---|
 | 前台 | Next.js 16 + React 19 + Tailwind CSS 4 + Zustand 5 + react-i18next |
-| 管理后台 | Vite 6 + React 19 + TypeScript strict + Ant Design 5 + ProLayout + Playwright |
+| 管理后台 | Vite 6 + React 19 + TypeScript strict + Ant Design 5 + Playwright |
 | 后端 | Express 5 + SQLite/Postgres + JWT + Winston + Socket.io + Multer |
 | 测试 | Vitest + Supertest + Playwright |
 | AI | DeepSeek RAG 智能客服 + NL-to-SQL 数据助手 |
@@ -59,7 +87,7 @@ cd admin && npm run dev       # 管理后台 → http://localhost:5173
 ## 测试
 
 ```bash
-cd backend && npm test         # 112 条 API 测试
+cd backend && npm test         # 114 条 API 测试
 npm test                       # 30 条前端 store 测试
 cd admin && npm test           # 8 条 admin store 测试
 cd admin && npx playwright test  # 3 条 e2e 测试
