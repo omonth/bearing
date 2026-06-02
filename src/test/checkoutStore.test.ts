@@ -3,9 +3,11 @@ import { useCheckoutStore } from '@/store/checkoutStore';
 
 const mockCreateOrder = vi.fn();
 const mockCreatePayment = vi.fn();
+const mockApplyCustomerCoupon = vi.fn();
 const mockQueryPaymentStatus = vi.fn();
 
 vi.mock('@/lib/api', () => ({
+  applyCustomerCoupon: (...args: any[]) => mockApplyCustomerCoupon(...args),
   createOrder: (...args: any[]) => mockCreateOrder(...args),
   createPayment: (...args: any[]) => mockCreatePayment(...args),
   queryPaymentStatus: (...args: any[]) => mockQueryPaymentStatus(...args),

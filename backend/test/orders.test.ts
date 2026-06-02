@@ -203,6 +203,28 @@ describe('Orders API', () => {
     expect(afterBearing.stock).toBe(stockBefore + 3);
   });
 
+  it('should export orders to Excel through the orders route', async () => {
+    const res = await request(app)
+      .get('/api/orders/export/excel')
+      .set('Authorization', `Bearer ${authToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toContain(
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    expect(res.headers['content-disposition']).toContain('orders-');
+  });
+
+  it('should export one order to PDF through the orders route', async () => {
+    const res = await request(app)
+      .get('/api/orders/1/export/pdf')
+      .set('Authorization', `Bearer ${authToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toContain('application/pdf');
+    expect(res.headers['content-disposition']).toContain('order-1');
+  });
+
   // ==================== Batch operations ====================
 
   it('should batch update order status', async () => {

@@ -352,4 +352,45 @@ describe("OrderService", () => {
       expect(status).toBe(400);
     });
   });
+
+  describe("export reads", () => {
+    let printableOrderId: number;
+
+    beforeAll(async () => {
+      const { data } = await orderService.create({
+        customerName: "Printable",
+        customerPhone: "13900000901",
+        province: "P",
+        city: "C",
+        district: "D",
+        addressDetail: "A",
+        items: [{ id: 1, quantity: 1 }],
+      });
+      printableOrderId = data.orderId;
+    });
+
+    it("returns printable order data with items", async () => {
+      const { data, error } = await orderService.getPrintableOrder(printableOrderId);
+
+      expect(error).toBeNull();
+      expect(data.order.id).toBe(printableOrderId);
+      expect(data.items.length).toBe(1);
+      expect(data.items[0].bearing_id).toBe(1);
+    });
+
+    it("returns 404 for missing printable order", async () => {
+      const { data, error, status } = await orderService.getPrintableOrder(99999);
+
+      expect(data).toBeNull();
+      expect(error).toBeTruthy();
+      expect(status).toBe(404);
+    });
+
+    it("returns export order rows", async () => {
+      const { data, error } = await orderService.getExportOrders();
+
+      expect(error).toBeNull();
+      expect(data.some((order: any) => order.id === printableOrderId)).toBe(true);
+    });
+  });
 });

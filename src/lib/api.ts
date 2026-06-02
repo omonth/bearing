@@ -92,7 +92,7 @@ export const getCustomerCoupons = () =>
     headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
   });
 
-export const useCustomerCoupon = (code: string, orderId: number) =>
+export const applyCustomerCoupon = (code: string, orderId: number) =>
   request<any>('/customer/coupons/use', {
     method: 'POST',
     body: JSON.stringify({ code, orderId }),

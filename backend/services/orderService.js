@@ -215,6 +215,66 @@ class OrderService {
       return { data: null, error: '获取订单历史失败', status: 500 };
     }
   }
+
+  async createOrder(input) {
+    return this.create(input);
+  }
+
+  async listOrders() {
+    return this.list();
+  }
+
+  async getOrderById(orderId) {
+    return this.getById(orderId);
+  }
+
+  async getOrderItems(orderId) {
+    return this.getItems(orderId);
+  }
+
+  async updateOrderStatus(orderId, newStatus, note, trackingNumber) {
+    return this.updateStatus(orderId, newStatus, note, trackingNumber);
+  }
+
+  async batchUpdateOrderStatus(orderIds, newStatus, note) {
+    return this.batchUpdateStatus(orderIds, newStatus, note);
+  }
+
+  async deleteOrder(orderId) {
+    return this.delete(orderId);
+  }
+
+  async batchDeleteOrders(orderIds) {
+    return this.batchDelete(orderIds);
+  }
+
+  async getOrderStatusHistory(orderId) {
+    return this.getStatusHistory(orderId);
+  }
+
+  async getExportOrders() {
+    return this.listOrders();
+  }
+
+  async getPrintableOrder(orderId) {
+    const orderResult = await this.getOrderById(orderId);
+    if (orderResult.error) {
+      return orderResult;
+    }
+
+    const itemsResult = await this.getOrderItems(orderId);
+    if (itemsResult.error) {
+      return itemsResult;
+    }
+
+    return {
+      data: {
+        order: orderResult.data,
+        items: itemsResult.data,
+      },
+      error: null,
+    };
+  }
 }
 
 module.exports = OrderService;

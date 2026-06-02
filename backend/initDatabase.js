@@ -7,7 +7,11 @@ const dbPath = path.isAbsolute(process.env.DB_PATH || '')
   : path.join(__dirname, process.env.DB_PATH || 'bearings.db');
 const db = new sqlite3.Database(dbPath);
 
-db.serialize(async () => {
+async function initializeDatabase() {
+  const passwordHash = await bcrypt.hash('admin123', 10);
+
+  await new Promise((resolve, reject) => {
+    db.serialize(() => {
   db.run(`
     CREATE TABLE IF NOT EXISTS bearings (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -269,7 +273,6 @@ db.serialize(async () => {
     )
   `);
 
-  const passwordHash = await bcrypt.hash('admin123', 10);
   db.run(
     'INSERT OR IGNORE INTO admins (username, password, email, role) VALUES (?, ?, ?, ?)',
     ['admin', passwordHash, 'admin@bearing-sales.com', 'admin']
@@ -283,6 +286,21 @@ db.serialize(async () => {
   console.log('- order_items (订单项表)');
   console.log(`已插入 ${bearingsData.length} 条轴承数据`);
   console.log('默认管理员: admin / admin123');
-});
+      db.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
 
-db.close();
+        resolve();
+      });
+    });
+  });
+}
+
+initializeDatabase().catch((error) => {
+  console.error(error);
+  db.close(() => {
+    process.exitCode = 1;
+  });
+});
