@@ -127,6 +127,16 @@ class PaymentOrchestrator {
 
   // ==================== 更新支付状态 ====================
 
+  async updateOrderStatus(orderId, status) {
+    if (this.orderService?.updateOrderStatus) {
+      return this.orderService.updateOrderStatus(orderId, status);
+    }
+    if (this.orderService?.updateStatus) {
+      return this.orderService.updateStatus(orderId, status);
+    }
+    return this.db.run('UPDATE orders SET status = ? WHERE id = ?', [status, orderId]);
+  }
+
   async updatePaymentStatus(paymentOrderId, status, paymentInfo = {}) {
     if (status === 'paid') {
       await this.db.run(
@@ -135,11 +145,7 @@ class PaymentOrchestrator {
       );
       const po = await this.db.get('SELECT order_id FROM payment_orders WHERE id = ?', [paymentOrderId]);
       if (po) {
-        if (this.orderService) {
-          await this.orderService.updateStatus(po.order_id, 'paid');
-        } else {
-          await this.db.run("UPDATE orders SET status = 'paid' WHERE id = ?", [po.order_id]);
-        }
+        await this.updateOrderStatus(po.order_id, 'paid');
       }
     } else {
       await this.db.run('UPDATE payment_orders SET status = ? WHERE id = ?', [status, paymentOrderId]);
@@ -207,11 +213,7 @@ class PaymentOrchestrator {
     await this.db.run('UPDATE refund_records SET refunded_at = CURRENT_TIMESTAMP WHERE id = ?', [result.lastID]);
     await this.db.run('UPDATE payment_orders SET status = ? WHERE id = ?', ['refunded', paymentOrderId]);
 
-    if (this.orderService) {
-      await this.orderService.updateStatus(po.order_id, 'cancelled');
-    } else {
-      await this.db.run("UPDATE orders SET status = 'cancelled' WHERE id = ?", [po.order_id]);
-    }
+    await this.updateOrderStatus(po.order_id, 'cancelled');
 
     return { refundId: result.lastID, refundNo, amount, status: 'success', message: '退款成功' };
   }

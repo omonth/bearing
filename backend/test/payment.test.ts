@@ -104,6 +104,40 @@ describe('Payment Sandbox API', () => {
     expect(order.status).toBe('paid');
   });
 
+  it('should use the order lifecycle status interface when payment is simulated', async () => {
+    const calls: any[] = [];
+    const orderLifecycle = {
+      updateOrderStatus: async (nextOrderId: number, status: string) => {
+        calls.push({ orderId: nextOrderId, status });
+        await db.run('UPDATE orders SET status = ? WHERE id = ?', [status, nextOrderId]);
+        return { data: { oldStatus: 'pending', newStatus: status }, error: null };
+      },
+    };
+    const paymentService = new PaymentOrchestrator(db, orderLifecycle);
+    paymentService.enable();
+
+    const orderRes = await request(app).post('/api/orders').send({
+      customerName: 'Lifecycle Payment',
+      customerPhone: '13900000903',
+      province: 'P',
+      city: 'C',
+      district: 'D',
+      addressDetail: 'A',
+      items: [{ id: 1, quantity: 1 }],
+    });
+
+    const createPayment = await paymentService.createPayment({
+      orderId: orderRes.body.orderId,
+      amount: 15,
+      paymentMethod: 'alipay',
+      subject: 'bearing',
+    });
+
+    await paymentService.simulatePayment(createPayment.paymentOrderId);
+
+    expect(calls).toEqual([{ orderId: orderRes.body.orderId, status: 'paid' }]);
+  });
+
   it('should refund a paid order and sync order status', async () => {
     const res = await request(app)
       .post('/api/payment/refund')
