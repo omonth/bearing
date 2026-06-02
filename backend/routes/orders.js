@@ -24,7 +24,7 @@ module.exports = function(db, orderService) {
     handleValidationErrors
   ], async (req, res) => {
     if (!orderService) return res.status(500).json({ error: '订单服务未配置' });
-    const { data, error, status } = await orderService.create(req.body);
+    const { data, error, status } = await orderService.createOrder(req.body);
     if (error) return res.status(status || 500).json({ error });
     res.json(data);
   });
@@ -32,7 +32,7 @@ module.exports = function(db, orderService) {
   // Admin: list all orders
   router.get('/', verifyToken, requireAdmin, async (req, res) => {
     if (!orderService) return res.status(500).json({ error: '订单服务未配置' });
-    const { data, error, status } = await orderService.list();
+    const { data, error, status } = await orderService.listOrders();
     if (error) return res.status(status || 500).json({ error });
     res.json(data);
   });
@@ -40,7 +40,9 @@ module.exports = function(db, orderService) {
   // Admin: export all orders to Excel
   router.get('/export/excel', verifyToken, requireAdmin, async (req, res) => {
     try {
-      const orders = await db.all('SELECT * FROM orders ORDER BY created_at DESC', []);
+      if (!orderService) return res.status(500).json({ error: '订单服务未配置' });
+      const { data: orders, error, status } = await orderService.getExportOrders();
+      if (error) return res.status(status || 500).json({ error });
       const workbook = await exportOrdersToExcel(orders);
       const buffer = await workbook.xlsx.writeBuffer();
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -60,7 +62,7 @@ module.exports = function(db, orderService) {
     handleValidationErrors
   ], async (req, res) => {
     if (!orderService) return res.status(500).json({ error: '订单服务未配置' });
-    const { data, error, status } = await orderService.batchDelete(req.body.orderIds);
+    const { data, error, status } = await orderService.batchDeleteOrders(req.body.orderIds);
     if (error) return res.status(status || 500).json({ error });
     res.json(data);
   });
@@ -68,7 +70,7 @@ module.exports = function(db, orderService) {
   // Admin: get order items
   router.get('/:id/items', verifyToken, requireAdmin, async (req, res) => {
     if (!orderService) return res.status(500).json({ error: '订单服务未配置' });
-    const { data, error, status } = await orderService.getItems(req.params.id);
+    const { data, error, status } = await orderService.getOrderItems(req.params.id);
     if (error) return res.status(status || 500).json({ error });
     res.json(data);
   });
@@ -80,7 +82,7 @@ module.exports = function(db, orderService) {
     handleValidationErrors
   ], async (req, res) => {
     if (!orderService) return res.status(500).json({ error: '订单服务未配置' });
-    const { data, error, status } = await orderService.batchUpdateStatus(req.body.orderIds, req.body.status, req.body.note);
+    const { data, error, status } = await orderService.batchUpdateOrderStatus(req.body.orderIds, req.body.status, req.body.note);
     if (error) return res.status(status || 500).json({ error });
     res.json(data);
   });
@@ -92,7 +94,7 @@ module.exports = function(db, orderService) {
     handleValidationErrors
   ], async (req, res) => {
     if (!orderService) return res.status(500).json({ error: '订单服务未配置' });
-    const { data, error, status } = await orderService.updateStatus(req.params.id, req.body.status, req.body.note, req.body.trackingNumber);
+    const { data, error, status } = await orderService.updateOrderStatus(req.params.id, req.body.status, req.body.note, req.body.trackingNumber);
     if (error) return res.status(status || 500).json({ error });
     res.json(data);
   });
@@ -103,7 +105,7 @@ module.exports = function(db, orderService) {
     handleValidationErrors
   ], async (req, res) => {
     if (!orderService) return res.status(500).json({ error: '订单服务未配置' });
-    const { data, error, status } = await orderService.delete(req.params.id);
+    const { data, error, status } = await orderService.deleteOrder(req.params.id);
     if (error) return res.status(status || 500).json({ error });
     res.json(data);
   });
@@ -111,7 +113,7 @@ module.exports = function(db, orderService) {
   // Admin: get order status history
   router.get('/:id/history', verifyToken, requireAdmin, async (req, res) => {
     if (!orderService) return res.status(500).json({ error: '订单服务未配置' });
-    const { data, error, status } = await orderService.getStatusHistory(req.params.id);
+    const { data, error, status } = await orderService.getOrderStatusHistory(req.params.id);
     if (error) return res.status(status || 500).json({ error });
     res.json(data);
   });
@@ -119,12 +121,11 @@ module.exports = function(db, orderService) {
   // Admin: export single order to PDF
   router.get('/:id/export/pdf', verifyToken, requireAdmin, async (req, res, next) => {
     try {
-      const order = await db.get('SELECT * FROM orders WHERE id = ?', [req.params.id]);
-      if (!order) return next(new NotFoundError('订单不存在'));
-      const items = await db.all(
-        'SELECT oi.*, b.name, b.model FROM order_items oi JOIN bearings b ON oi.bearing_id = b.id WHERE oi.order_id = ?',
-        [req.params.id]
-      );
+      if (!orderService) return res.status(500).json({ error: '订单服务未配置' });
+      const { data, error, status } = await orderService.getPrintableOrder(req.params.id);
+      if (error && status === 404) return next(new NotFoundError(error));
+      if (error) return res.status(status || 500).json({ error });
+      const { order, items } = data;
       const pdfBuffer = await exportOrderToPDF(order, items);
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename=order-${req.params.id}.pdf`);
