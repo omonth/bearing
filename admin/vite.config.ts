@@ -5,6 +5,24 @@ import path from 'path'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          const normalized = id.replace(/\\/g, '/')
+          if (normalized.includes('/node_modules/react') || normalized.includes('/node_modules/react-dom')) {
+            return 'react'
+          }
+          if (normalized.includes('/node_modules/react-router-dom')) {
+            return 'react-router'
+          }
+          if (normalized.includes('/node_modules/socket.io-client')) {
+            return 'socket'
+          }
+        },
+      },
+    },
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

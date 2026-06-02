@@ -1,4 +1,4 @@
-import { ProLayout } from '@ant-design/pro-layout';
+import { Layout as AntLayout, Menu, Typography } from 'antd';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 
 const menuData = [
@@ -12,21 +12,27 @@ export default function Layout() {
   const location = useLocation();
 
   return (
-    <ProLayout
-      title="轴承销售系统"
-      logo={false}
-      route={{ path: '/admin', children: menuData }}
-      location={{ pathname: location.pathname }}
-      menuItemRender={(item) => (
-        <div onClick={() => item.path && navigate(item.path)} style={{ cursor: 'pointer' }}>
-          {item.name}
+    <AntLayout style={{ minHeight: '100vh' }}>
+      <AntLayout.Sider width={220} breakpoint="lg" collapsedWidth="0">
+        <div
+          onClick={() => navigate('/admin/dashboard')}
+          className="h-14 px-5 flex items-center cursor-pointer border-b border-neutral-800"
+        >
+          <Typography.Text className="text-neutral-100 font-semibold">轴承销售系统</Typography.Text>
         </div>
-      )}
-      onMenuHeaderClick={() => navigate('/admin/dashboard')}
-    >
-      <div style={{ maxWidth: 1400, margin: '0 auto' }}>
-        <Outlet />
-      </div>
-    </ProLayout>
+        <Menu
+          theme="dark"
+          mode="inline"
+          selectedKeys={[location.pathname]}
+          items={menuData.map(item => ({ key: item.path, label: item.name }))}
+          onClick={({ key }) => navigate(key)}
+        />
+      </AntLayout.Sider>
+      <AntLayout.Content className="min-w-0 bg-neutral-950 p-6">
+        <div style={{ maxWidth: 1400, margin: '0 auto' }}>
+          <Outlet />
+        </div>
+      </AntLayout.Content>
+    </AntLayout>
   );
 }
