@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { createOrder, createPayment, queryPaymentStatus, useCustomerCoupon } from '@/lib/api';
+import { applyCustomerCoupon, createOrder, createPayment, queryPaymentStatus } from '@/lib/api';
 import { REGION_DATA, ALL_PROVINCES } from '@/data/regions';
 import type { CartItem } from '@/types';
 
@@ -108,7 +108,7 @@ export const useCheckoutStore = create<CheckoutStore>()((set, get) => ({
       let discountAmount = 0;
       if (state.selectedCoupon) {
         try {
-          const couponResult = await useCustomerCoupon(state.selectedCoupon, orderResult.orderId);
+          const couponResult = await applyCustomerCoupon(state.selectedCoupon, orderResult.orderId);
           if (couponResult.discountAmount) {
             discountAmount = couponResult.discountAmount;
             set({ couponDiscount: discountAmount });
