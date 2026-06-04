@@ -85,9 +85,14 @@ describe('productStore', () => {
   });
 
   it('should set loading to false on error', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     const { getProducts } = await import('@/lib/api');
     vi.mocked(getProducts).mockRejectedValueOnce(new Error('Network error'));
+
     await useProductStore.getState().fetchProducts();
+
     expect(useProductStore.getState().loading).toBe(false);
+    expect(consoleError).toHaveBeenCalledTimes(1);
+    consoleError.mockRestore();
   });
 });
