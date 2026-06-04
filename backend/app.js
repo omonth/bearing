@@ -18,6 +18,7 @@ function createApp(db, services = {}) {
     bearingService,
     orderService,
     customerService,
+    customerSelfService,
     couponService,
     pointsService,
     supplyChainService,
@@ -90,7 +91,7 @@ function createApp(db, services = {}) {
   const crmRoutes = require('./routes/crm')(db, { customerService, couponService, pointsService });
   app.use('/api/crm', crmRoutes);
 
-  const customerRoutes = require('./routes/customer')(db, { customerService, couponService, pointsService });
+  const customerRoutes = require('./routes/customer')(customerSelfService);
   app.use('/api/customer', customerRoutes);
 
   if (supplyChainService) {

@@ -216,6 +216,51 @@ class OrderService {
     }
   }
 
+  async _getCustomerPhone(customerId) {
+    const customer = await this.db.get('SELECT phone FROM customers WHERE id = ?', [customerId]);
+    return customer?.phone || null;
+  }
+
+  async listForCustomer(customerId) {
+    try {
+      const phone = await this._getCustomerPhone(customerId);
+      if (!phone) return { data: null, error: '顾客不存在', status: 404 };
+
+      const rows = await this.db.all(
+        'SELECT * FROM orders WHERE customer_phone = ? ORDER BY created_at DESC',
+        [phone]
+      );
+      return { data: rows, error: null };
+    } catch (err) {
+      return { data: null, error: err.message, status: 500 };
+    }
+  }
+
+  async getForCustomer(customerId, orderId) {
+    try {
+      const phone = await this._getCustomerPhone(customerId);
+      if (!phone) return { data: null, error: '顾客不存在', status: 404 };
+
+      const order = await this.db.get(
+        'SELECT * FROM orders WHERE id = ? AND customer_phone = ?',
+        [orderId, phone]
+      );
+      if (!order) return { data: null, error: '订单不存在', status: 404 };
+
+      const items = await this.db.all(
+        'SELECT oi.*, b.name, b.model, b.image FROM order_items oi JOIN bearings b ON oi.bearing_id = b.id WHERE oi.order_id = ?',
+        [order.id]
+      );
+      const history = await this.db.all(
+        'SELECT * FROM order_status_history WHERE order_id = ? ORDER BY created_at DESC',
+        [order.id]
+      );
+      return { data: { ...order, items, statusHistory: history }, error: null };
+    } catch (err) {
+      return { data: null, error: err.message, status: 500 };
+    }
+  }
+
   async createOrder(input) {
     return this.create(input);
   }

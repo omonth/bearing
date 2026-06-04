@@ -4,8 +4,10 @@ import bcrypt from 'bcryptjs';
 import { createTestDb, seedTestData } from './helpers';
 const createApp = require('../app');
 const AuthService = require('../services/authService');
+const CustomerSelfService = require('../services/customerSelfService');
 const CustomerService = require('../services/customerService');
 const CouponService = require('../services/couponService');
+const OrderService = require('../services/orderService');
 const PointsService = require('../services/pointsService');
 
 let app: any;
@@ -172,9 +174,16 @@ beforeAll(async () => {
   const authService = new AuthService(db);
   const customerService = new CustomerService(db);
   const couponService = new CouponService(db);
+  const orderService = new OrderService(db);
   const pointsService = new PointsService(db);
+  const customerSelfService = new CustomerSelfService({
+    db,
+    customerService,
+    couponService,
+    orderService,
+  });
 
-  app = createApp(db, { authService, customerService, couponService, pointsService });
+  app = createApp(db, { authService, customerService, customerSelfService, couponService, pointsService });
 });
 
 afterAll(async () => {

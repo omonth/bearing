@@ -10,6 +10,7 @@ const AuthService = require('./services/authService');
 const BearingService = require('./services/bearingService');
 const OrderService = require('./services/orderService');
 const CustomerService = require('./services/customerService');
+const CustomerSelfService = require('./services/customerSelfService');
 const CouponService = require('./services/couponService');
 const PointsService = require('./services/pointsService');
 const SupplyChainService = require('./services/supplyChainService');
@@ -40,6 +41,12 @@ const customerService = new CustomerService(db);
 const couponService = new CouponService(db);
 const pointsService = new PointsService(db, customerService);
 const supplyChainService = new SupplyChainService(db);
+const customerSelfService = new CustomerSelfService({
+  db,
+  customerService,
+  couponService,
+  orderService,
+});
 
 const paymentService = new PaymentOrchestrator(db, orderService);
 
@@ -55,6 +62,7 @@ const app = createApp(db, {
   bearingService,
   orderService,
   customerService,
+  customerSelfService,
   couponService,
   pointsService,
   supplyChainService,

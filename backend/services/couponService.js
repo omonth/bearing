@@ -107,6 +107,22 @@ class CouponService {
       return { data: null, error: error.message, status: 500 };
     }
   }
+
+  async listForCustomer(customerId) {
+    try {
+      const coupons = await this.db.all(
+        `SELECT cc.*, c.name as coupon_name, c.code, c.type, c.discount_value, c.min_order_amount, c.valid_from, c.valid_until
+         FROM customer_coupons cc JOIN coupons c ON cc.coupon_id = c.id
+         WHERE cc.customer_id = ? AND cc.status = 'unused' AND c.status = 'active'
+         ORDER BY cc.created_at DESC`,
+        [customerId]
+      );
+      return { data: coupons, error: null };
+    } catch (error) {
+      logger.error('获取顾客优惠券失败', { error: error.message });
+      return { data: null, error: error.message, status: 500 };
+    }
+  }
 }
 
 module.exports = CouponService;
