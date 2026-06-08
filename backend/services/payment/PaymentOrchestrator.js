@@ -3,12 +3,16 @@ const AlipayProvider = require('./providers/AlipayProvider');
 const WechatProvider = require('./providers/WechatProvider');
 const UnionPayProvider = require('./providers/UnionPayProvider');
 const SandboxProvider = require('./providers/SandboxProvider');
+const OrderLifecycleAdapter = require('./OrderLifecycleAdapter');
+const PaymentSettlement = require('./PaymentSettlement');
 
 class PaymentOrchestrator {
   constructor(db, orderService) {
     this.db = db;
-    this.orderService = orderService || null;
     this.providers = {};
+
+    const adapter = new OrderLifecycleAdapter(orderService);
+    this.settlement = new PaymentSettlement(db, adapter);
   }
 
   enable() {
@@ -79,7 +83,7 @@ class PaymentOrchestrator {
       const providerResult = await provider.createPayment({ orderNo, amount, subject, paymentOrderId });
       return { ...paymentInfo, ...providerResult };
     } catch (error) {
-      await this.db.run('UPDATE payment_orders SET status = ? WHERE id = ?', ['failed', paymentOrderId]);
+      await this.settlement.settleFailed(paymentOrderId);
       throw error;
     }
   }
@@ -87,7 +91,7 @@ class PaymentOrchestrator {
   // ==================== 查询支付状态 ====================
 
   async queryPaymentStatus(paymentOrderId) {
-    const po = await this.db.get('SELECT * FROM payment_orders WHERE id = ?', [paymentOrderId]);
+    const po = await this.settlement.getPaymentOrder(paymentOrderId);
     if (!po) throw new Error('支付订单不存在');
     return {
       id: po.id, orderId: po.order_id, paymentMethod: po.payment_method,
@@ -101,7 +105,7 @@ class PaymentOrchestrator {
   }
 
   async queryExternalStatus(paymentOrderId) {
-    const po = await this.db.get('SELECT * FROM payment_orders WHERE id = ?', [paymentOrderId]);
+    const po = await this.settlement.getPaymentOrder(paymentOrderId);
     if (!po) throw new Error('支付订单不存在');
     if (po.status === 'paid') return { status: 'paid', message: '已支付' };
 
@@ -113,58 +117,19 @@ class PaymentOrchestrator {
     try {
       const result = await provider.queryStatus({ paymentOrder: po });
       if (result.status === 'paid') {
-        await this.updatePaymentStatus(paymentOrderId, 'paid', {
-          trade_no: result.tradeNo,
+        const settleResult = await this.settlement.settlePaid(paymentOrderId, {
+          tradeNo: result.tradeNo,
           payer: result.payer || {},
         });
-        return { status: 'paid', message: '支付成功' };
+        if (settleResult.success) {
+          return { status: 'paid', message: '支付成功' };
+        }
+        return { status: po.status, message: settleResult.error || '结算失败' };
       }
       return { status: po.status, message: result.message || '待支付' };
     } catch {
       return { status: po.status, message: '查询失败' };
     }
-  }
-
-  // ==================== 更新支付状态 ====================
-
-  async updateOrderStatus(orderId, status) {
-    if (this.orderService?.updateOrderStatus) {
-      return this.orderService.updateOrderStatus(orderId, status);
-    }
-    if (this.orderService?.updateStatus) {
-      return this.orderService.updateStatus(orderId, status);
-    }
-    return this.db.run('UPDATE orders SET status = ? WHERE id = ?', [status, orderId]);
-  }
-
-  async updatePaymentStatus(paymentOrderId, status, paymentInfo = {}) {
-    if (status === 'paid') {
-      const result = await this.db.run(
-        'UPDATE payment_orders SET status = ?, trade_no = ?, payer_info = ?, paid_at = CURRENT_TIMESTAMP WHERE id = ? AND status NOT IN (?, ?)',
-        [
-          status,
-          paymentInfo.trade_no || `TRADE${Date.now()}`,
-          JSON.stringify(paymentInfo.payer || {}),
-          paymentOrderId,
-          'paid',
-          'refunded',
-        ]
-      );
-
-      if (result.changes === 0) {
-        const current = await this.db.get('SELECT status FROM payment_orders WHERE id = ?', [paymentOrderId]);
-        if (!current) throw new Error('Payment order not found');
-        return { paymentOrderId, status: current.status, idempotent: true };
-      }
-
-      const po = await this.db.get('SELECT order_id FROM payment_orders WHERE id = ?', [paymentOrderId]);
-      if (po) {
-        await this.updateOrderStatus(po.order_id, 'paid');
-      }
-    } else {
-      await this.db.run('UPDATE payment_orders SET status = ? WHERE id = ?', [status, paymentOrderId]);
-    }
-    return { paymentOrderId, status };
   }
 
   // ==================== 回调处理 ====================
@@ -177,10 +142,13 @@ class PaymentOrchestrator {
     if (!po) throw new Error('支付订单不存在');
 
     if (cbResult.status === 'paid') {
-      await this.updatePaymentStatus(po.id, 'paid', {
-        trade_no: cbResult.tradeNo,
+      const result = await this.settlement.settlePaid(po.id, {
+        tradeNo: cbResult.tradeNo,
         payer: cbResult.payer || {},
       });
+      if (!result.success && result.status !== 'refunded') {
+        throw new Error(result.error);
+      }
     }
 
     return { success: true };
@@ -194,21 +162,25 @@ class PaymentOrchestrator {
   // ==================== 模拟支付 ====================
 
   async simulatePayment(paymentOrderId) {
-    const po = await this.db.get('SELECT * FROM payment_orders WHERE id = ?', [paymentOrderId]);
+    const po = await this.settlement.getPaymentOrder(paymentOrderId);
     if (!po) throw new Error('支付订单不存在');
 
-    await this.updatePaymentStatus(paymentOrderId, 'paid', {
-      trade_no: `SIM${Date.now()}`,
-      payer: { simulated: true, timestamp: new Date().toISOString() }
+    const result = await this.settlement.settlePaid(paymentOrderId, {
+      tradeNo: `SIM${Date.now()}`,
+      payer: { simulated: true, timestamp: new Date().toISOString() },
     });
 
-    return { paymentOrderId, status: 'paid', message: '支付成功（模拟）' };
+    if (!result.success && result.status !== 'refunded') {
+      throw new Error(result.error);
+    }
+
+    return { paymentOrderId, status: result.status || 'paid', message: result.idempotent ? '已处理' : '支付成功（模拟）' };
   }
 
   // ==================== 退款 ====================
 
   async createRefund({ paymentOrderId, amount, reason }) {
-    const po = await this.db.get('SELECT * FROM payment_orders WHERE id = ?', [paymentOrderId]);
+    const po = await this.settlement.getPaymentOrder(paymentOrderId);
     if (!po) throw new Error('支付订单不存在');
     if (po.status !== 'paid') throw new Error('只有已支付的订单才能退款');
     if (parseFloat(amount) > parseFloat(po.amount)) throw new Error('退款金额不能超过支付金额');
@@ -220,16 +192,12 @@ class PaymentOrchestrator {
       await provider.createRefund({ paymentOrder: po, amount, reason, refundNo });
     }
 
-    const result = await this.db.run(
-      'INSERT INTO refund_records (payment_order_id, refund_amount, refund_reason, refund_no, status) VALUES (?, ?, ?, ?, ?)',
-      [paymentOrderId, amount, reason || '无', refundNo, 'success']
-    );
-    await this.db.run('UPDATE refund_records SET refunded_at = CURRENT_TIMESTAMP WHERE id = ?', [result.lastID]);
-    await this.db.run('UPDATE payment_orders SET status = ? WHERE id = ?', ['refunded', paymentOrderId]);
+    const result = await this.settlement.settleRefund(paymentOrderId, { amount, reason, refundNo });
+    if (!result.success) {
+      throw new Error(result.error);
+    }
 
-    await this.updateOrderStatus(po.order_id, 'cancelled');
-
-    return { refundId: result.lastID, refundNo, amount, status: 'success', message: '退款成功' };
+    return { refundId: result.refundId, refundNo, amount, status: 'success', message: '退款成功' };
   }
 
   // ==================== 列表和统计 ====================
