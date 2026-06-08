@@ -134,8 +134,48 @@ describe('Payment Sandbox API', () => {
     });
 
     await paymentService.simulatePayment(createPayment.paymentOrderId);
+    await paymentService.simulatePayment(createPayment.paymentOrderId);
 
     expect(calls).toEqual([{ orderId: orderRes.body.orderId, status: 'paid' }]);
+  });
+
+  it('should not write duplicate order status history for repeated paid events', async () => {
+    const orderRes = await request(app).post('/api/orders').send({
+      customerName: 'Idempotent Payment',
+      customerPhone: '13900000904',
+      province: 'P',
+      city: 'C',
+      district: 'D',
+      addressDetail: 'A',
+      items: [{ id: 1, quantity: 1 }],
+    });
+
+    const createPayment = await request(app)
+      .post('/api/payment/create')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        orderId: orderRes.body.orderId,
+        amount: 15,
+        paymentMethod: 'alipay',
+        subject: 'bearing',
+      });
+
+    await request(app)
+      .post(`/api/payment/simulate/${createPayment.body.paymentOrderId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+
+    await request(app)
+      .post(`/api/payment/simulate/${createPayment.body.paymentOrderId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+
+    const history = await db.all(
+      'SELECT old_status, new_status FROM order_status_history WHERE order_id = ?',
+      [orderRes.body.orderId]
+    );
+
+    expect(history).toEqual([{ old_status: 'pending', new_status: 'paid' }]);
   });
 
   it('should refund a paid order and sync order status', async () => {
@@ -153,6 +193,20 @@ describe('Payment Sandbox API', () => {
     const refund = await db.get('SELECT * FROM refund_records WHERE payment_order_id = ?', [paymentOrderId]);
     expect(refund).toBeTruthy();
     expect(refund.refund_amount).toBe(30);
+
+    const order = await db.get('SELECT status FROM orders WHERE id = ?', [orderId]);
+    expect(order.status).toBe('cancelled');
+  });
+
+  it('should not revive a refunded payment when a paid event is replayed', async () => {
+    const replayRes = await request(app)
+      .post(`/api/payment/simulate/${paymentOrderId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(replayRes.status).toBe(200);
+
+    const payment = await db.get('SELECT status FROM payment_orders WHERE id = ?', [paymentOrderId]);
+    expect(payment.status).toBe('refunded');
 
     const order = await db.get('SELECT status FROM orders WHERE id = ?', [orderId]);
     expect(order.status).toBe('cancelled');

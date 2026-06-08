@@ -15,6 +15,10 @@ data:
   REDIS_HOST: "redis-service"
   REDIS_PORT: "6379"
   PORT: "3001"
+  GRAY_RELEASE_ENABLED: "false"
+  GRAY_RELEASE_PERCENTAGE: "0"
+  GRAY_RELEASE_VARIANT: "canary"
+  GRAY_RELEASE_FORCE_HEADER: "x-gray-release"
 
 ---
 # Secret - 敏感信息

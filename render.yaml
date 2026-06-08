@@ -23,6 +23,14 @@ services:
         sync: false
       - key: LOG_LEVEL
         value: info
+      - key: GRAY_RELEASE_ENABLED
+        value: "false"
+      - key: GRAY_RELEASE_PERCENTAGE
+        value: "0"
+      - key: GRAY_RELEASE_VARIANT
+        value: canary
+      - key: GRAY_RELEASE_FORCE_HEADER
+        value: x-gray-release
     disk:
       name: sqlite-disk
       mountPath: /var/data

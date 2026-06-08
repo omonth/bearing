@@ -139,10 +139,24 @@ class PaymentOrchestrator {
 
   async updatePaymentStatus(paymentOrderId, status, paymentInfo = {}) {
     if (status === 'paid') {
-      await this.db.run(
-        'UPDATE payment_orders SET status = ?, trade_no = ?, payer_info = ?, paid_at = CURRENT_TIMESTAMP WHERE id = ?',
-        [status, paymentInfo.trade_no || `TRADE${Date.now()}`, JSON.stringify(paymentInfo.payer || {}), paymentOrderId]
+      const result = await this.db.run(
+        'UPDATE payment_orders SET status = ?, trade_no = ?, payer_info = ?, paid_at = CURRENT_TIMESTAMP WHERE id = ? AND status NOT IN (?, ?)',
+        [
+          status,
+          paymentInfo.trade_no || `TRADE${Date.now()}`,
+          JSON.stringify(paymentInfo.payer || {}),
+          paymentOrderId,
+          'paid',
+          'refunded',
+        ]
       );
+
+      if (result.changes === 0) {
+        const current = await this.db.get('SELECT status FROM payment_orders WHERE id = ?', [paymentOrderId]);
+        if (!current) throw new Error('Payment order not found');
+        return { paymentOrderId, status: current.status, idempotent: true };
+      }
+
       const po = await this.db.get('SELECT order_id FROM payment_orders WHERE id = ?', [paymentOrderId]);
       if (po) {
         await this.updateOrderStatus(po.order_id, 'paid');
