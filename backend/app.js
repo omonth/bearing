@@ -4,6 +4,7 @@ const cors = require('cors');
 const path = require('path');
 const helmet = require('helmet');
 const logger = require('./logger');
+const { createGrayReleaseMiddleware } = require('./middleware/grayRelease');
 const { apiLimiter } = require('./middleware/rateLimiter');
 const { createUploadMiddleware, validateMime } = require('./middleware/upload');
 
@@ -49,6 +50,7 @@ function createApp(db, services = {}) {
 
   app.use('/api/', apiLimiter);
   app.use(express.json());
+  app.use(createGrayReleaseMiddleware());
   app.use(express.static(path.join(__dirname, 'public')));
 
   const { upload, imagesDir } = createUploadMiddleware();
@@ -56,6 +58,8 @@ function createApp(db, services = {}) {
   // ==================== Route mounting ====================
 
   app.use('/', require('./routes/index'));
+
+  app.use('/api/runtime', require('./routes/runtime'));
 
   if (authService) {
     app.use('/api/auth', require('./routes/auth')(authService));

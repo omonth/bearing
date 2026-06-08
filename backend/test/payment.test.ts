@@ -138,6 +138,45 @@ describe('Payment Sandbox API', () => {
     expect(calls).toEqual([{ orderId: orderRes.body.orderId, status: 'paid' }]);
   });
 
+  it('should not write duplicate order status history for repeated paid events', async () => {
+    const orderRes = await request(app).post('/api/orders').send({
+      customerName: 'Idempotent Payment',
+      customerPhone: '13900000904',
+      province: 'P',
+      city: 'C',
+      district: 'D',
+      addressDetail: 'A',
+      items: [{ id: 1, quantity: 1 }],
+    });
+
+    const createPayment = await request(app)
+      .post('/api/payment/create')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        orderId: orderRes.body.orderId,
+        amount: 15,
+        paymentMethod: 'alipay',
+        subject: 'bearing',
+      });
+
+    await request(app)
+      .post(`/api/payment/simulate/${createPayment.body.paymentOrderId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+
+    await request(app)
+      .post(`/api/payment/simulate/${createPayment.body.paymentOrderId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+
+    const history = await db.all(
+      'SELECT old_status, new_status FROM order_status_history WHERE order_id = ?',
+      [orderRes.body.orderId]
+    );
+
+    expect(history).toEqual([{ old_status: 'pending', new_status: 'paid' }]);
+  });
+
   it('should refund a paid order and sync order status', async () => {
     const res = await request(app)
       .post('/api/payment/refund')

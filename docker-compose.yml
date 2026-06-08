@@ -62,6 +62,10 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_pwd_2024}
       JWT_SECRET: ${JWT_SECRET:-bearing-jwt-secret-change-in-production-min-32-chars}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
+      GRAY_RELEASE_ENABLED: ${GRAY_RELEASE_ENABLED:-false}
+      GRAY_RELEASE_PERCENTAGE: ${GRAY_RELEASE_PERCENTAGE:-0}
+      GRAY_RELEASE_VARIANT: ${GRAY_RELEASE_VARIANT:-canary}
+      GRAY_RELEASE_FORCE_HEADER: ${GRAY_RELEASE_FORCE_HEADER:-x-gray-release}
     volumes:
       - backend_logs:/app/logs
       - backend_uploads:/app/public
