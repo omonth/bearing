@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
 import { createTestDb } from './helpers';
+const {
+  loadGrayReleaseConfig,
+  selectGrayReleaseVariant,
+} = require('../config/grayRelease');
 const createApp = require('../app');
 
 const grayEnvKeys = [
@@ -17,6 +21,53 @@ afterEach(() => {
 });
 
 describe('gray release runtime', () => {
+  it('clamps percentage and falls back from invalid force header names', () => {
+    const config = loadGrayReleaseConfig({
+      GRAY_RELEASE_ENABLED: 'YES',
+      GRAY_RELEASE_PERCENTAGE: '150',
+      GRAY_RELEASE_VARIANT: 'beta',
+      GRAY_RELEASE_FORCE_HEADER: 'bad header',
+    });
+
+    expect(config).toEqual({
+      enabled: true,
+      percentage: 100,
+      variant: 'beta',
+      forceHeader: 'x-gray-release',
+    });
+  });
+
+  it('uses stable when the operator forces stable during a full gray rollout', () => {
+    const decision = selectGrayReleaseVariant(
+      {
+        enabled: true,
+        percentage: 100,
+        variant: 'beta',
+        forceHeader: 'x-gray-release',
+      },
+      'stable-user',
+      'stable'
+    );
+
+    expect(decision).toEqual({
+      selectedVariant: 'stable',
+      forced: false,
+    });
+  });
+
+  it('selects the same variant for the same rollout seed', () => {
+    const config = {
+      enabled: true,
+      percentage: 50,
+      variant: 'beta',
+      forceHeader: 'x-gray-release',
+    };
+
+    expect(selectGrayReleaseVariant(config, 'customer-42')).toEqual(
+      selectGrayReleaseVariant(config, 'customer-42')
+    );
+  });
+
   it('reports stable rollout by default', async () => {
     const db = await createTestDb();
     const app = createApp(db);

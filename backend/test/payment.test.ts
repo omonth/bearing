@@ -134,6 +134,7 @@ describe('Payment Sandbox API', () => {
     });
 
     await paymentService.simulatePayment(createPayment.paymentOrderId);
+    await paymentService.simulatePayment(createPayment.paymentOrderId);
 
     expect(calls).toEqual([{ orderId: orderRes.body.orderId, status: 'paid' }]);
   });
@@ -192,6 +193,20 @@ describe('Payment Sandbox API', () => {
     const refund = await db.get('SELECT * FROM refund_records WHERE payment_order_id = ?', [paymentOrderId]);
     expect(refund).toBeTruthy();
     expect(refund.refund_amount).toBe(30);
+
+    const order = await db.get('SELECT status FROM orders WHERE id = ?', [orderId]);
+    expect(order.status).toBe('cancelled');
+  });
+
+  it('should not revive a refunded payment when a paid event is replayed', async () => {
+    const replayRes = await request(app)
+      .post(`/api/payment/simulate/${paymentOrderId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(replayRes.status).toBe(200);
+
+    const payment = await db.get('SELECT status FROM payment_orders WHERE id = ?', [paymentOrderId]);
+    expect(payment.status).toBe('refunded');
 
     const order = await db.get('SELECT status FROM orders WHERE id = ?', [orderId]);
     expect(order.status).toBe('cancelled');
