@@ -19,6 +19,11 @@ module.exports = function(db, aiService) {
         res.setHeader('Cache-Control', 'no-cache');
         res.setHeader('Connection', 'keep-alive');
 
+        // Send product cards first as a special event
+        if (result.products && result.products.length > 0) {
+          res.write(`data: ${JSON.stringify({ type: 'products', products: result.products })}\n\n`);
+        }
+
         const reader = result.stream.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';

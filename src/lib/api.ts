@@ -118,4 +118,8 @@ export const chatWithBot = (message: string, context?: any) =>
     body: JSON.stringify({ message, context }),
   });
 
+// Search suggestions
+export const getSearchSuggestions = (q: string) =>
+  request<{ name: string; model: string }[]>(`/search/suggestions?q=${encodeURIComponent(q)}`);
+
 export { getAuthHeaders };

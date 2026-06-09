@@ -1,9 +1,10 @@
 const logger = require('../logger');
 
 class BearingService {
-  constructor(db, clearCacheFn) {
+  constructor(db, clearCacheFn, ragEngine) {
     this.db = db;
     this.clearCache = clearCacheFn || (() => {});
+    this.ragEngine = ragEngine;
   }
 
   _parseJsonField(value) {
@@ -122,6 +123,13 @@ class BearingService {
       );
       this.clearCache('bearings:*');
       this.clearCache('categories:*');
+
+      // Sync RAG index
+      if (this.ragEngine) {
+        const bearing = await this.db.get('SELECT * FROM bearings WHERE id = ?', [result.lastID]);
+        if (bearing) this.ragEngine.addProduct(bearing).catch(e => logger.warn('RAG同步失败', { error: e.message }));
+      }
+
       return { data: { id: result.lastID, message: '产品添加成功' }, error: null };
     } catch (err) {
       return { data: null, error: err.message, status: 500 };
@@ -132,6 +140,12 @@ class BearingService {
     try {
       await this.db.run('DELETE FROM bearings WHERE id = ?', [id]);
       this.clearCache('bearings:*');
+
+      // Sync RAG index
+      if (this.ragEngine) {
+        this.ragEngine.removeProduct(id).catch(e => logger.warn('RAG同步失败', { error: e.message }));
+      }
+
       return { data: { message: '产品删除成功' }, error: null };
     } catch (err) {
       return { data: null, error: err.message, status: 500 };
@@ -149,6 +163,13 @@ class BearingService {
       values.push(id);
       await this.db.run(`UPDATE bearings SET ${setClauses} WHERE id = ?`, values);
       this.clearCache('bearings:*');
+
+      // Sync RAG index
+      if (this.ragEngine) {
+        const bearing = await this.db.get('SELECT * FROM bearings WHERE id = ?', [id]);
+        if (bearing) this.ragEngine.updateProduct(bearing).catch(e => logger.warn('RAG同步失败', { error: e.message }));
+      }
+
       return { data: { message: '产品更新成功' }, error: null };
     } catch (err) {
       return { data: null, error: err.message, status: 500 };

@@ -15,6 +15,7 @@ function createApp(db, services = {}) {
     recommendationEngine,
     paymentService,
     aiService,
+    aiAuthService,
     authService,
     bearingService,
     orderService,
@@ -106,6 +107,19 @@ function createApp(db, services = {}) {
   if (aiService) {
     const aiRoutes = require('./routes/ai')(db, aiService);
     app.use('/api/ai', aiRoutes);
+  }
+
+  if (aiAuthService) {
+    const { createAIAuthMiddleware } = require('./middleware/aiAuth');
+    const requireAIRole = createAIAuthMiddleware(aiAuthService);
+    const aiAuthRoutes = require('./routes/ai-auth')(aiAuthService, requireAIRole);
+    app.use('/api/ai/auth', aiAuthRoutes);
+
+    // Smart product modification (requires editor/admin role)
+    if (aiService && bearingService) {
+      const aiModifyRoutes = require('./routes/ai-modify')(db, aiService, aiAuthService, bearingService, requireAIRole);
+      app.use('/api/ai/modify-product', aiModifyRoutes);
+    }
   }
 
   // ==================== Error handling ====================

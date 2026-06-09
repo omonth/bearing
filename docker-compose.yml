@@ -1,5 +1,30 @@
 
 services:
+  # ── Vector Service (Python + turbovec + bge-base-zh-v1.5) ────────────────
+  vector-service:
+    build:
+      context: ./backend/vector-service
+      dockerfile: Dockerfile
+    container_name: bearing-sales-vector
+    restart: unless-stopped
+    environment:
+      EMBEDDING_MODEL: BAAI/bge-base-zh-v1.5
+      BIT_WIDTH: "2"
+      DIM: "768"
+      INDEX_DIR: /app/data
+    volumes:
+      - vector_data:/app/data
+    ports:
+      - "127.0.0.1:5050:5050"
+    networks:
+      - bearing-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5050/health')"]
+      interval: 10s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
+
   postgres:
     image: postgres:15-alpine
     container_name: bearing-sales-db
@@ -66,6 +91,8 @@ services:
       GRAY_RELEASE_PERCENTAGE: ${GRAY_RELEASE_PERCENTAGE:-0}
       GRAY_RELEASE_VARIANT: ${GRAY_RELEASE_VARIANT:-canary}
       GRAY_RELEASE_FORCE_HEADER: ${GRAY_RELEASE_FORCE_HEADER:-x-gray-release}
+      VECTOR_SERVICE_URL: http://vector-service:5050
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
     volumes:
       - backend_logs:/app/logs
       - backend_uploads:/app/public
@@ -73,6 +100,8 @@ services:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      vector-service:
         condition: service_healthy
     networks:
       - bearing-network
@@ -114,6 +143,8 @@ volumes:
   backend_logs:
     driver: local
   backend_uploads:
+    driver: local
+  vector_data:
     driver: local
 
 networks:

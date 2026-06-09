@@ -1,114 +1,167 @@
 const logger = require('../logger');
 
+const VECTOR_SERVICE_URL = process.env.VECTOR_SERVICE_URL || 'http://localhost:5050';
+
 class RAGEngine {
   constructor(db, apiKey) {
     this.db = db;
     this.apiKey = apiKey || process.env.DEEPSEEK_API_KEY;
     this.baseUrl = 'https://api.deepseek.com';
+    this.vectorUrl = VECTOR_SERVICE_URL;
   }
 
-  async _embed(text) {
-    const res = await fetch(`${this.baseUrl}/v1/embeddings`, {
+  // ── Vector service helpers ──────────────────────────────────────────────
+
+  async _vectorRequest(path, body) {
+    const res = await fetch(`${this.vectorUrl}${path}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.apiKey}` },
-      body: JSON.stringify({ model: 'deepseek-chat', input: text }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
     });
-    if (!res.ok) throw new Error(`Embedding failed: ${res.status}`);
-    const data = await res.json();
-    return data.data[0].embedding;
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Vector service ${path} failed: ${res.status} ${text}`);
+    }
+    return res.json();
   }
 
-  async _ensureTable() {
-    await this.db.run(`
-      CREATE TABLE IF NOT EXISTS rag_vectors (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        source_type TEXT NOT NULL,
-        source_id INTEGER,
-        content TEXT NOT NULL,
-        vector TEXT NOT NULL
-      )
-    `);
+  async _vectorHealth() {
+    try {
+      const res = await fetch(`${this.vectorUrl}/health`);
+      return res.ok;
+    } catch {
+      return false;
+    }
   }
+
+  // ── Build product text for embedding ────────────────────────────────────
+
+  _buildProductText(b) {
+    const name = this._parseJsonField(b.name);
+    const desc = this._parseJsonField(b.description);
+    const parts = [
+      name,
+      b.model,
+      b.category,
+      desc,
+      b.inner_diameter ? `内径${b.inner_diameter}` : '',
+      b.outer_diameter ? `外径${b.outer_diameter}` : '',
+      b.width ? `宽度${b.width}` : '',
+    ].filter(Boolean);
+    return parts.join(' ');
+  }
+
+  _parseJsonField(val) {
+    if (!val) return '';
+    try {
+      const obj = typeof val === 'string' ? JSON.parse(val) : val;
+      return obj.zh || obj.en || '';
+    } catch {
+      return val;
+    }
+  }
+
+  // ── Full index build ───────────────────────────────────────────────────
 
   async buildIndex() {
-    await this._ensureTable();
-    await this.db.run('DELETE FROM rag_vectors');
-
-    // Index bearing products
-    const bearings = await this.db.all('SELECT id, name, model, category, price, stock, description FROM bearings');
-    for (const b of bearings) {
-      try {
-        const nameObj = JSON.parse(b.name || '{}');
-        const descObj = JSON.parse(b.description || '{}');
-        const text = `${nameObj.zh || ''} ${b.model} ${b.category} ${descObj.zh || ''}`.trim();
-        if (!text) continue;
-        const vector = await this._embed(text);
-        await this.db.run('INSERT INTO rag_vectors (source_type, source_id, content, vector) VALUES (?, ?, ?, ?)',
-          ['bearing', b.id, text, JSON.stringify(vector)]);
-      } catch (e) { logger.warn('RAG index skip', { id: b.id, error: e.message }); }
+    const healthy = await this._vectorHealth();
+    if (!healthy) {
+      logger.warn('Vector service unavailable, skipping index build');
+      return;
     }
 
-    // Index FAQ
-    const faqs = [
-      { q: '如何下单', a: '在商品页面选择轴承，点击"加入购物车"，然后进入结算页面填写收货地址并提交订单。' },
-      { q: '如何查询订单', a: '登录账户后，在"我的账户"页面可以查看所有历史订单和物流状态。' },
-      { q: '支付方式有哪些', a: '支持微信支付、支付宝和货到付款三种支付方式。' },
-      { q: '如何退货', a: '收到货物后7天内可申请退货。请联系客服并提供订单号。' },
-      { q: '发货时间', a: '订单支付后24小时内发货，一般3-5个工作日送达。' },
-      { q: '轴承型号怎么选', a: '根据设备的内径、外径、宽度和载荷类型选择合适的轴承型号。可以搜索型号或咨询客服。' },
-      { q: '有没有优惠', a: '注册会员可享受积分累积和会员折扣，还可以使用优惠券抵扣。' },
-      { q: '批量购买有折扣吗', a: '批量采购请联系客服获取报价，大额订单可享受额外折扣。' },
-    ];
-    for (const faq of faqs) {
-      try {
-        const vector = await this._embed(faq.q);
-        await this.db.run('INSERT INTO rag_vectors (source_type, source_id, content, vector) VALUES (?, ?, ?, ?)',
-          ['faq', null, faq.q + '\n' + faq.a, JSON.stringify(vector)]);
-      } catch (e) { logger.warn('RAG FAQ skip', { error: e.message }); }
+    logger.info('Building RAG index via vector service...');
+
+    const bearings = await this.db.all(
+      'SELECT id, name, model, category, price, stock, description, inner_diameter, outer_diameter, width FROM bearings'
+    );
+
+    const products = bearings.map(b => ({
+      id: b.id,
+      text: this._buildProductText(b),
+      source_type: 'bearing',
+    }));
+
+    if (products.length === 0) {
+      logger.warn('No bearings found for indexing');
+      return;
     }
 
-    logger.info('RAG索引构建完成');
+    const result = await this._vectorRequest('/index/build', { products });
+    logger.info('RAG index built', { count: result.count });
   }
+
+  // ── Incremental updates ────────────────────────────────────────────────
+
+  async addProduct(bearing) {
+    const healthy = await this._vectorHealth();
+    if (!healthy) return;
+
+    await this._vectorRequest('/index/add', {
+      products: [{
+        id: bearing.id,
+        text: this._buildProductText(bearing),
+        source_type: 'bearing',
+      }],
+    });
+  }
+
+  async updateProduct(bearing) {
+    const healthy = await this._vectorHealth();
+    if (!healthy) return;
+
+    await this._vectorRequest('/index/update', {
+      products: [{
+        id: bearing.id,
+        text: this._buildProductText(bearing),
+        source_type: 'bearing',
+      }],
+    });
+  }
+
+  async removeProduct(bearingId) {
+    const healthy = await this._vectorHealth();
+    if (!healthy) return;
+
+    await this._vectorRequest('/index/remove', { ids: [bearingId] });
+  }
+
+  // ── Search ─────────────────────────────────────────────────────────────
 
   async search(query, topK = 5) {
     try {
-      const queryVec = await this._embed(query);
-      const rows = await this.db.all('SELECT * FROM rag_vectors');
+      const healthy = await this._vectorHealth();
+      if (!healthy) {
+        logger.warn('Vector service unavailable for search');
+        return [];
+      }
 
-      const scored = rows.map(row => {
-        const vec = JSON.parse(row.vector);
-        const similarity = this._cosineSimilarity(queryVec, vec);
-        return { ...row, similarity };
-      });
-
-      scored.sort((a, b) => b.similarity - a.similarity);
-      return scored.slice(0, topK);
+      const result = await this._vectorRequest('/search', { query, top_k: topK });
+      return result.results || [];
     } catch (e) {
-      logger.error('RAG搜索失败', { error: e.message });
+      logger.error('RAG search failed', { error: e.message });
       return [];
     }
   }
 
-  _cosineSimilarity(a, b) {
-    let dot = 0, normA = 0, normB = 0;
-    for (let i = 0; i < a.length; i++) {
-      dot += a[i] * b[i];
-      normA += a[i] * a[i];
-      normB += b[i] * b[i];
-    }
-    return dot / (Math.sqrt(normA) * Math.sqrt(normB) || 1);
-  }
+  // ── Chat (DeepSeek) ────────────────────────────────────────────────────
 
   async chat(prompt, history = []) {
     const messages = [
-      { role: 'system', content: '你是轴承销售系统的智能客服。回答要简洁专业，基于提供的上下文信息。用中文回答。' },
+      {
+        role: 'system',
+        content: '你是轴承销售系统的智能客服。回答要简洁专业，基于提供的上下文信息。用中文回答。如果检索到的产品信息相关，可以推荐具体产品。',
+      },
       ...history,
       { role: 'user', content: prompt },
     ];
 
     const res = await fetch(`${this.baseUrl}/v1/chat/completions`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.apiKey}` },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${this.apiKey}`,
+      },
       body: JSON.stringify({ model: 'deepseek-chat', messages, stream: true }),
     });
     return res;

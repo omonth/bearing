@@ -84,14 +84,51 @@ class AIService {
     // RAG: semantic search + LLM
     if (this.ragEngine) {
       try {
-        const hits = await this.ragEngine.search(message, 3);
-        const contextParts = hits.map(h =>
-          `[${h.source_type === 'bearing' ? '产品' : 'FAQ'}] ${h.content}`
-        );
-        const prompt = `用户问题：${message}\n\n参考信息：\n${contextParts.join('\n')}\n\n请根据参考信息回答用户问题。如果参考信息不足以回答，请诚实说明。`;
+        const hits = await this.ragEngine.search(message, 5);
+
+        // Fetch full product details for card display
+        let products = [];
+        if (hits.length > 0) {
+          const ids = hits.map(h => h.id);
+          const placeholders = ids.map(() => '?').join(',');
+          const rows = await this.db.all(
+            `SELECT id, name, model, category, price, stock, image, inner_diameter, outer_diameter, width
+             FROM bearings WHERE id IN (${placeholders})`,
+            ids
+          );
+          // Preserve search result order
+          const rowMap = new Map(rows.map(r => [r.id, r]));
+          products = hits.map(h => {
+            const row = rowMap.get(h.id);
+            if (!row) return null;
+            return {
+              id: row.id,
+              name: this._parseJsonField(row.name),
+              model: row.model,
+              category: row.category,
+              price: row.price,
+              stock: row.stock,
+              image: row.image,
+              specs: {
+                inner_diameter: row.inner_diameter,
+                outer_diameter: row.outer_diameter,
+                width: row.width,
+              },
+              score: h.score,
+            };
+          }).filter(Boolean);
+        }
+
+        const contextParts = hits.map(h => `[产品] ${h.content}`);
+        const prompt = `用户问题：${message}\n\n参考信息：\n${contextParts.join('\n')}\n\n请根据参考信息回答用户问题。如果检索到了相关产品，可以推荐给用户。如果参考信息不足以回答，请诚实说明。`;
 
         const stream = await this.ragEngine.chat(prompt);
-        return { stream, intent: 'rag', timestamp: new Date().toISOString() };
+        return {
+          stream,
+          products,
+          intent: 'rag',
+          timestamp: new Date().toISOString(),
+        };
       } catch (e) {
         logger.warn('RAG失败，降级到规则', { error: e.message });
       }
@@ -103,6 +140,16 @@ class AIService {
       intent: 'fallback',
       timestamp: new Date().toISOString(),
     };
+  }
+
+  _parseJsonField(val) {
+    if (!val) return '';
+    try {
+      const obj = typeof val === 'string' ? JSON.parse(val) : val;
+      return obj.zh || obj.en || '';
+    } catch {
+      return val;
+    }
   }
 
   // ==================== Admin NL-to-SQL ====================

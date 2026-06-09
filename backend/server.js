@@ -6,6 +6,7 @@ const Analytics = require('./utils/analytics');
 const RecommendationEngine = require('./utils/recommendation');
 const PaymentOrchestrator = require('./services/payment/PaymentOrchestrator');
 const AIService = require('./services/aiService');
+const AIAuthService = require('./services/aiAuthService');
 const AuthService = require('./services/authService');
 const BearingService = require('./services/bearingService');
 const OrderService = require('./services/orderService');
@@ -24,18 +25,22 @@ const inventoryAlert = new InventoryAlert(db);
 const analytics = new Analytics(db);
 const recommendationEngine = new RecommendationEngine(db);
 const aiService = new AIService(db);
+
+let ragEngine = null;
 if (process.env.DEEPSEEK_API_KEY) {
-  const ragEngine = new RAGEngine(db, process.env.DEEPSEEK_API_KEY);
+  ragEngine = new RAGEngine(db, process.env.DEEPSEEK_API_KEY);
   aiService.setRagEngine(ragEngine);
   ragEngine.buildIndex().catch(err => logger.warn('RAG索引构建失败', { error: err.message }));
   logger.info('RAG引擎已初始化');
 } else {
   logger.warn('DEEPSEEK_API_KEY未设置，RAG引擎未启用');
 }
+
 const authService = new AuthService(db);
+const aiAuthService = new AIAuthService(db);
 
 const { clearCache } = require('./middleware/cache');
-const bearingService = new BearingService(db, clearCache);
+const bearingService = new BearingService(db, clearCache, ragEngine);
 const orderService = new OrderService(db, clearCache);
 const customerService = new CustomerService(db);
 const couponService = new CouponService(db);
@@ -58,6 +63,7 @@ const app = createApp(db, {
   recommendationEngine,
   paymentService,
   aiService,
+  aiAuthService,
   authService,
   bearingService,
   orderService,
