@@ -29,7 +29,7 @@ describe('productStore', () => {
     useProductStore.setState({
       products: [],
       selectedProduct: null,
-      loading: false,
+      loading: true,
       activeCategory: '全部',
       categories: [],
       currentProduct: null,
@@ -41,7 +41,7 @@ describe('productStore', () => {
   it('should start with default state', () => {
     const state = useProductStore.getState();
     expect(state.products).toHaveLength(0);
-    expect(state.loading).toBe(false);
+    expect(state.loading).toBe(true);
     expect(state.activeCategory).toBe('全部');
   });
 

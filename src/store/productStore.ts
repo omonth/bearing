@@ -23,7 +23,7 @@ interface ProductStore {
 export const useProductStore = create<ProductStore>()((set) => ({
   products: [],
   selectedProduct: null,
-  loading: false,
+  loading: true,
   error: null,
   activeCategory: '全部',
   categories: [],

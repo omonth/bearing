@@ -8,15 +8,40 @@ interface ProductListProps {
   products: Bearing[];
   categories?: string[];
   activeCategory?: string;
+  loading?: boolean;
   onCategoryChange?: (category: string) => void;
   onProductClick: (product: Bearing) => void;
   onAddToCart: (product: Bearing) => void;
+}
+
+function ProductGridSkeleton() {
+  return (
+    <div
+      className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
+      aria-label="Loading products"
+    >
+      {[0, 1, 2, 3, 4, 5].map((item) => (
+        <div
+          key={item}
+          className="overflow-hidden rounded-lg border border-white/10 bg-neutral-900/70"
+        >
+          <div className="aspect-[4/3] animate-pulse bg-white/[0.055]" />
+          <div className="space-y-3 p-4">
+            <div className="h-4 w-2/3 animate-pulse rounded bg-white/10" />
+            <div className="h-3 w-1/3 animate-pulse rounded bg-white/10" />
+            <div className="h-10 animate-pulse rounded bg-white/[0.055]" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export default function ProductList({
   products,
   categories,
   activeCategory,
+  loading = false,
   onCategoryChange,
   onProductClick,
   onAddToCart,
@@ -70,6 +95,8 @@ export default function ProductList({
     [products]
   );
   const featuredProducts = filteredProducts.slice(0, 3);
+  const isInitialLoading = loading && products.length === 0;
+  const shouldShowFeatured = isInitialLoading || featuredProducts.length > 0;
 
   return (
     <div className="space-y-8">
@@ -87,9 +114,12 @@ export default function ProductList({
 
           <div className="mt-7 grid max-w-2xl grid-cols-3 gap-3">
             {[
-              { label: "在售型号", value: products.length },
-              { label: "现货库存", value: totalStock },
-              { label: "产品分类", value: Math.max(cats.length - 1, 0) },
+              { label: "在售型号", value: isInitialLoading ? "..." : products.length },
+              { label: "现货库存", value: isInitialLoading ? "..." : totalStock },
+              {
+                label: "产品分类",
+                value: isInitialLoading ? "..." : Math.max(cats.length - 1, 0),
+              },
             ].map((stat) => (
               <div
                 key={stat.label}
@@ -104,30 +134,40 @@ export default function ProductList({
           </div>
         </div>
 
-        {featuredProducts.length > 0 && (
+        {shouldShowFeatured && (
           <div className="grid grid-cols-3 gap-3 lg:pb-2">
-            {featuredProducts.map((product, index) => (
-              <button
-                key={product.id}
-                type="button"
-                onClick={() => onProductClick(product)}
-                className={`group text-left transition duration-300 hover:-translate-y-1 active:translate-y-0 ${
-                  index === 1 ? "mt-8" : ""
-                }`}
-              >
-                <ProductImage
-                  src={product.image}
-                  alt={localized(product.name)}
-                  className="aspect-[3/4] rounded-lg border border-white/10"
-                  imageClassName="transition duration-500 group-hover:scale-105"
-                  sizes="(max-width: 1024px) 30vw, 180px"
-                  priority
-                />
-                <span className="mt-2 block truncate text-xs font-medium text-neutral-300">
-                  {product.model}
-                </span>
-              </button>
-            ))}
+            {isInitialLoading
+              ? [0, 1, 2].map((item) => (
+                  <div
+                    key={item}
+                    className={`text-left ${item === 1 ? "mt-8" : ""}`}
+                  >
+                    <div className="aspect-[3/4] animate-pulse rounded-lg border border-white/10 bg-white/[0.055]" />
+                    <div className="mt-2 h-3 w-2/3 animate-pulse rounded bg-white/10" />
+                  </div>
+                ))
+              : featuredProducts.map((product, index) => (
+                  <button
+                    key={product.id}
+                    type="button"
+                    onClick={() => onProductClick(product)}
+                    className={`group text-left transition duration-300 hover:-translate-y-1 active:translate-y-0 ${
+                      index === 1 ? "mt-8" : ""
+                    }`}
+                  >
+                    <ProductImage
+                      src={product.image}
+                      alt={localized(product.name)}
+                      className="aspect-[3/4] rounded-lg border border-white/10"
+                      imageClassName="transition duration-500 group-hover:scale-105"
+                      sizes="(max-width: 1024px) 30vw, 180px"
+                      priority
+                    />
+                    <span className="mt-2 block truncate text-xs font-medium text-neutral-300">
+                      {product.model}
+                    </span>
+                  </button>
+                ))}
           </div>
         )}
       </section>
@@ -137,7 +177,7 @@ export default function ProductList({
           <div>
             <h2 className="text-lg font-semibold text-white">产品目录</h2>
             <p className="mt-1 text-sm text-neutral-500">
-              {filteredProducts.length} 个结果
+              {isInitialLoading ? "..." : filteredProducts.length} 个结果
               {query ? ` · 搜索 "${query}"` : ""}
             </p>
           </div>
@@ -192,7 +232,9 @@ export default function ProductList({
         </div>
       </section>
 
-      {filteredProducts.length === 0 ? (
+      {isInitialLoading ? (
+        <ProductGridSkeleton />
+      ) : filteredProducts.length === 0 ? (
         <div className="rounded-lg border border-dashed border-white/12 bg-white/[0.025] px-6 py-14 text-center">
           <h3 className="text-base font-semibold text-white">没有匹配的产品</h3>
           <p className="mt-2 text-sm text-neutral-500">
