@@ -1,12 +1,19 @@
 import { useEffect } from "react";
+import dynamic from "next/dynamic";
 import Head from "next/head";
 import Header from "@/components/Header";
 import ProductList from "@/components/ProductList";
-import ProductDetail from "@/components/ProductDetail";
-import Cart from "@/components/Cart";
 import ChatBotEntry from "@/components/ChatBotEntry";
 import { useProductStore } from "@/store/productStore";
 import { useCartStore } from "@/store/cartStore";
+
+const ProductDetail = dynamic(() => import("@/components/ProductDetail"), {
+  loading: () => <ProductDetailSkeleton />,
+});
+
+const Cart = dynamic(() => import("@/components/Cart"), {
+  ssr: false,
+});
 
 function ProductListSkeleton() {
   return (
@@ -51,6 +58,42 @@ function ProductListSkeleton() {
             </div>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function ProductDetailSkeleton() {
+  return (
+    <div className="space-y-6" aria-label="正在加载商品详情">
+      <div className="h-9 w-24 animate-pulse rounded-md bg-white/[0.055]" />
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,0.95fr)_minmax(360px,1.05fr)]">
+        <div className="space-y-3">
+          <div className="aspect-square animate-pulse rounded-lg border border-white/10 bg-white/[0.055]" />
+          <div className="grid grid-cols-3 gap-2">
+            {[0, 1, 2].map((item) => (
+              <div
+                key={item}
+                className="h-14 animate-pulse rounded-md bg-white/[0.035]"
+              />
+            ))}
+          </div>
+        </div>
+        <div className="space-y-6">
+          <div className="h-3 w-32 animate-pulse rounded bg-amber-300/20" />
+          <div className="h-10 w-4/5 animate-pulse rounded bg-white/10" />
+          <div className="h-5 w-36 animate-pulse rounded bg-white/[0.055]" />
+          <div className="h-px bg-white/10" />
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {[0, 1, 2, 3].map((item) => (
+              <div
+                key={item}
+                className="h-11 animate-pulse rounded-md bg-white/[0.035]"
+              />
+            ))}
+          </div>
+          <div className="h-11 w-full animate-pulse rounded-md bg-amber-300/20" />
+        </div>
       </div>
     </div>
   );
