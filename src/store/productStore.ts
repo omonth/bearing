@@ -35,7 +35,14 @@ export const useProductStore = create<ProductStore>()((set) => ({
     set({ loading: true, error: null });
     try {
       const data = await getProducts(category);
-      set({ products: data });
+      const nextState: Partial<ProductStore> = { products: data };
+      if (!category || category === '全部') {
+        nextState.categories = [
+          '全部',
+          ...Array.from(new Set(data.map((product) => product.category))),
+        ];
+      }
+      set(nextState);
     } catch (error) {
       set({ error: '加载产品失败，请检查网络连接后重试' });
       console.error('获取产品失败:', error);

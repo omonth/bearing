@@ -60,7 +60,6 @@ export default function Home() {
     activeCategory,
     categories,
     fetchProducts,
-    fetchCategories,
     setActiveCategory,
     setSelectedProduct,
   } = useProductStore();
@@ -79,8 +78,7 @@ export default function Home() {
 
   useEffect(() => {
     fetchProducts();
-    fetchCategories();
-  }, [fetchCategories, fetchProducts]);
+  }, [fetchProducts]);
 
   const handleCategoryChange = (category: string) => {
     setActiveCategory(category);

@@ -49,6 +49,7 @@ describe('productStore', () => {
     await useProductStore.getState().fetchProducts();
     const state = useProductStore.getState();
     expect(state.products).toHaveLength(2);
+    expect(state.categories).toEqual(['全部', '深沟球轴承', '圆柱滚子轴承']);
     expect(state.loading).toBe(false);
   });
 
