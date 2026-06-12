@@ -84,3 +84,11 @@ This log tracks the continuous optimization loop for the bearing storefront.
 - Correctness: lint completed with existing warnings, 42 tests passed, production build passed, persisted-language smoke passed, and product detail still opened.
 - Metrics: mobile Lighthouse 98, desktop Lighthouse 100, mobile LCP 2441ms, desktop LCP 533ms, mobile CLS 0.0014, 22 requests, 193.1KB transfer, 347.3KB JS gzip, 9.0KB CSS gzip.
 - Decision: keep. Transfer dropped by 2.0KB and JS gzip by 1.9KB against Round 6 while preserving hydration correctness.
+
+### Round 9 - keep - Local storefront text provider
+
+- Hypothesis: replacing storefront `react-i18next` usage with a small local text provider can remove i18next/react-i18next from the critical storefront path while preserving language persistence.
+- Change: added a local `StorefrontLanguageProvider`, moved Header/ProductList/ProductDetail/Cart text to it, and removed global i18n initialization from `_app`.
+- Correctness: an initial draft added one new lint warning for synchronous effect state; fixed before measurement by applying stored language in `requestAnimationFrame`. Final lint completed with existing warnings, 42 tests passed, production build passed, language persistence smoke passed, and detail/cart smoke passed.
+- Metrics: mobile Lighthouse 98, desktop Lighthouse 100, mobile LCP 2293ms, desktop LCP 536ms, mobile CLS 0.0014, 21 requests, 175.5KB transfer, 323.0KB JS gzip, 9.0KB CSS gzip.
+- Decision: keep. Against Round 8, first-load requests dropped by 1, transfer dropped by 17.6KB, JS gzip dropped by 24.3KB, TBT reached 0ms, and mobile LCP improved by 148ms.
