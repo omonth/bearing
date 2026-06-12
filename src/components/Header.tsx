@@ -54,9 +54,16 @@ export default function Header({ cartCount, onCartClick }: HeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem("lang");
+      if ((stored === "zh" || stored === "en") && stored !== i18n.language) {
+        void i18n.changeLanguage(stored);
+      }
+    } catch {}
+
     const frame = window.requestAnimationFrame(() => setMounted(true));
     return () => window.cancelAnimationFrame(frame);
-  }, []);
+  }, [i18n]);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -66,6 +73,9 @@ export default function Header({ cartCount, onCartClick }: HeaderProps) {
 
   const toggleLang = () => {
     const next = i18n.language === "zh" ? "en" : "zh";
+    try {
+      window.localStorage.setItem("lang", next);
+    } catch {}
     i18n.changeLanguage(next);
   };
 
