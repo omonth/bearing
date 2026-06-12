@@ -51,8 +51,12 @@ function saveHistory(messages: Message[]) {
   } catch {}
 }
 
-export default function ChatBot() {
-  const [open, setOpen] = useState(false);
+interface ChatBotProps {
+  initialOpen?: boolean;
+}
+
+export default function ChatBot({ initialOpen = false }: ChatBotProps) {
+  const [open, setOpen] = useState(initialOpen);
   const [messages, setMessages] = useState<Message[]>(() => {
     const saved = loadHistory();
     if (saved.length > 0) return saved;

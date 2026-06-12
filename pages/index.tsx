@@ -1,16 +1,12 @@
 import { useEffect } from "react";
-import dynamic from "next/dynamic";
 import Head from "next/head";
 import Header from "@/components/Header";
 import ProductList from "@/components/ProductList";
 import ProductDetail from "@/components/ProductDetail";
 import Cart from "@/components/Cart";
+import ChatBotEntry from "@/components/ChatBotEntry";
 import { useProductStore } from "@/store/productStore";
 import { useCartStore } from "@/store/cartStore";
-
-const ChatBot = dynamic(() => import("@/components/ChatBot"), {
-  ssr: false,
-});
 
 function ProductListSkeleton() {
   return (
@@ -163,7 +159,7 @@ export default function Home() {
           />
         )}
       </div>
-      <ChatBot />
+      <ChatBotEntry />
     </>
   );
 }
