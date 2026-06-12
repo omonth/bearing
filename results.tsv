@@ -2,3 +2,4 @@ round	commit	status	hypothesis	lh_mobile	lh_desktop	lcp_mobile_ms	lcp_desktop_ms
 0	2cbc8fa	crash	wire Lighthouse measurement on Windows	0	0	0	0	0	0	0	0	0	0	fail	spawnSync npx.cmd EINVAL; fixed script to run npx through shell on Windows
 1	2cbc8fa	keep	baseline after storefront polish	94	100	3115	666	25	25	256.9	256.9	324.0	8.9	pass	lint warnings only; 42 tests pass; build pass; production Lighthouse baseline
 2	e89a097	keep	load chat assistant only after click	96	100	2735	538	23	23	209.4	209.4	324.4	9.0	pass	lint warnings only; 42 tests pass; build pass; smoke pass; reduced first-load requests by 2 and transfer by 47.5KB
+3	d41d6a3	keep	defer product detail and cart panels	97	100	2605	584	22	22	195.0	195.0	349.1	9.0	pass	lint warnings only; 42 tests pass; build pass; detail/cart smoke pass; mobile LCP improved 130ms and transfer dropped 14.4KB vs round 2; desktop LCP regressed 46ms but score stayed 100

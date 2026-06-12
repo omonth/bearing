@@ -36,3 +36,11 @@ This log tracks the continuous optimization loop for the bearing storefront.
 - Correctness: lint completed with existing warnings, 42 tests passed, production build passed, desktop/mobile smoke passed, and click-to-open chat loaded the panel.
 - Metrics: mobile Lighthouse 96, desktop Lighthouse 100, mobile LCP 2735ms, desktop LCP 538ms, 23 requests, 209.4KB transfer, 324.4KB JS gzip, 9.0KB CSS gzip.
 - Decision: keep. The variant reduced first-load requests by 2, transfer by 47.5KB, and mobile LCP by 380ms against Round 1.
+
+### Round 3 - keep - Defer product detail and cart panels
+
+- Hypothesis: product detail and cart panels are not needed for the first storefront paint, so loading them only when selected can reduce first-load transfer.
+- Change: dynamically imported the product detail view with a matching skeleton and dynamically imported the cart panel with client-only rendering.
+- Correctness: lint completed with existing warnings, 42 tests passed, production build passed, desktop/mobile detail smoke passed, and direct add-to-cart opened the cart panel.
+- Metrics: mobile Lighthouse 97, desktop Lighthouse 100, mobile LCP 2605ms, desktop LCP 584ms, 22 requests, 195.0KB transfer, 349.1KB JS gzip, 9.0KB CSS gzip.
+- Decision: keep. Mobile LCP improved by 130ms and first-load transfer dropped by 14.4KB against Round 2; desktop LCP regressed by 46ms but remained score 100 and within the expected single-run variance.
