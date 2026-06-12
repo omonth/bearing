@@ -35,7 +35,7 @@ export default function ProductPage() {
     if (id) {
       fetchProductDetail(Number(id));
     }
-  }, [id]);
+  }, [fetchProductDetail, id]);
 
   if (router.isFallback || loading) {
     return (

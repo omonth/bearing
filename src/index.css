@@ -1,9 +1,10 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-sans: "Aptos Display", "Segoe UI Variable", "Microsoft YaHei",
+    "PingFang SC", "Hiragino Sans GB", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", ui-monospace,
+    monospace;
 
   --color-amber-50: #fffbeb;
   --color-amber-100: #fef3c7;
@@ -44,7 +45,25 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     color: #e5e5e5;
-    background: #0a0a0a;
+    background:
+      radial-gradient(circle at top left, rgba(245, 158, 11, 0.14), transparent 32rem),
+      radial-gradient(circle at 85% 18%, rgba(16, 185, 129, 0.08), transparent 26rem),
+      #0a0a0a;
+    font-variant-numeric: tabular-nums;
+    text-rendering: optimizeLegibility;
+  }
+
+  body::before {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    content: "";
+    opacity: 0.18;
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+    background-size: 48px 48px;
   }
 
   a {
@@ -64,9 +83,32 @@
     height: auto;
   }
 
+  html {
+    scroll-behavior: smooth;
+  }
+
   :focus-visible {
     outline: 2px solid #fbbf24;
     outline-offset: 2px;
+  }
+
+  .skip-link {
+    position: fixed;
+    top: 0.75rem;
+    left: 0.75rem;
+    z-index: 100;
+    transform: translateY(-150%);
+    border-radius: 0.375rem;
+    background: #f59e0b;
+    color: #0a0a0a;
+    padding: 0.625rem 0.875rem;
+    font-size: 0.875rem;
+    font-weight: 700;
+    transition: transform 160ms ease;
+  }
+
+  .skip-link:focus {
+    transform: translateY(0);
   }
 
   @keyframes fadeIn {

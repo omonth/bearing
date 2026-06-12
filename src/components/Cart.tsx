@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/router";
 import { useTranslation } from "react-i18next";
+import ProductImage from "@/components/ProductImage";
 import { useCheckoutStore } from "@/store/checkoutStore";
 import type { CartItem } from "@/types";
 import { localized } from "@/lib/utils";
@@ -27,47 +28,136 @@ export default function Cart({
   const { clearPolling } = useCheckoutStore();
 
   useEffect(() => {
-    return () => { clearPolling(); };
-  }, []);
+    return () => {
+      clearPolling();
+    };
+  }, [clearPolling]);
 
   return (
     <div
-      className="fixed inset-0 bg-black/60 z-50 flex justify-end max-sm:items-end"
+      className="fixed inset-0 z-50 flex justify-end bg-black/68 backdrop-blur-sm max-sm:items-end"
       onClick={onClose}
     >
-      <div
-        className="w-[450px] max-w-full max-sm:max-h-[80vh] max-sm:rounded-t-xl max-sm:w-full bg-neutral-900 flex flex-col shadow-xl"
-        onClick={(e) => e.stopPropagation()}
+      <aside
+        className="flex h-full w-[460px] max-w-full flex-col border-l border-white/10 bg-neutral-950 shadow-[0_0_80px_rgba(0,0,0,0.38)] max-sm:h-[86dvh] max-sm:w-full max-sm:rounded-t-lg max-sm:border-l-0 max-sm:border-t"
+        onClick={(event) => event.stopPropagation()}
+        aria-label={t("cart.title")}
       >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-800">
-          <h2 className="text-base font-semibold text-white">{t("cart.title")}</h2>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center text-neutral-500 hover:text-white hover:bg-neutral-800 rounded-full transition-colors">
-            ✕
+        <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+          <div>
+            <h2 className="text-base font-semibold text-white">{t("cart.title")}</h2>
+            <p className="mt-1 text-xs text-neutral-500">
+              {items.length > 0 ? `${items.length} 个商品` : "等待添加商品"}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="grid h-9 w-9 place-items-center rounded-md text-neutral-500 transition hover:bg-white/5 hover:text-white active:scale-95"
+            aria-label={t("cart.close")}
+          >
+            x
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-5">
           {items.length === 0 ? (
-            <div className="flex items-center justify-center py-20 text-neutral-600 text-sm">
-              {t("cart.empty")}
+            <div className="flex h-full min-h-[320px] flex-col items-center justify-center rounded-lg border border-dashed border-white/12 bg-white/[0.025] px-6 text-center">
+              <div className="mb-4 grid h-12 w-12 place-items-center rounded-md bg-amber-400/10 text-amber-300">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.7}
+                  className="h-6 w-6"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25h8.386c.51 0 .955-.343 1.087-.835l1.917-7.188A1.125 1.125 0 0 0 17.803 4.75H5.25"
+                  />
+                </svg>
+              </div>
+              <p className="text-sm font-medium text-neutral-300">{t("cart.empty")}</p>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  router.push("/");
+                }}
+                className="mt-5 rounded-md bg-amber-400 px-4 py-2 text-sm font-semibold text-neutral-950 transition hover:bg-amber-300 active:scale-95"
+              >
+                浏览产品
+              </button>
             </div>
           ) : (
             <div className="space-y-4">
               {items.map((item) => (
-                <div key={item.id} className="flex gap-3 pb-4 border-b border-neutral-800">
-                  <img src={item.image || "/placeholder.svg"} alt={localized(item.name)} className="w-[72px] h-[72px] object-cover rounded-md shrink-0" onError={(e) => { (e.target as HTMLImageElement).src = "/placeholder.svg"; }} />
-                  <div className="flex-1 min-w-0">
-                    <h4 className="text-sm font-medium text-neutral-200 line-clamp-1">{localized(item.name)}</h4>
-                    <p className="text-xs font-mono text-neutral-600 mt-0.5">{item.model}</p>
-                    <p className="text-sm font-bold text-amber-400 mt-1.5">¥{item.price.toFixed(2)}</p>
-                  </div>
-                  <div className="flex flex-col items-end gap-2">
-                    <div className="flex items-center border border-neutral-700 rounded">
-                      <button onClick={() => onUpdateQuantity(item.id, item.quantity - 1)} disabled={item.quantity <= 1} className="w-7 h-7 flex items-center justify-center text-neutral-400 hover:text-white disabled:text-neutral-700 transition-colors text-sm">−</button>
-                      <span className="w-8 text-center text-sm font-medium text-white">{item.quantity}</span>
-                      <button onClick={() => onUpdateQuantity(item.id, Math.min(item.stock, item.quantity + 1))} disabled={item.quantity >= item.stock} className="w-7 h-7 flex items-center justify-center text-neutral-400 hover:text-white disabled:text-neutral-700 transition-colors text-sm">+</button>
+                <div
+                  key={item.id}
+                  className="grid grid-cols-[72px_minmax(0,1fr)] gap-3 border-b border-white/10 pb-4"
+                >
+                  <ProductImage
+                    src={item.image}
+                    alt={localized(item.name)}
+                    className="h-[72px] w-[72px] rounded-md"
+                    sizes="72px"
+                  />
+                  <div className="min-w-0">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h3 className="truncate text-sm font-semibold text-neutral-100">
+                          {localized(item.name)}
+                        </h3>
+                        <p className="mt-0.5 font-mono text-xs text-neutral-600">
+                          {item.model}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => onRemove(item.id)}
+                        className="text-xs font-medium text-red-300 transition hover:text-red-200"
+                      >
+                        {t("common.cancel")}
+                      </button>
                     </div>
-                    <button onClick={() => onRemove(item.id)} className="text-xs text-red-400 hover:text-red-300 transition-colors">{t("common.cancel")}</button>
+
+                    <div className="mt-3 flex items-center justify-between">
+                      <span className="font-mono text-sm font-semibold text-amber-300">
+                        ¥{item.price.toFixed(2)}
+                      </span>
+                      <div className="inline-flex h-8 overflow-hidden rounded-md border border-white/10 bg-white/[0.035]">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onUpdateQuantity(item.id, item.quantity - 1)
+                          }
+                          disabled={item.quantity <= 1}
+                          className="w-8 text-sm text-neutral-400 transition hover:bg-white/5 hover:text-white disabled:text-neutral-700"
+                          aria-label="减少数量"
+                        >
+                          -
+                        </button>
+                        <span className="grid w-9 place-items-center text-sm font-semibold text-white">
+                          {item.quantity}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onUpdateQuantity(
+                              item.id,
+                              Math.min(item.stock, item.quantity + 1)
+                            )
+                          }
+                          disabled={item.quantity >= item.stock}
+                          className="w-8 text-sm text-neutral-400 transition hover:bg-white/5 hover:text-white disabled:text-neutral-700"
+                          aria-label="增加数量"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -76,20 +166,26 @@ export default function Cart({
         </div>
 
         {items.length > 0 && (
-          <div className="p-5 border-t border-neutral-800 bg-neutral-950/50">
-            <div className="flex justify-between items-center mb-4">
+          <div className="border-t border-white/10 bg-neutral-900/70 p-5">
+            <div className="mb-4 flex items-center justify-between">
               <span className="text-sm text-neutral-400">{t("cart.total")}</span>
-              <span className="text-xl font-bold text-amber-400">¥{totalPrice.toFixed(2)}</span>
+              <span className="font-mono text-xl font-semibold text-amber-300">
+                ¥{totalPrice.toFixed(2)}
+              </span>
             </div>
             <button
-              onClick={() => { onClose(); router.push("/checkout"); }}
-              className="w-full py-3 text-sm font-medium text-neutral-950 bg-amber-500 hover:bg-amber-400 rounded-md transition-colors"
+              type="button"
+              onClick={() => {
+                onClose();
+                router.push("/checkout");
+              }}
+              className="h-11 w-full rounded-md bg-amber-400 text-sm font-semibold text-neutral-950 transition hover:bg-amber-300 active:scale-[0.99]"
             >
               {t("cart.checkout")}
             </button>
           </div>
         )}
-      </div>
+      </aside>
     </div>
   );
 }

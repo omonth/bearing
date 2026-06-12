@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
+import ProductImage from "@/components/ProductImage";
 import { useCartStore } from "@/store/cartStore";
 import type { Bearing } from "@/types";
 
@@ -245,14 +246,12 @@ export default function ChatBot() {
 
   const ProductCardView = ({ product }: { product: ProductCard }) => (
     <div className="bg-neutral-800 border border-neutral-700 rounded-lg p-3 mt-2 flex gap-3">
-      {product.image && (
-        <img
-          src={product.image}
-          alt={product.name}
-          className="w-16 h-16 object-cover rounded-md flex-shrink-0"
-          onError={(e) => (e.currentTarget.style.display = "none")}
-        />
-      )}
+      <ProductImage
+        src={product.image}
+        alt={product.name}
+        className="h-16 w-16 flex-shrink-0 rounded-md"
+        sizes="64px"
+      />
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-neutral-200 truncate">{product.name}</p>
         <p className="text-xs text-neutral-400">{product.model} · {product.category}</p>

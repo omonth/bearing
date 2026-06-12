@@ -1,10 +1,14 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  poweredByHeader: false,
+  compress: true,
   turbopack: {
     root: __dirname,
   },
   images: {
+    formats: ['image/avif', 'image/webp'],
+    minimumCacheTTL: 3600,
     remotePatterns: [
       {
         protocol: 'http',
@@ -13,7 +17,19 @@ const nextConfig = {
         pathname: '/images/**'
       }
     ],
-    unoptimized: true
+  },
+  async headers() {
+    return [
+      {
+        source: '/images/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=3600, stale-while-revalidate=86400'
+          }
+        ]
+      }
+    ];
   },
   async rewrites() {
     return [
