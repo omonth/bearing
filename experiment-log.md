@@ -28,3 +28,11 @@ This log tracks the continuous optimization loop for the bearing storefront.
 - Correctness: lint completed with existing warnings, 42 tests passed, production build passed.
 - Metrics: mobile Lighthouse 94, desktop Lighthouse 100, mobile LCP 3115ms, desktop LCP 666ms, 25 requests, 256.9KB transfer, 324.0KB JS gzip, 8.9KB CSS gzip.
 - Action: keep as baseline for future variants.
+
+### Round 2 - keep - Load chat assistant on demand
+
+- Hypothesis: rendering the full chat assistant on initial page load pulls markdown/chat chunks into the storefront critical path.
+- Change: replaced the always-rendered chat assistant with a small fixed entry button that loads the full assistant only after click.
+- Correctness: lint completed with existing warnings, 42 tests passed, production build passed, desktop/mobile smoke passed, and click-to-open chat loaded the panel.
+- Metrics: mobile Lighthouse 96, desktop Lighthouse 100, mobile LCP 2735ms, desktop LCP 538ms, 23 requests, 209.4KB transfer, 324.4KB JS gzip, 9.0KB CSS gzip.
+- Decision: keep. The variant reduced first-load requests by 2, transfer by 47.5KB, and mobile LCP by 380ms against Round 1.
