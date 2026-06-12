@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import { useTranslation } from "react-i18next";
 import ProductImage from "@/components/ProductImage";
+import { useStorefrontLanguage } from "@/lib/storefrontLanguage";
 import type { Bearing } from "@/types";
 import { localized } from "@/lib/utils";
 
@@ -46,9 +46,9 @@ export default function ProductList({
   onProductClick,
   onAddToCart,
 }: ProductListProps) {
-  const { t } = useTranslation();
+  const { language, text } = useStorefrontLanguage();
   const [query, setQuery] = useState("");
-  const allCategoriesLabel = t("product.allCategories");
+  const allCategoriesLabel = text.product.allCategories;
 
   const cats = useMemo(
     () =>
@@ -74,8 +74,8 @@ export default function ProductList({
 
     return categoryFiltered.filter((product) => {
       const haystack = [
-        localized(product.name),
-        localized(product.description),
+        localized(product.name, language),
+        localized(product.description, language),
         product.model,
         product.category,
         product.specs?.innerDiameter,
@@ -88,7 +88,7 @@ export default function ProductList({
 
       return haystack.includes(normalizedQuery);
     });
-  }, [activeCategory, normalizedQuery, products]);
+  }, [activeCategory, language, normalizedQuery, products]);
 
   const totalStock = useMemo(
     () => products.reduce((sum, product) => sum + product.stock, 0),
@@ -157,7 +157,7 @@ export default function ProductList({
                   >
                     <ProductImage
                       src={product.image}
-                      alt={localized(product.name)}
+                      alt={localized(product.name, language)}
                       className="aspect-[3/4] rounded-lg border border-white/10"
                       imageClassName="transition duration-500 group-hover:scale-105"
                       sizes="(max-width: 1024px) 30vw, 180px"
@@ -178,7 +178,7 @@ export default function ProductList({
             <h2 className="text-lg font-semibold text-white">产品目录</h2>
             <p className="mt-1 text-sm text-neutral-500">
               {isInitialLoading ? "..." : filteredProducts.length} 个结果
-              {query ? ` · 搜索 "${query}"` : ""}
+              {query ? ` · ${text.product.searchPrefix} "${query}"` : ""}
             </p>
           </div>
 
@@ -202,7 +202,7 @@ export default function ProductList({
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder={t("product.searchPlaceholder")}
+              placeholder={text.product.searchPlaceholder}
               className="h-11 w-full rounded-md border border-white/10 bg-white/[0.045] pl-9 pr-3 text-sm text-neutral-100 placeholder:text-neutral-600 outline-none transition focus:border-amber-400/70 focus:bg-white/[0.07]"
             />
           </label>
@@ -269,7 +269,7 @@ export default function ProductList({
                 >
                   <ProductImage
                     src={product.image}
-                    alt={localized(product.name)}
+                    alt={localized(product.name, language)}
                     className="aspect-[4/3]"
                     imageClassName="transition duration-500 group-hover:scale-105"
                     sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
@@ -285,7 +285,7 @@ export default function ProductList({
                       onClick={() => onProductClick(product)}
                     >
                       <h3 className="truncate text-sm font-semibold text-neutral-100 transition group-hover:text-amber-200">
-                        {localized(product.name)}
+                        {localized(product.name, language)}
                       </h3>
                       <p className="mt-1 font-mono text-xs text-neutral-500">
                         {product.model}
@@ -298,16 +298,18 @@ export default function ProductList({
                           : "bg-red-400/10 text-red-300"
                       }`}
                     >
-                      {inStock ? `${t("product.stock")} ${product.stock}` : "缺货"}
+                      {inStock
+                        ? `${text.product.stock} ${product.stock}`
+                        : text.product.outOfStock}
                     </span>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2 text-[11px] text-neutral-400">
                     <span className="rounded-md bg-white/[0.035] px-2 py-1.5">
-                      {t("product.innerDiameter")} {product.specs?.innerDiameter}
+                      {text.product.innerDiameter} {product.specs?.innerDiameter}
                     </span>
                     <span className="rounded-md bg-white/[0.035] px-2 py-1.5">
-                      {t("product.outerDiameter")} {product.specs?.outerDiameter}
+                      {text.product.outerDiameter} {product.specs?.outerDiameter}
                     </span>
                   </div>
 
@@ -321,7 +323,7 @@ export default function ProductList({
                       disabled={!inStock}
                       className="rounded-md bg-amber-400 px-3 py-2 text-xs font-semibold text-neutral-950 transition hover:bg-amber-300 active:scale-95 disabled:cursor-not-allowed disabled:bg-neutral-700 disabled:text-neutral-500"
                     >
-                      {t("product.addToCart")}
+                      {text.product.addToCart}
                     </button>
                   </div>
                 </div>

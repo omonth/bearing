@@ -2,8 +2,8 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/router";
-import { useTranslation } from "react-i18next";
 import ProductImage from "@/components/ProductImage";
+import { useStorefrontLanguage } from "@/lib/storefrontLanguage";
 import { useCheckoutStore } from "@/store/checkoutStore";
 import type { CartItem } from "@/types";
 import { localized } from "@/lib/utils";
@@ -23,7 +23,7 @@ export default function Cart({
   onUpdateQuantity,
   totalPrice,
 }: CartProps) {
-  const { t } = useTranslation();
+  const { language, text } = useStorefrontLanguage();
   const router = useRouter();
   const { clearPolling } = useCheckoutStore();
 
@@ -41,11 +41,11 @@ export default function Cart({
       <aside
         className="flex h-full w-[460px] max-w-full flex-col border-l border-white/10 bg-neutral-950 shadow-[0_0_80px_rgba(0,0,0,0.38)] max-sm:h-[86dvh] max-sm:w-full max-sm:rounded-t-lg max-sm:border-l-0 max-sm:border-t"
         onClick={(event) => event.stopPropagation()}
-        aria-label={t("cart.title")}
+        aria-label={text.cart.title}
       >
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
           <div>
-            <h2 className="text-base font-semibold text-white">{t("cart.title")}</h2>
+            <h2 className="text-base font-semibold text-white">{text.cart.title}</h2>
             <p className="mt-1 text-xs text-neutral-500">
               {items.length > 0 ? `${items.length} 个商品` : "等待添加商品"}
             </p>
@@ -54,7 +54,7 @@ export default function Cart({
             type="button"
             onClick={onClose}
             className="grid h-9 w-9 place-items-center rounded-md text-neutral-500 transition hover:bg-white/5 hover:text-white active:scale-95"
-            aria-label={t("cart.close")}
+            aria-label={text.cart.close}
           >
             x
           </button>
@@ -79,7 +79,7 @@ export default function Cart({
                   />
                 </svg>
               </div>
-              <p className="text-sm font-medium text-neutral-300">{t("cart.empty")}</p>
+              <p className="text-sm font-medium text-neutral-300">{text.cart.empty}</p>
               <button
                 type="button"
                 onClick={() => {
@@ -100,7 +100,7 @@ export default function Cart({
                 >
                   <ProductImage
                     src={item.image}
-                    alt={localized(item.name)}
+                    alt={localized(item.name, language)}
                     className="h-[72px] w-[72px] rounded-md"
                     sizes="72px"
                   />
@@ -108,7 +108,7 @@ export default function Cart({
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <h3 className="truncate text-sm font-semibold text-neutral-100">
-                          {localized(item.name)}
+                          {localized(item.name, language)}
                         </h3>
                         <p className="mt-0.5 font-mono text-xs text-neutral-600">
                           {item.model}
@@ -119,7 +119,7 @@ export default function Cart({
                         onClick={() => onRemove(item.id)}
                         className="text-xs font-medium text-red-300 transition hover:text-red-200"
                       >
-                        {t("common.cancel")}
+                        {text.common.cancel}
                       </button>
                     </div>
 
@@ -168,7 +168,7 @@ export default function Cart({
         {items.length > 0 && (
           <div className="border-t border-white/10 bg-neutral-900/70 p-5">
             <div className="mb-4 flex items-center justify-between">
-              <span className="text-sm text-neutral-400">{t("cart.total")}</span>
+              <span className="text-sm text-neutral-400">{text.cart.total}</span>
               <span className="font-mono text-xl font-semibold text-amber-300">
                 ¥{totalPrice.toFixed(2)}
               </span>
@@ -181,7 +181,7 @@ export default function Cart({
               }}
               className="h-11 w-full rounded-md bg-amber-400 text-sm font-semibold text-neutral-950 transition hover:bg-amber-300 active:scale-[0.99]"
             >
-              {t("cart.checkout")}
+              {text.cart.checkout}
             </button>
           </div>
         )}

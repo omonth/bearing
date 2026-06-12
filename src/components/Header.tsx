@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useTranslation } from "react-i18next";
+import { useStorefrontLanguage } from "@/lib/storefrontLanguage";
 
 interface HeaderProps {
   cartCount: number;
@@ -48,22 +48,15 @@ function AccountIcon() {
 }
 
 export default function Header({ cartCount, onCartClick }: HeaderProps) {
-  const { t, i18n } = useTranslation();
+  const { language, setLanguage, text } = useStorefrontLanguage();
   const [mounted, setMounted] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem("lang");
-      if ((stored === "zh" || stored === "en") && stored !== i18n.language) {
-        void i18n.changeLanguage(stored);
-      }
-    } catch {}
-
     const frame = window.requestAnimationFrame(() => setMounted(true));
     return () => window.cancelAnimationFrame(frame);
-  }, [i18n]);
+  }, []);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -72,14 +65,10 @@ export default function Header({ cartCount, onCartClick }: HeaderProps) {
   }, []);
 
   const toggleLang = () => {
-    const next = i18n.language === "zh" ? "en" : "zh";
-    try {
-      window.localStorage.setItem("lang", next);
-    } catch {}
-    i18n.changeLanguage(next);
+    setLanguage(language === "zh" ? "en" : "zh");
   };
 
-  const catalogLabel = mounted && i18n.language !== "zh" ? "Products" : "浏览产品";
+  const catalogLabel = text.header.products;
 
   return (
     <header
@@ -95,7 +84,7 @@ export default function Header({ cartCount, onCartClick }: HeaderProps) {
             type="button"
             onClick={() => setMenuOpen((value) => !value)}
             className="grid h-10 w-10 place-items-center rounded-md text-neutral-400 transition hover:bg-white/5 hover:text-white active:scale-95 sm:hidden"
-            aria-label="菜单"
+            aria-label={text.header.menu}
             aria-expanded={menuOpen}
           >
             <svg
@@ -125,7 +114,7 @@ export default function Header({ cartCount, onCartClick }: HeaderProps) {
             <span className="grid h-8 w-8 place-items-center rounded-md bg-amber-500 text-sm font-extrabold text-neutral-950 shadow-[0_10px_30px_rgba(245,158,11,0.25)]">
               轴
             </span>
-            {t("header.title")}
+            {text.header.title}
           </Link>
         </div>
 
@@ -144,14 +133,14 @@ export default function Header({ cartCount, onCartClick }: HeaderProps) {
                 onClick={() => setMenuOpen(false)}
                 className="rounded-md px-3 py-2 text-sm text-neutral-300 transition hover:bg-white/5 hover:text-amber-300"
               >
-                {t("header.account")}
+                {text.header.account}
               </Link>
               <button
                 type="button"
                 onClick={toggleLang}
                 className="rounded-md px-3 py-2 text-left text-sm text-neutral-400 transition hover:bg-white/5 hover:text-amber-300"
               >
-                {mounted ? (i18n.language === "zh" ? "English" : "中文") : "English"}
+                {mounted ? (language === "zh" ? "English" : "中文") : "English"}
               </button>
             </div>
           </div>
@@ -169,11 +158,11 @@ export default function Header({ cartCount, onCartClick }: HeaderProps) {
             onClick={toggleLang}
             className="rounded-md border border-white/10 px-2.5 py-1.5 text-xs font-semibold text-neutral-400 transition hover:border-amber-400/40 hover:text-amber-300 active:scale-95"
           >
-            {mounted ? (i18n.language === "zh" ? "EN" : "中文") : "EN"}
+            {mounted ? (language === "zh" ? "EN" : "中文") : "EN"}
           </button>
           <Link
             href="/account"
-            aria-label={t("header.account")}
+            aria-label={text.header.account}
             className="grid h-10 w-10 place-items-center rounded-md text-neutral-400 transition hover:bg-white/5 hover:text-amber-300 active:scale-95"
           >
             <AccountIcon />
@@ -181,7 +170,7 @@ export default function Header({ cartCount, onCartClick }: HeaderProps) {
           <button
             type="button"
             onClick={onCartClick}
-            aria-label={t("header.cart")}
+            aria-label={text.header.cart}
             className="relative grid h-10 w-10 place-items-center rounded-md text-neutral-400 transition hover:bg-white/5 hover:text-amber-300 active:scale-95"
           >
             <CartIcon />
@@ -197,14 +186,14 @@ export default function Header({ cartCount, onCartClick }: HeaderProps) {
           <Link
             href="/account"
             className="grid h-10 w-10 place-items-center rounded-md text-neutral-400 transition hover:bg-white/5 hover:text-amber-300 active:scale-95"
-            aria-label={t("header.account")}
+            aria-label={text.header.account}
           >
             <AccountIcon />
           </Link>
           <button
             type="button"
             onClick={onCartClick}
-            aria-label={t("header.cart")}
+            aria-label={text.header.cart}
             className="relative grid h-10 w-10 place-items-center rounded-md text-neutral-400 transition hover:bg-white/5 hover:text-amber-300 active:scale-95"
           >
             <CartIcon />
