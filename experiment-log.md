@@ -92,3 +92,11 @@ This log tracks the continuous optimization loop for the bearing storefront.
 - Correctness: an initial draft added one new lint warning for synchronous effect state; fixed before measurement by applying stored language in `requestAnimationFrame`. Final lint completed with existing warnings, 42 tests passed, production build passed, language persistence smoke passed, and detail/cart smoke passed.
 - Metrics: mobile Lighthouse 98, desktop Lighthouse 100, mobile LCP 2293ms, desktop LCP 536ms, mobile CLS 0.0014, 21 requests, 175.5KB transfer, 323.0KB JS gzip, 9.0KB CSS gzip.
 - Decision: keep. Against Round 8, first-load requests dropped by 1, transfer dropped by 17.6KB, JS gzip dropped by 24.3KB, TBT reached 0ms, and mobile LCP improved by 148ms.
+
+### Round 10 - keep - Derive storefront categories from products
+
+- Hypothesis: the storefront does not need a separate first-load `/api/categories` request because category tabs can be derived from the full product payload already fetched for the catalog.
+- Change: removed the homepage `fetchCategories()` call and derived categories in the product store whenever the all-products fetch succeeds.
+- Correctness: lint completed with existing warnings, 42 tests passed, production build passed, category smoke passed with no `/api/categories` request, product detail opened, and cart opened.
+- Metrics: mobile Lighthouse 99, desktop Lighthouse 100, mobile LCP 2267ms, desktop LCP 529ms, mobile CLS 0.0014, 20 requests, 174.2KB transfer, 323.0KB JS gzip, 9.0KB CSS gzip.
+- Decision: keep. Against Round 9, first-load requests dropped by 1, transfer dropped by 1.3KB, mobile LCP improved by 26ms, and mobile Lighthouse reached 99.
