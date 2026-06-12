@@ -44,3 +44,27 @@ This log tracks the continuous optimization loop for the bearing storefront.
 - Correctness: lint completed with existing warnings, 42 tests passed, production build passed, desktop/mobile detail smoke passed, and direct add-to-cart opened the cart panel.
 - Metrics: mobile Lighthouse 97, desktop Lighthouse 100, mobile LCP 2605ms, desktop LCP 584ms, 22 requests, 195.0KB transfer, 349.1KB JS gzip, 9.0KB CSS gzip.
 - Decision: keep. Mobile LCP improved by 130ms and first-load transfer dropped by 14.4KB against Round 2; desktop LCP regressed by 46ms but remained score 100 and within the expected single-run variance.
+
+### Round 4 - discard - Keep hero mounted while product list loads
+
+- Hypothesis: the storefront should keep the real hero mounted while product data loads, instead of replacing the whole page with a skeleton.
+- Change: moved loading UI into the product grid and kept the hero/title shell mounted.
+- Correctness: lint completed with existing warnings, 42 tests passed, and production build passed.
+- Metrics: mobile Lighthouse 95, desktop Lighthouse 100, mobile LCP 2458ms, desktop LCP 541ms, mobile CLS 0.1047, 22 requests, 194.9KB transfer, 349.1KB JS gzip, 9.0KB CSS gzip.
+- Decision: discard before commit. LCP improved, but mobile CLS regressed too far because the product catalog shifted while loading state was inserted after first paint.
+
+### Round 5 - discard - Reserve featured product slots during loading
+
+- Hypothesis: reserving the featured product strip should remove the layout shift from Round 4 while preserving the faster LCP.
+- Change: added same-as-final featured product placeholders during the initial loading state.
+- Correctness: lint completed with existing warnings, 42 tests passed, and production build passed.
+- Metrics: mobile Lighthouse 95, desktop Lighthouse 100, mobile LCP 2443ms, desktop LCP 536ms, mobile CLS 0.1047, 22 requests, 195.0KB transfer, 349.2KB JS gzip, 9.0KB CSS gzip.
+- Decision: discard before commit. The layout shift remained; Lighthouse showed the product catalog still moved because the store rendered one frame with `loading` false before the effect flipped it true.
+
+### Round 6 - keep - Stabilize hero and initial product loading state
+
+- Hypothesis: matching the store's initial loading state to the real initial fetch will keep the first paint and loading paint structurally identical.
+- Change: kept the hero mounted, added local product-grid and featured-strip placeholders, and changed the product store default loading state to true with matching test coverage.
+- Correctness: lint completed with existing warnings, 42 tests passed, production build passed, desktop/mobile detail smoke passed, and direct add-to-cart opened the cart panel.
+- Metrics: mobile Lighthouse 98, desktop Lighthouse 100, mobile LCP 2441ms, desktop LCP 538ms, mobile CLS 0.0014, desktop CLS 0.0013, 22 requests, 195.1KB transfer, 349.2KB JS gzip, 9.0KB CSS gzip.
+- Decision: keep. Against Round 3, mobile LCP improved by 164ms and CLS returned to a safe value; requests and transfer stayed effectively flat.
