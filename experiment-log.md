@@ -68,3 +68,19 @@ This log tracks the continuous optimization loop for the bearing storefront.
 - Correctness: lint completed with existing warnings, 42 tests passed, production build passed, desktop/mobile detail smoke passed, and direct add-to-cart opened the cart panel.
 - Metrics: mobile Lighthouse 98, desktop Lighthouse 100, mobile LCP 2441ms, desktop LCP 538ms, mobile CLS 0.0014, desktop CLS 0.0013, 22 requests, 195.1KB transfer, 349.2KB JS gzip, 9.0KB CSS gzip.
 - Decision: keep. Against Round 3, mobile LCP improved by 164ms and CLS returned to a safe value; requests and transfer stayed effectively flat.
+
+### Round 7 - discard - Direct localStorage language detection
+
+- Hypothesis: replacing `i18next-browser-languagedetector` with a small direct localStorage/navigator resolver can reduce the storefront's common JavaScript.
+- Change: removed the detector runtime import and initialized i18n from localStorage or navigator language.
+- Correctness: lint completed with existing warnings, 42 tests passed, and production build passed, but persisted-language browser smoke failed.
+- Metrics: mobile Lighthouse 98, desktop Lighthouse 100, mobile LCP 2439ms, desktop LCP 535ms, 22 requests, 193.1KB transfer, 347.3KB JS gzip, 9.0KB CSS gzip.
+- Decision: discard before commit. It improved transfer and JS size, but a user with `lang=en` in localStorage hit React hydration error 418 because the client rendered English over server-rendered Chinese HTML.
+
+### Round 8 - keep - Hydration-safe lightweight i18n persistence
+
+- Hypothesis: initializing i18n as Chinese for the server and first client paint, then applying stored language after mount, can preserve the JS savings without hydration mismatch.
+- Change: kept i18n initial language fixed to `zh`, removed the detector runtime, and moved persisted language application into the mounted header effect.
+- Correctness: lint completed with existing warnings, 42 tests passed, production build passed, persisted-language smoke passed, and product detail still opened.
+- Metrics: mobile Lighthouse 98, desktop Lighthouse 100, mobile LCP 2441ms, desktop LCP 533ms, mobile CLS 0.0014, 22 requests, 193.1KB transfer, 347.3KB JS gzip, 9.0KB CSS gzip.
+- Decision: keep. Transfer dropped by 2.0KB and JS gzip by 1.9KB against Round 6 while preserving hydration correctness.
