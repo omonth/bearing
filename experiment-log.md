@@ -148,3 +148,11 @@ This log tracks the continuous optimization loop for the bearing storefront.
 - Correctness: lint completed with existing 52 warnings, 43 tests passed, production build passed, desktop/mobile smoke passed, cart opened, cart checkout navigation reached `/checkout`, category filtering restored, product detail opened from the catalog, direct `/product/1` rendered detail, language persistence passed, inline favicon remained present, no `/favicon.ico` request was made, and no `/api/categories` request was made.
 - Metrics: mobile Lighthouse 99, desktop Lighthouse 100, mobile LCP 2269ms, desktop LCP 533ms, mobile CLS 0.0014, desktop CLS 0.0012, 15 requests, 160.2KB transfer, 315.7KB JS gzip, 9.0KB CSS gzip.
 - Decision: keep. Against Round 15, first-load requests and transfer stayed flat while JS gzip dropped by 5.4KB and the cart lazy chunk shrank from roughly 11.6KB raw to 4.9KB raw; the small LCP movement stayed within score-stable measurement noise.
+
+### Round 17 - discard - Replace homepage dynamic panels with React.lazy
+
+- Hypothesis: using React `lazy()` and `Suspense` for the homepage product detail and cart panels could remove Next's loadable runtime from the storefront homepage chunk.
+- Change: temporarily replaced the homepage `next/dynamic` imports for product detail and cart with React `lazy()` plus matching `Suspense` fallbacks.
+- Correctness: lint completed with existing 52 warnings, 43 tests passed, production build passed, desktop/mobile smoke passed, cart opened, cart checkout navigation reached `/checkout`, category filtering restored, product detail opened from the catalog, direct `/product/1` rendered detail, language persistence passed, inline favicon remained present, no `/favicon.ico` request was made, and no `/api/categories` request was made.
+- Metrics: mobile Lighthouse 99, desktop Lighthouse 100, mobile LCP 2263ms, desktop LCP 535ms, mobile CLS 0.0014, desktop CLS 0.0012, 15 requests, 160.2KB transfer, 315.7KB JS gzip, 9.0KB CSS gzip.
+- Decision: discard before commit. The measured bundle and transfer metrics were unchanged, total byte weight moved by only 4 bytes, and the Next loadable runtime stayed in the homepage chunk because `ChatBotEntry` still uses `next/dynamic`.
