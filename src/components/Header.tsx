@@ -130,6 +130,7 @@ export default function Header({ cartCount, onCartClick }: HeaderProps) {
               </Link>
               <Link
                 href="/account"
+                prefetch={false}
                 onClick={() => setMenuOpen(false)}
                 className="rounded-md px-3 py-2 text-sm text-neutral-300 transition hover:bg-white/5 hover:text-amber-300"
               >
@@ -162,6 +163,7 @@ export default function Header({ cartCount, onCartClick }: HeaderProps) {
           </button>
           <Link
             href="/account"
+            prefetch={false}
             aria-label={text.header.account}
             className="grid h-10 w-10 place-items-center rounded-md text-neutral-400 transition hover:bg-white/5 hover:text-amber-300 active:scale-95"
           >
@@ -185,6 +187,7 @@ export default function Header({ cartCount, onCartClick }: HeaderProps) {
         <div className="flex items-center gap-1 sm:hidden">
           <Link
             href="/account"
+            prefetch={false}
             className="grid h-10 w-10 place-items-center rounded-md text-neutral-400 transition hover:bg-white/5 hover:text-amber-300 active:scale-95"
             aria-label={text.header.account}
           >
