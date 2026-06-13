@@ -5,7 +5,7 @@ import Header from "@/components/Header";
 import ProductDetail from "@/components/ProductDetail";
 import { localized } from "@/lib/utils";
 import Cart from "@/components/Cart";
-import { useProductStore } from "@/store/productStore";
+import { useProductDetailStore } from "@/store/productDetailStore";
 import { useCartStore } from "@/store/cartStore";
 
 export default function ProductPage() {
@@ -17,7 +17,7 @@ export default function ProductPage() {
     similarProducts: similar,
     detailLoading: loading,
     fetchProductDetail,
-  } = useProductStore();
+  } = useProductDetailStore();
 
   const {
     items: cart,

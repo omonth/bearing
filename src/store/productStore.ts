@@ -1,10 +1,5 @@
 import { create } from 'zustand';
-import {
-  getCategories,
-  getProduct,
-  getProducts,
-  getSimilarProducts,
-} from '@/lib/productApi';
+import { getProducts } from '@/lib/productApi';
 import type { Bearing } from '@/types';
 
 interface ProductStore {
@@ -14,15 +9,10 @@ interface ProductStore {
   error: string | null;
   activeCategory: string;
   categories: string[];
-  currentProduct: Bearing | null;
-  similarProducts: Bearing[];
-  detailLoading: boolean;
 
   fetchProducts: (category?: string) => Promise<void>;
-  fetchCategories: () => Promise<void>;
   setActiveCategory: (category: string) => void;
   setSelectedProduct: (product: Bearing | null) => void;
-  fetchProductDetail: (id: number) => Promise<void>;
 }
 
 export const useProductStore = create<ProductStore>()((set) => ({
@@ -32,10 +22,6 @@ export const useProductStore = create<ProductStore>()((set) => ({
   error: null,
   activeCategory: '全部',
   categories: [],
-  currentProduct: null,
-  similarProducts: [],
-  detailLoading: false,
-
   fetchProducts: async (category) => {
     set({ loading: true, error: null });
     try {
@@ -56,13 +42,6 @@ export const useProductStore = create<ProductStore>()((set) => ({
     }
   },
 
-  fetchCategories: async () => {
-    try {
-      const cats = await getCategories();
-      set({ categories: ['全部', ...cats] });
-    } catch {}
-  },
-
   setActiveCategory: (category) => {
     set({ activeCategory: category });
   },
@@ -71,18 +50,4 @@ export const useProductStore = create<ProductStore>()((set) => ({
     set({ selectedProduct: product });
   },
 
-  fetchProductDetail: async (id) => {
-    set({ detailLoading: true });
-    try {
-      const [product, similar] = await Promise.all([
-        getProduct(id),
-        getSimilarProducts(id),
-      ]);
-      set({ currentProduct: product, similarProducts: similar });
-    } catch (error) {
-      console.error('获取产品详情失败:', error);
-    } finally {
-      set({ detailLoading: false });
-    }
-  },
 }));

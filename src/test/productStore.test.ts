@@ -6,8 +6,6 @@ const mockProducts = [
   { id: 2, name: '轴承 B', model: 'B1', price: 20, image: '', category: '圆柱滚子轴承', specs: { innerDiameter: 20, outerDiameter: 40, width: 12 }, stock: 30, description: '' },
 ];
 
-const mockCategories = ['深沟球轴承', '圆柱滚子轴承', '推力球轴承'];
-
 // Mock the API module
 vi.mock('@/lib/productApi', () => ({
   getProducts: vi.fn((category?: string) => {
@@ -16,12 +14,6 @@ vi.mock('@/lib/productApi', () => ({
     }
     return Promise.resolve(mockProducts);
   }),
-  getCategories: vi.fn(() => Promise.resolve(mockCategories)),
-  getProduct: vi.fn((id: number) => {
-    const p = mockProducts.find(p => p.id === id);
-    return Promise.resolve(p || null);
-  }),
-  getSimilarProducts: vi.fn(() => Promise.resolve([])),
 }));
 
 describe('productStore', () => {
@@ -32,9 +24,6 @@ describe('productStore', () => {
       loading: true,
       activeCategory: '全部',
       categories: [],
-      currentProduct: null,
-      similarProducts: [],
-      detailLoading: false,
     });
   });
 
@@ -60,12 +49,6 @@ describe('productStore', () => {
     expect(state.products[0].name).toBe('轴承 A');
   });
 
-  it('should fetch categories', async () => {
-    await useProductStore.getState().fetchCategories();
-    const state = useProductStore.getState();
-    expect(state.categories).toEqual(['全部', ...mockCategories]);
-  });
-
   it('should set active category', () => {
     useProductStore.getState().setActiveCategory('圆柱滚子轴承');
     expect(useProductStore.getState().activeCategory).toBe('圆柱滚子轴承');
@@ -76,13 +59,6 @@ describe('productStore', () => {
     expect(useProductStore.getState().selectedProduct?.name).toBe('轴承 A');
     useProductStore.getState().setSelectedProduct(null);
     expect(useProductStore.getState().selectedProduct).toBeNull();
-  });
-
-  it('should fetch product detail', async () => {
-    await useProductStore.getState().fetchProductDetail(1);
-    const state = useProductStore.getState();
-    expect(state.currentProduct?.name).toBe('轴承 A');
-    expect(state.detailLoading).toBe(false);
   });
 
   it('should set loading to false on error', async () => {
