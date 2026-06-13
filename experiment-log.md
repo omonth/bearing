@@ -116,3 +116,11 @@ This log tracks the continuous optimization loop for the bearing storefront.
 - Correctness: lint completed with existing warnings, 42 tests passed, production build passed, desktop/mobile smoke passed, account link remained present, category filtering restored, product detail opened, cart opened, language persistence passed, and no `/api/categories` request was made.
 - Metrics: mobile Lighthouse 99, desktop Lighthouse 100, mobile LCP 2262ms, desktop LCP 531ms, mobile CLS 0.0014, 16 requests, 160.8KB transfer, 323.1KB JS gzip, 9.0KB CSS gzip.
 - Decision: keep. Against Round 10, first-load requests dropped by 4 and transfer dropped by 13.4KB while Lighthouse scores, CLS, and LCP stayed effectively unchanged.
+
+### Round 13 - keep - Split product API client from shared API
+
+- Hypothesis: importing the full `api.ts` module into `productStore` brings customer, payment, and order API helpers into the storefront homepage chunk even though first load only needs product requests.
+- Change: added a typed `productApi.ts`, changed `productStore` to import product requests from it, updated store tests to mock it directly, and kept `api.ts` product exports compatible via re-export.
+- Correctness: lint completed with existing warnings reduced from 55 to 52, 42 tests passed, production build passed, desktop/mobile smoke passed, category filtering restored, product detail opened, cart opened, language persistence passed, and no `/api/categories` request was made.
+- Metrics: mobile Lighthouse 99, desktop Lighthouse 100, mobile LCP 2265ms, desktop LCP 533ms, mobile CLS 0.0014, 16 requests, 160.5KB transfer, 322.8KB JS gzip, 9.0KB CSS gzip.
+- Decision: keep. Against Round 12, first-load transfer dropped by 0.3KB and JS gzip dropped by 0.3KB while request count, Lighthouse scores, and CLS stayed stable.
