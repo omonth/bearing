@@ -23,13 +23,12 @@ const getAuthHeaders = () => {
   return {};
 };
 
-// Products
-export const getProducts = (category?: string) =>
-  request<any[]>(`/bearings${category && category !== '全部' ? `?category=${category}` : ''}`);
-
-export const getProduct = (id: number) => request<any>(`/bearings/${id}`);
-
-export const getCategories = () => request<string[]>('/categories');
+export {
+  getCategories,
+  getProduct,
+  getProducts,
+  getSimilarProducts,
+} from './productApi';
 
 export const searchProducts = (params: Record<string, string>) => {
   const qs = new URLSearchParams(params).toString();
@@ -46,9 +45,6 @@ export const createOrder = (data: any) =>
 // Recommendations
 export const getHotProducts = (limit = 10) =>
   request<any[]>(`/recommendations/hot?limit=${limit}`);
-
-export const getSimilarProducts = (productId: number, limit = 5) =>
-  request<any[]>(`/recommendations/similar/${productId}?limit=${limit}`);
 
 // Auth (admin)
 export const adminLogin = (username: string, password: string) =>

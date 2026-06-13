@@ -9,7 +9,7 @@ const mockProducts = [
 const mockCategories = ['深沟球轴承', '圆柱滚子轴承', '推力球轴承'];
 
 // Mock the API module
-vi.mock('@/lib/api', () => ({
+vi.mock('@/lib/productApi', () => ({
   getProducts: vi.fn((category?: string) => {
     if (category && category !== '全部') {
       return Promise.resolve(mockProducts.filter(p => p.category === category));
@@ -87,7 +87,7 @@ describe('productStore', () => {
 
   it('should set loading to false on error', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const { getProducts } = await import('@/lib/api');
+    const { getProducts } = await import('@/lib/productApi');
     vi.mocked(getProducts).mockRejectedValueOnce(new Error('Network error'));
 
     await useProductStore.getState().fetchProducts();

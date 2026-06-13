@@ -1,5 +1,10 @@
 import { create } from 'zustand';
-import { getProducts, getCategories, getProduct, getSimilarProducts } from '@/lib/api';
+import {
+  getCategories,
+  getProduct,
+  getProducts,
+  getSimilarProducts,
+} from '@/lib/productApi';
 import type { Bearing } from '@/types';
 
 interface ProductStore {
