@@ -124,3 +124,11 @@ This log tracks the continuous optimization loop for the bearing storefront.
 - Correctness: lint completed with existing warnings reduced from 55 to 52, 42 tests passed, production build passed, desktop/mobile smoke passed, category filtering restored, product detail opened, cart opened, language persistence passed, and no `/api/categories` request was made.
 - Metrics: mobile Lighthouse 99, desktop Lighthouse 100, mobile LCP 2265ms, desktop LCP 533ms, mobile CLS 0.0014, 16 requests, 160.5KB transfer, 322.8KB JS gzip, 9.0KB CSS gzip.
 - Decision: keep. Against Round 12, first-load transfer dropped by 0.3KB and JS gzip dropped by 0.3KB while request count, Lighthouse scores, and CLS stayed stable.
+
+### Round 14 - keep - Inline storefront favicon
+
+- Hypothesis: the browser's default `/favicon.ico` request costs an avoidable first-load request because the app does not declare an icon.
+- Change: added a small inline SVG favicon data URL in `_app.tsx`.
+- Correctness: lint completed with existing 52 warnings, 42 tests passed, production build passed, desktop/mobile smoke passed, inline favicon link was present, no `/favicon.ico` request was made, category filtering restored, product detail opened, cart opened, language persistence passed, and no `/api/categories` request was made.
+- Metrics: mobile Lighthouse 99, desktop Lighthouse 100, mobile LCP 2264ms, desktop LCP 534ms, mobile CLS 0.0014, 15 requests, 160.3KB transfer, 321.4KB JS gzip, 9.0KB CSS gzip.
+- Decision: keep. Against Round 13, first-load requests dropped by 1 and transfer dropped by 0.2KB while Lighthouse scores, CLS, and LCP stayed stable.
