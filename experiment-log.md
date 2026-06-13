@@ -132,3 +132,11 @@ This log tracks the continuous optimization loop for the bearing storefront.
 - Correctness: lint completed with existing 52 warnings, 42 tests passed, production build passed, desktop/mobile smoke passed, inline favicon link was present, no `/favicon.ico` request was made, category filtering restored, product detail opened, cart opened, language persistence passed, and no `/api/categories` request was made.
 - Metrics: mobile Lighthouse 99, desktop Lighthouse 100, mobile LCP 2264ms, desktop LCP 534ms, mobile CLS 0.0014, 15 requests, 160.3KB transfer, 321.4KB JS gzip, 9.0KB CSS gzip.
 - Decision: keep. Against Round 13, first-load requests dropped by 1 and transfer dropped by 0.2KB while Lighthouse scores, CLS, and LCP stayed stable.
+
+### Round 15 - keep - Split product detail store from catalog store
+
+- Hypothesis: keeping product detail state and API calls in `productStore` keeps detail-route code in the storefront homepage store even though first load only needs catalog data.
+- Change: moved `currentProduct`, `similarProducts`, `detailLoading`, and `fetchProductDetail()` into a dedicated `productDetailStore`, switched the direct product route to that store, and removed the obsolete `fetchCategories()` branch from the homepage catalog store.
+- Correctness: lint completed with existing 52 warnings, 43 tests passed, production build passed, desktop/mobile smoke passed, direct `/product/1` rendered product detail, category filtering restored, product detail opened from the catalog, cart opened, language persistence passed, inline favicon remained present, no `/favicon.ico` request was made, and no `/api/categories` request was made.
+- Metrics: mobile Lighthouse 99, desktop Lighthouse 100, mobile LCP 2263ms, desktop LCP 530ms, mobile CLS 0.0014, desktop CLS 0.0012, 15 requests, 160.2KB transfer, 321.1KB JS gzip, 9.0KB CSS gzip.
+- Decision: keep. Against Round 14, request count stayed flat while first-load transfer dropped by 0.1KB, JS gzip dropped by 0.3KB, and desktop LCP improved by 4ms without changing the shopping flow.
