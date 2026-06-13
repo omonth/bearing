@@ -1,10 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
 import { useRouter } from "next/router";
 import ProductImage from "@/components/ProductImage";
 import { useStorefrontLanguage } from "@/lib/storefrontLanguage";
-import { useCheckoutStore } from "@/store/checkoutStore";
 import type { CartItem } from "@/types";
 import { localized } from "@/lib/utils";
 
@@ -25,13 +23,6 @@ export default function Cart({
 }: CartProps) {
   const { language, text } = useStorefrontLanguage();
   const router = useRouter();
-  const { clearPolling } = useCheckoutStore();
-
-  useEffect(() => {
-    return () => {
-      clearPolling();
-    };
-  }, [clearPolling]);
 
   return (
     <div
