@@ -100,3 +100,19 @@ This log tracks the continuous optimization loop for the bearing storefront.
 - Correctness: lint completed with existing warnings, 42 tests passed, production build passed, category smoke passed with no `/api/categories` request, product detail opened, and cart opened.
 - Metrics: mobile Lighthouse 99, desktop Lighthouse 100, mobile LCP 2267ms, desktop LCP 529ms, mobile CLS 0.0014, 20 requests, 174.2KB transfer, 323.0KB JS gzip, 9.0KB CSS gzip.
 - Decision: keep. Against Round 9, first-load requests dropped by 1, transfer dropped by 1.3KB, mobile LCP improved by 26ms, and mobile Lighthouse reached 99.
+
+### Round 11 - discard - Demote catalog grid image priority
+
+- Hypothesis: the first catalog-card images are below the hero, so loading them lazily instead of eager/high priority could reduce first-load network contention.
+- Change: removed `priority` from catalog grid product images while leaving the featured strip images eager.
+- Correctness: lint completed with existing warnings, 42 tests passed, production build passed, desktop/mobile smoke passed, category filtering restored, product detail opened, cart opened, and language persistence passed.
+- Metrics: mobile Lighthouse 99, desktop Lighthouse 100, mobile LCP 2261ms, desktop LCP 528ms, mobile CLS 0.0014, 20 requests, 174.2KB transfer, 323.0KB JS gzip, 9.0KB CSS gzip.
+- Decision: discard before commit. The measured LCP change was noise-level and first-load requests/transfer were unchanged, so the variant did not clear the promotion bar.
+
+### Round 12 - keep - Disable account route prefetch from storefront header
+
+- Hypothesis: the account link is not part of the first storefront shopping path, and automatic Next.js route prefetch pulls account chunks into the homepage Lighthouse run.
+- Change: set `prefetch={false}` on every header account link while keeping the account route reachable on click.
+- Correctness: lint completed with existing warnings, 42 tests passed, production build passed, desktop/mobile smoke passed, account link remained present, category filtering restored, product detail opened, cart opened, language persistence passed, and no `/api/categories` request was made.
+- Metrics: mobile Lighthouse 99, desktop Lighthouse 100, mobile LCP 2262ms, desktop LCP 531ms, mobile CLS 0.0014, 16 requests, 160.8KB transfer, 323.1KB JS gzip, 9.0KB CSS gzip.
+- Decision: keep. Against Round 10, first-load requests dropped by 4 and transfer dropped by 13.4KB while Lighthouse scores, CLS, and LCP stayed effectively unchanged.
