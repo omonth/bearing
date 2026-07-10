@@ -3,5 +3,21 @@
     "allow": [
       "Bash(npm install *)"
     ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "agent",
+            "prompt": "Code review the file that was just written/edited. Hook input: $ARGUMENTS\n\nExtract the file_path from tool_input. If the file extension is NOT one of .tsx, .ts, .js, .jsx, .css, respond ONLY with \"SKIP\" and do nothing else.\n\nIf it IS a code file:\n1. Read the file\n2. Review it for: bugs, security vulnerabilities (XSS, injection, unsafe patterns), type safety issues, best practices violations, and consistency with the project's existing patterns\n3. Report findings as a concise bullet list. Focus on real problems, not nitpicks.\n4. If no issues found, say \"No issues found.\"\n\nKeep the review under 300 words. Reference specific line numbers when pointing out issues.",
+            "model": "haiku",
+            "timeout": 120,
+            "statusMessage": "AI reviewing code changes..."
+          }
+        ]
+      }
+    ]
   }
 }
