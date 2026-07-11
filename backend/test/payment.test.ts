@@ -79,7 +79,7 @@ describe('Payment Sandbox API', () => {
     orderId = orderRes.body.data.orderId;
 
     const res = await request(app)
-      .post('/api/payment/create')
+      .post('/api/payment/checkout')
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ orderId, amount: 30, paymentMethod: 'alipay', subject: '轴承' });
 
@@ -151,7 +151,7 @@ describe('Payment Sandbox API', () => {
     });
 
     const createPayment = await request(app)
-      .post('/api/payment/create')
+      .post('/api/payment/checkout')
       .set('Authorization', `Bearer ${adminToken}`)
       .send({
         orderId: orderRes.body.data.orderId,
@@ -228,7 +228,7 @@ describe('Payment Sandbox API', () => {
 
     // Create payment with an unsupported method to trigger failure
     const res = await request(app)
-      .post('/api/payment/create')
+      .post('/api/payment/checkout')
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ orderId: failOrderId, amount: 15, paymentMethod: 'bitcoin', subject: 'test' });
 
@@ -253,7 +253,7 @@ describe('Payment Sandbox API', () => {
     const wxOrderId = orderRes.body.data.orderId;
 
     const createRes = await request(app)
-      .post('/api/payment/create')
+      .post('/api/payment/checkout')
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ orderId: wxOrderId, amount: 15, paymentMethod: 'wechat', subject: '轴承' });
 

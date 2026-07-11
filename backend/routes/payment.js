@@ -6,8 +6,8 @@ module.exports = function(db, paymentService) {
   const { verifyToken, requireAdmin } = require('../middleware/auth');
   const { orderLimiter } = require('../middleware/rateLimiter');
 
-  // 创建支付（需认证）
-  router.post('/create', verifyToken, orderLimiter, async (req, res, next) => {
+  // 创建支付（公开 — 前端结账用）
+  router.post('/checkout', orderLimiter, async (req, res, next) => {
     try {
       const data = await paymentService.createPayment(req.body);
       logger.info('支付订单创建成功', { data });
@@ -17,30 +17,7 @@ module.exports = function(db, paymentService) {
     }
   });
 
-  // 创建支付（公开 - 结算用）
-  router.post('/checkout', orderLimiter, async (req, res, next) => {
-    try {
-      const data = await paymentService.createPayment(req.body);
-      logger.info('支付订单创建成功(公开)', { data });
-      res.json({ data });
-    } catch (err) {
-      next(err);
-    }
-  });
-
-  // 查询支付状态（需认证）
-  router.get('/query/:paymentOrderId', verifyToken, async (req, res, next) => {
-    try {
-      const data = await paymentService.queryPaymentStatus(
-        parseInt(req.params.paymentOrderId)
-      );
-      res.json({ data });
-    } catch (err) {
-      next(err);
-    }
-  });
-
-  // 查询支付状态（公开 - 前端轮询用）
+  // 查询支付状态（公开 — 前端轮询用）
   router.get('/status/:paymentOrderId', async (req, res, next) => {
     try {
       const result = await paymentService.queryPaymentStatus(

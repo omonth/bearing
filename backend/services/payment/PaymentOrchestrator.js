@@ -40,11 +40,11 @@ class PaymentOrchestrator {
   }
 
   generateOrderNo() {
-    return `PAY${Date.now()}${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+    return `PAY${require('crypto').randomUUID().replace(/-/g, '').toUpperCase()}`;
   }
 
   generateRefundNo() {
-    return `REF${Date.now()}${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+    return `REF${require('crypto').randomUUID().replace(/-/g, '').toUpperCase()}`;
   }
 
   // ==================== 创建支付 ====================
