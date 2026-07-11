@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useCheckoutStore } from '@/store/checkoutStore';
+import { REGION_DATA, ALL_PROVINCES } from '@/data/regions';
 
 const mockCreateOrder = vi.fn();
 const mockCreatePayment = vi.fn();
@@ -53,13 +54,14 @@ describe('checkoutStore', () => {
 
   it('should get cities for selected province', () => {
     useCheckoutStore.getState().setProvince('广东省');
-    const cities = useCheckoutStore.getState().getCities();
+    const province = useCheckoutStore.getState().province;
+    const cities = REGION_DATA[province] || ['其他'];
     expect(cities).toContain('广州市');
     expect(cities).toContain('深圳市');
   });
 
   it('should return all provinces sorted', () => {
-    const provinces = useCheckoutStore.getState().getAllProvinces();
+    const provinces = ALL_PROVINCES;
     expect(provinces).toContain('北京市');
     expect(provinces).toContain('广东省');
     expect(provinces[0] <= provinces[1]).toBe(true); // sorted

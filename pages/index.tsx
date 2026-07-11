@@ -5,7 +5,7 @@ import Header from "@/components/Header";
 import ProductList from "@/components/ProductList";
 import ChatBotEntry from "@/components/ChatBotEntry";
 import { useProductStore } from "@/store/productStore";
-import { useCartStore } from "@/store/cartStore";
+import { useCartStore, useTotalPrice, useTotalCount } from "@/store/cartStore";
 
 const ProductDetail = dynamic(() => import("@/components/ProductDetail"), {
   loading: () => <ProductDetailSkeleton />,
@@ -72,9 +72,9 @@ export default function Home() {
     updateQuantity,
     toggleCart,
     setShowCart,
-    getTotalPrice,
-    getTotalCount,
   } = useCartStore();
+  const totalPrice = useTotalPrice();
+  const totalCount = useTotalCount();
 
   useEffect(() => {
     fetchProducts();
@@ -101,7 +101,7 @@ export default function Home() {
       </Head>
 
       <div className="min-h-screen bg-neutral-950/80">
-        <Header cartCount={getTotalCount()} onCartClick={toggleCart} />
+        <Header cartCount={totalCount} onCartClick={toggleCart} />
 
         <main id="main-content" className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:py-10">
           {error ? (
@@ -147,7 +147,7 @@ export default function Home() {
             onClose={() => setShowCart(false)}
             onRemove={removeItem}
             onUpdateQuantity={updateQuantity}
-            totalPrice={getTotalPrice()}
+            totalPrice={totalPrice}
           />
         )}
       </div>

@@ -11,8 +11,6 @@ interface CartStore {
   clearCart: () => void;
   toggleCart: () => void;
   setShowCart: (show: boolean) => void;
-  getTotalPrice: () => number;
-  getTotalCount: () => number;
 }
 
 export const useCartStore = create<CartStore>()(
@@ -60,12 +58,6 @@ export const useCartStore = create<CartStore>()(
       toggleCart: () => set((state) => ({ showCart: !state.showCart })),
 
       setShowCart: (show) => set({ showCart: show }),
-
-      getTotalPrice: () =>
-        get().items.reduce((total, item) => total + item.price * item.quantity, 0),
-
-      getTotalCount: () =>
-        get().items.reduce((sum, item) => sum + item.quantity, 0),
     }),
     {
       name: 'bearing-cart',
@@ -73,3 +65,11 @@ export const useCartStore = create<CartStore>()(
     }
   )
 );
+
+/** Reactive selector — only re-renders when items change (not on showCart toggle). */
+export const useTotalPrice = () =>
+  useCartStore((s) => s.items.reduce((total, item) => total + item.price * item.quantity, 0));
+
+/** Reactive selector — only re-renders when items change (not on showCart toggle). */
+export const useTotalCount = () =>
+  useCartStore((s) => s.items.reduce((sum, item) => sum + item.quantity, 0));

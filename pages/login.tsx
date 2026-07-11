@@ -2,12 +2,13 @@ import { useState } from "react";
 import { useRouter } from "next/router";
 import Head from "next/head";
 import Header from "@/components/Header";
-import { useCartStore } from "@/store/cartStore";
+import { useCartStore, useTotalCount } from "@/store/cartStore";
 import { useAuthStore } from "@/store/authStore";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { items: cart, toggleCart, getTotalCount } = useCartStore();
+  const { items: cart, toggleCart } = useCartStore();
+  const totalCount = useTotalCount();
   const { login, register } = useAuthStore();
   const [mode, setMode] = useState<"login" | "register">("login");
   const [phone, setPhone] = useState("");
@@ -53,7 +54,7 @@ export default function LoginPage() {
         </title>
       </Head>
       <div className="min-h-screen bg-neutral-950">
-        <Header cartCount={getTotalCount()} onCartClick={toggleCart} />
+        <Header cartCount={totalCount} onCartClick={toggleCart} />
         <main className="max-w-[420px] mx-auto px-6 py-16">
           {/* Tab switcher */}
           <div className="flex mb-8">

@@ -83,14 +83,14 @@ describe('cartStore', () => {
   it('should calculate total price', () => {
     useCartStore.getState().addItem(mockBearing, 2);    // 2 * 15 = 30
     useCartStore.getState().addItem(mockBearing2, 1);   // 1 * 45 = 45
-    const total = useCartStore.getState().getTotalPrice();
+    const total = useCartStore.getState().items.reduce((s, i) => s + i.price * i.quantity, 0);
     expect(total).toBe(75);
   });
 
   it('should calculate total count', () => {
     useCartStore.getState().addItem(mockBearing, 3);
     useCartStore.getState().addItem(mockBearing2, 2);
-    const count = useCartStore.getState().getTotalCount();
+    const count = useCartStore.getState().items.reduce((s, i) => s + i.quantity, 0);
     expect(count).toBe(5);
   });
 

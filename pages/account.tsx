@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import Head from "next/head";
 import Header from "@/components/Header";
-import { useCartStore } from "@/store/cartStore";
+import { useCartStore, useTotalCount } from "@/store/cartStore";
 import { useAuthStore } from "@/store/authStore";
 import { getCustomerOrders, getCustomerCoupons } from "@/lib/api";
 
@@ -55,7 +55,8 @@ const couponStatusColor: Record<string, string> = {
 export default function AccountPage() {
   const router = useRouter();
   const { user, token, loading, fetchMe, logout, _rehydrated } = useAuthStore();
-  const { getTotalCount, toggleCart } = useCartStore();
+  const { toggleCart } = useCartStore();
+  const totalCount = useTotalCount();
   const [tab, setTab] = useState<Tab>("orders");
   const [orders, setOrders] = useState<any[]>([]);
   const [coupons, setCoupons] = useState<any[]>([]);
@@ -105,7 +106,7 @@ export default function AccountPage() {
         <title>个人中心 - 轴承商城</title>
       </Head>
       <div className="min-h-screen bg-neutral-950">
-        <Header cartCount={getTotalCount()} onCartClick={toggleCart} />
+        <Header cartCount={totalCount} onCartClick={toggleCart} />
         <main className="max-w-2xl mx-auto px-6 py-8 space-y-6">
           {/* User info card */}
           <div className="flex flex-wrap items-center justify-between gap-4 bg-neutral-900 border border-neutral-800 rounded-lg p-6">

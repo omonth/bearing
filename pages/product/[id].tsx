@@ -6,7 +6,7 @@ import ProductDetail from "@/components/ProductDetail";
 import { localized } from "@/lib/utils";
 import Cart from "@/components/Cart";
 import { useProductDetailStore } from "@/store/productDetailStore";
-import { useCartStore } from "@/store/cartStore";
+import { useCartStore, useTotalPrice, useTotalCount } from "@/store/cartStore";
 
 export default function ProductPage() {
   const router = useRouter();
@@ -27,9 +27,9 @@ export default function ProductPage() {
     updateQuantity,
     toggleCart,
     setShowCart,
-    getTotalPrice,
-    getTotalCount,
   } = useCartStore();
+  const totalPrice = useTotalPrice();
+  const totalCount = useTotalCount();
 
   useEffect(() => {
     if (id) {
@@ -40,7 +40,7 @@ export default function ProductPage() {
   if (router.isFallback || loading) {
     return (
       <div className="min-h-screen bg-neutral-950">
-        <Header cartCount={getTotalCount()} onCartClick={toggleCart} />
+        <Header cartCount={totalCount} onCartClick={toggleCart} />
         <div className="flex flex-col items-center justify-center py-20 gap-4">
           <div className="w-10 h-10 border-2 border-neutral-800 border-t-amber-500 rounded-full animate-spin" />
           <p className="text-neutral-400 text-sm">加载中...</p>
@@ -52,7 +52,7 @@ export default function ProductPage() {
   if (!product) {
     return (
       <div className="min-h-screen bg-neutral-950">
-        <Header cartCount={getTotalCount()} onCartClick={toggleCart} />
+        <Header cartCount={totalCount} onCartClick={toggleCart} />
         <div className="flex flex-col items-center justify-center py-20 gap-4">
           <h2 className="text-lg font-medium text-neutral-300">产品未找到</h2>
           <button
@@ -76,7 +76,7 @@ export default function ProductPage() {
         />
       </Head>
       <div className="min-h-screen bg-neutral-950">
-        <Header cartCount={getTotalCount()} onCartClick={toggleCart} />
+        <Header cartCount={totalCount} onCartClick={toggleCart} />
         <main className="max-w-7xl mx-auto px-6 py-8">
           <ProductDetail
             product={product}
@@ -91,7 +91,7 @@ export default function ProductPage() {
             onClose={() => setShowCart(false)}
             onRemove={removeItem}
             onUpdateQuantity={updateQuantity}
-            totalPrice={getTotalPrice()}
+            totalPrice={totalPrice}
           />
         )}
       </div>

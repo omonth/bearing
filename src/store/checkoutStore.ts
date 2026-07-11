@@ -30,9 +30,6 @@ interface CheckoutStore {
   submitOrder: (items: CartItem[], totalPrice: number) => Promise<void>;
   resetCheckout: () => void;
   clearPolling: () => void;
-  getCities: () => string[];
-  getAllProvinces: () => string[];
-  getFinalPrice: (totalPrice: number) => number;
 }
 
 let pollingTimer: ReturnType<typeof setInterval> | null = null;
@@ -68,18 +65,6 @@ export const useCheckoutStore = create<CheckoutStore>()((set, get) => ({
   setCheckoutStep: (step) => set({ checkoutStep: step }),
 
   setSelectedCoupon: (code) => set({ selectedCoupon: code, couponDiscount: 0 }),
-
-  getCities: () => {
-    const { province } = get();
-    return province ? (REGION_DATA[province] || ['其他']) : [];
-  },
-
-  getAllProvinces: () => ALL_PROVINCES,
-
-  getFinalPrice: (totalPrice) => {
-    const { couponDiscount } = get();
-    return Math.max(0, totalPrice - couponDiscount);
-  },
 
   submitOrder: async (items, totalPrice) => {
     const state = get();
@@ -171,3 +156,16 @@ export const useCheckoutStore = create<CheckoutStore>()((set, get) => ({
     clearPolling();
   },
 }));
+
+/** Reactive selector — only re-renders when province changes. */
+export const useCities = () =>
+  useCheckoutStore((s) =>
+    s.province ? (REGION_DATA[s.province] || ['其他']) : []
+  );
+
+/** Stable list of all provinces — never changes, so no re-render cost. */
+export const useAllProvinces = () => ALL_PROVINCES;
+
+/** Reactive selector — only re-renders when couponDiscount changes. */
+export const useFinalPrice = (totalPrice: number) =>
+  useCheckoutStore((s) => Math.max(0, totalPrice - s.couponDiscount));
