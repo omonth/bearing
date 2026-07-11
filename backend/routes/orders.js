@@ -4,7 +4,6 @@ const { handleValidationErrors } = require('../middleware/validation');
 const { verifyToken, requireAdmin } = require('../middleware/auth');
 const { orderLimiter } = require('../middleware/rateLimiter');
 const { exportOrdersToExcel, exportOrderToPDF } = require('../utils/exportOrders');
-const { NotFoundError } = require('../utils/errors');
 const logger = require('../logger');
 
 module.exports = function(db, orderService) {
@@ -22,36 +21,40 @@ module.exports = function(db, orderService) {
     body('items.*.id').isInt({ min: 1 }).withMessage('商品ID无效'),
     body('items.*.quantity').isInt({ min: 1 }).withMessage('商品数量必须大于0'),
     handleValidationErrors
-  ], async (req, res) => {
-    if (!orderService) return res.status(500).json({ error: '订单服务未配置' });
-    const { data, error, status } = await orderService.createOrder(req.body);
-    if (error) return res.status(status || 500).json({ error });
-    res.json(data);
+  ], async (req, res, next) => {
+    try {
+      if (!orderService) return res.status(500).json({ error: '订单服务未配置' });
+      const data = await orderService.createOrder(req.body);
+      res.json({ data });
+    } catch (err) {
+      next(err);
+    }
   });
 
   // Admin: list all orders
-  router.get('/', verifyToken, requireAdmin, async (req, res) => {
-    if (!orderService) return res.status(500).json({ error: '订单服务未配置' });
-    const { data, error, status } = await orderService.listOrders();
-    if (error) return res.status(status || 500).json({ error });
-    res.json(data);
+  router.get('/', verifyToken, requireAdmin, async (req, res, next) => {
+    try {
+      if (!orderService) return res.status(500).json({ error: '订单服务未配置' });
+      const data = await orderService.listOrders();
+      res.json({ data });
+    } catch (err) {
+      next(err);
+    }
   });
 
   // Admin: export all orders to Excel
-  router.get('/export/excel', verifyToken, requireAdmin, async (req, res) => {
+  router.get('/export/excel', verifyToken, requireAdmin, async (req, res, next) => {
     try {
       if (!orderService) return res.status(500).json({ error: '订单服务未配置' });
-      const { data: orders, error, status } = await orderService.getExportOrders();
-      if (error) return res.status(status || 500).json({ error });
+      const orders = await orderService.getExportOrders();
       const workbook = await exportOrdersToExcel(orders);
       const buffer = await workbook.xlsx.writeBuffer();
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', `attachment; filename=orders-${Date.now()}.xlsx`);
       res.send(buffer);
       logger.info('订单Excel导出成功', { count: orders.length });
-    } catch (error) {
-      logger.error('导出Excel失败', { error: error.message });
-      res.status(500).json({ error: '导出失败' });
+    } catch (err) {
+      next(err);
     }
   });
 
@@ -60,19 +63,25 @@ module.exports = function(db, orderService) {
     body('orderIds').isArray({ min: 1 }).withMessage('订单ID列表不能为空'),
     body('orderIds.*').isInt({ min: 1 }).withMessage('订单ID无效'),
     handleValidationErrors
-  ], async (req, res) => {
-    if (!orderService) return res.status(500).json({ error: '订单服务未配置' });
-    const { data, error, status } = await orderService.batchDeleteOrders(req.body.orderIds);
-    if (error) return res.status(status || 500).json({ error });
-    res.json(data);
+  ], async (req, res, next) => {
+    try {
+      if (!orderService) return res.status(500).json({ error: '订单服务未配置' });
+      const data = await orderService.batchDeleteOrders(req.body.orderIds);
+      res.json({ data });
+    } catch (err) {
+      next(err);
+    }
   });
 
   // Admin: get order items
-  router.get('/:id/items', verifyToken, requireAdmin, async (req, res) => {
-    if (!orderService) return res.status(500).json({ error: '订单服务未配置' });
-    const { data, error, status } = await orderService.getOrderItems(req.params.id);
-    if (error) return res.status(status || 500).json({ error });
-    res.json(data);
+  router.get('/:id/items', verifyToken, requireAdmin, async (req, res, next) => {
+    try {
+      if (!orderService) return res.status(500).json({ error: '订单服务未配置' });
+      const data = await orderService.getOrderItems(req.params.id);
+      res.json({ data });
+    } catch (err) {
+      next(err);
+    }
   });
 
   // Admin: batch update order status
@@ -80,11 +89,14 @@ module.exports = function(db, orderService) {
     body('orderIds').isArray({ min: 1 }).withMessage('订单ID列表不能为空'),
     body('status').isIn(['pending', 'paid', 'shipped', 'completed', 'cancelled']).withMessage('无效的订单状态'),
     handleValidationErrors
-  ], async (req, res) => {
-    if (!orderService) return res.status(500).json({ error: '订单服务未配置' });
-    const { data, error, status } = await orderService.batchUpdateOrderStatus(req.body.orderIds, req.body.status, req.body.note);
-    if (error) return res.status(status || 500).json({ error });
-    res.json(data);
+  ], async (req, res, next) => {
+    try {
+      if (!orderService) return res.status(500).json({ error: '订单服务未配置' });
+      const data = await orderService.batchUpdateOrderStatus(req.body.orderIds, req.body.status, req.body.note);
+      res.json({ data });
+    } catch (err) {
+      next(err);
+    }
   });
 
   // Admin: update order status
@@ -92,48 +104,53 @@ module.exports = function(db, orderService) {
     body('status').isIn(['pending', 'paid', 'shipped', 'completed', 'cancelled']).withMessage('无效的订单状态'),
     body('note').optional().trim(),
     handleValidationErrors
-  ], async (req, res) => {
-    if (!orderService) return res.status(500).json({ error: '订单服务未配置' });
-    const { data, error, status } = await orderService.updateOrderStatus(req.params.id, req.body.status, req.body.note, req.body.trackingNumber);
-    if (error) return res.status(status || 500).json({ error });
-    res.json(data);
+  ], async (req, res, next) => {
+    try {
+      if (!orderService) return res.status(500).json({ error: '订单服务未配置' });
+      const data = await orderService.updateOrderStatus(req.params.id, req.body.status, req.body.note, req.body.trackingNumber);
+      res.json({ data });
+    } catch (err) {
+      next(err);
+    }
   });
 
   // Admin: delete single order
   router.delete('/:id', verifyToken, requireAdmin, [
     param('id').isInt({ min: 1 }).withMessage('订单ID无效'),
     handleValidationErrors
-  ], async (req, res) => {
-    if (!orderService) return res.status(500).json({ error: '订单服务未配置' });
-    const { data, error, status } = await orderService.deleteOrder(req.params.id);
-    if (error) return res.status(status || 500).json({ error });
-    res.json(data);
+  ], async (req, res, next) => {
+    try {
+      if (!orderService) return res.status(500).json({ error: '订单服务未配置' });
+      const data = await orderService.deleteOrder(req.params.id);
+      res.json({ data });
+    } catch (err) {
+      next(err);
+    }
   });
 
   // Admin: get order status history
-  router.get('/:id/history', verifyToken, requireAdmin, async (req, res) => {
-    if (!orderService) return res.status(500).json({ error: '订单服务未配置' });
-    const { data, error, status } = await orderService.getOrderStatusHistory(req.params.id);
-    if (error) return res.status(status || 500).json({ error });
-    res.json(data);
+  router.get('/:id/history', verifyToken, requireAdmin, async (req, res, next) => {
+    try {
+      if (!orderService) return res.status(500).json({ error: '订单服务未配置' });
+      const data = await orderService.getOrderStatusHistory(req.params.id);
+      res.json({ data });
+    } catch (err) {
+      next(err);
+    }
   });
 
   // Admin: export single order to PDF
   router.get('/:id/export/pdf', verifyToken, requireAdmin, async (req, res, next) => {
     try {
       if (!orderService) return res.status(500).json({ error: '订单服务未配置' });
-      const { data, error, status } = await orderService.getPrintableOrder(req.params.id);
-      if (error && status === 404) return next(new NotFoundError(error));
-      if (error) return res.status(status || 500).json({ error });
-      const { order, items } = data;
+      const { order, items } = await orderService.getPrintableOrder(req.params.id);
       const pdfBuffer = await exportOrderToPDF(order, items);
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename=order-${req.params.id}.pdf`);
       res.send(pdfBuffer);
       logger.info('订单PDF导出成功', { orderId: req.params.id });
-    } catch (error) {
-      logger.error('导出PDF失败', { error: error.message, orderId: req.params.id });
-      res.status(500).json({ error: '导出失败' });
+    } catch (err) {
+      next(err);
     }
   });
 

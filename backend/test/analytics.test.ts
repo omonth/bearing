@@ -22,7 +22,7 @@ beforeAll(async () => {
   const res = await request(app)
     .post('/api/auth/login')
     .send({ username: 'admin', password: 'admin123' });
-  authToken = res.body.token;
+  authToken = res.body.data.token;
 });
 
 afterAll(async () => {

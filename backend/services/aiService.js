@@ -1,4 +1,5 @@
 const logger = require('../logger');
+const { NotFoundError, ValidationError, BusinessError } = require('../utils/errors');
 
 class AIService {
   constructor(db) {
@@ -228,7 +229,7 @@ class AIService {
 
   async predictDemand(productId, days = 30) {
     const product = await this.db.get('SELECT * FROM bearings WHERE id = ?', [productId]);
-    if (!product) throw new Error('产品不存在');
+    if (!product) throw new NotFoundError('产品');
 
     // Get historical sales data
     const interval90 = this.db.dateInterval('-90 days');

@@ -6,7 +6,7 @@ module.exports = function(db, aiService) {
 
   // ==================== Smart Chatbot ====================
 
-  router.post('/chat', async (req, res) => {
+  router.post('/chat', async (req, res, next) => {
     try {
       const { message, context } = req.body;
       if (!message) return res.status(400).json({ error: '请输入消息' });
@@ -53,11 +53,11 @@ module.exports = function(db, aiService) {
       }
     } catch (error) {
       logger.error('AI聊天失败', { error: error.message });
-      if (!res.headersSent) res.status(500).json({ error: error.message });
+      if (!res.headersSent) next(error);
     }
   });
 
-  router.post('/reindex', async (req, res) => {
+  router.post('/reindex', async (req, res, next) => {
     try {
       if (aiService.ragEngine) {
         await aiService.ragEngine.buildIndex();
@@ -67,11 +67,11 @@ module.exports = function(db, aiService) {
       }
     } catch (error) {
       logger.error('重建索引失败', { error: error.message });
-      res.status(500).json({ error: error.message });
+      next(error);
     }
   });
 
-  router.post('/admin-chat', async (req, res) => {
+  router.post('/admin-chat', async (req, res, next) => {
     try {
       const { message } = req.body;
       if (!message) return res.status(400).json({ error: '请输入问题' });
@@ -79,14 +79,14 @@ module.exports = function(db, aiService) {
       res.json(result);
     } catch (error) {
       logger.error('Admin AI失败', { error: error.message });
-      res.status(500).json({ error: error.message });
+      next(error);
     }
   });
 
   // ==================== Demand Prediction ====================
 
   // Predict demand for a specific product
-  router.get('/predict-demand/:productId', async (req, res) => {
+  router.get('/predict-demand/:productId', async (req, res, next) => {
     try {
       const { days = 30 } = req.query;
       const prediction = await aiService.predictDemand(
@@ -96,24 +96,24 @@ module.exports = function(db, aiService) {
       res.json(prediction);
     } catch (error) {
       logger.error('需求预测失败', { error: error.message });
-      res.status(500).json({ error: error.message });
+      next(error);
     }
   });
 
   // Predict demand for all products
-  router.get('/predict-demand', async (req, res) => {
+  router.get('/predict-demand', async (req, res, next) => {
     try {
       const predictions = await aiService.predictAllDemand();
       res.json(predictions);
     } catch (error) {
       logger.error('全量需求预测失败', { error: error.message });
-      res.status(500).json({ error: error.message });
+      next(error);
     }
   });
 
   // ==================== Smart Recommendations ====================
 
-  router.get('/recommendations', async (req, res) => {
+  router.get('/recommendations', async (req, res, next) => {
     try {
       const { customerPhone, limit = 10 } = req.query;
       const result = await aiService.getSmartRecommendations(
@@ -123,26 +123,26 @@ module.exports = function(db, aiService) {
       res.json(result);
     } catch (error) {
       logger.error('智能推荐失败', { error: error.message });
-      res.status(500).json({ error: error.message });
+      next(error);
     }
   });
 
   // ==================== Sales Forecasting ====================
 
-  router.get('/forecast', async (req, res) => {
+  router.get('/forecast', async (req, res, next) => {
     try {
       const { days = 30 } = req.query;
       const forecast = await aiService.forecastSales(parseInt(days));
       res.json(forecast);
     } catch (error) {
       logger.error('销售预测失败', { error: error.message });
-      res.status(500).json({ error: error.message });
+      next(error);
     }
   });
 
   // ==================== Image Recognition (Simulated) ====================
 
-  router.post('/image-recognize', async (req, res) => {
+  router.post('/image-recognize', async (req, res, next) => {
     try {
       // In production, this would use TensorFlow.js or a cloud vision API
       // For now, returns a simulated product recognition result
@@ -186,7 +186,7 @@ module.exports = function(db, aiService) {
       });
     } catch (error) {
       logger.error('图像识别失败', { error: error.message });
-      res.status(500).json({ error: error.message });
+      next(error);
     }
   });
 

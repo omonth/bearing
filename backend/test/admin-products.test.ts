@@ -19,7 +19,7 @@ beforeAll(async () => {
   const res = await request(app)
     .post('/api/auth/login')
     .send({ username: 'admin', password: 'admin123' });
-  adminToken = res.body.token;
+  adminToken = res.body.data.token;
 });
 
 afterAll(async () => {
@@ -33,7 +33,7 @@ describe('Admin Products API', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ name: '测试轴承', model: 'TEST1', price: 99.99, category: '测试分类', stock: 10 });
     expect(res.status).toBe(200);
-    expect(res.body.id).toBeGreaterThan(0);
+    expect(res.body.data.id).toBeGreaterThan(0);
   });
 
   it('should update a product', async () => {

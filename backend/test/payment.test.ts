@@ -52,7 +52,7 @@ beforeAll(async () => {
   const res = await request(app)
     .post('/api/auth/login')
     .send({ username: 'admin', password: 'admin123' });
-  adminToken = res.body.token;
+  adminToken = res.body.data.token;
 });
 
 afterAll(async () => {
@@ -76,7 +76,7 @@ describe('Payment Sandbox API', () => {
         items: [{ id: 1, quantity: 2 }],
       });
     expect(orderRes.status).toBe(200);
-    orderId = orderRes.body.orderId;
+    orderId = orderRes.body.data.orderId;
 
     const res = await request(app)
       .post('/api/payment/create')
@@ -84,8 +84,8 @@ describe('Payment Sandbox API', () => {
       .send({ orderId, amount: 30, paymentMethod: 'alipay', subject: '轴承' });
 
     expect(res.status).toBe(200);
-    expect(res.body.paymentOrderId).toBeGreaterThan(0);
-    paymentOrderId = res.body.paymentOrderId;
+    expect(res.body.data.paymentOrderId).toBeGreaterThan(0);
+    paymentOrderId = res.body.data.paymentOrderId;
   });
 
   it('should simulate payment and sync order status', async () => {
@@ -94,7 +94,7 @@ describe('Payment Sandbox API', () => {
       .set('Authorization', `Bearer ${adminToken}`);
 
     expect(res.status).toBe(200);
-    expect(res.body.status).toBe('paid');
+    expect(res.body.data.status).toBe('paid');
 
     const payment = await db.get('SELECT * FROM payment_orders WHERE id = ?', [paymentOrderId]);
     expect(payment.status).toBe('paid');
@@ -127,7 +127,7 @@ describe('Payment Sandbox API', () => {
     });
 
     const createPayment = await paymentService.createPayment({
-      orderId: orderRes.body.orderId,
+      orderId: orderRes.body.data.orderId,
       amount: 15,
       paymentMethod: 'alipay',
       subject: 'bearing',
@@ -136,7 +136,7 @@ describe('Payment Sandbox API', () => {
     await paymentService.simulatePayment(createPayment.paymentOrderId);
     await paymentService.simulatePayment(createPayment.paymentOrderId);
 
-    expect(calls).toEqual([{ orderId: orderRes.body.orderId, status: 'paid' }]);
+    expect(calls).toEqual([{ orderId: orderRes.body.data.orderId, status: 'paid' }]);
   });
 
   it('should not write duplicate order status history for repeated paid events', async () => {
@@ -154,25 +154,25 @@ describe('Payment Sandbox API', () => {
       .post('/api/payment/create')
       .set('Authorization', `Bearer ${adminToken}`)
       .send({
-        orderId: orderRes.body.orderId,
+        orderId: orderRes.body.data.orderId,
         amount: 15,
         paymentMethod: 'alipay',
         subject: 'bearing',
       });
 
     await request(app)
-      .post(`/api/payment/simulate/${createPayment.body.paymentOrderId}`)
+      .post(`/api/payment/simulate/${createPayment.body.data.paymentOrderId}`)
       .set('Authorization', `Bearer ${adminToken}`)
       .expect(200);
 
     await request(app)
-      .post(`/api/payment/simulate/${createPayment.body.paymentOrderId}`)
+      .post(`/api/payment/simulate/${createPayment.body.data.paymentOrderId}`)
       .set('Authorization', `Bearer ${adminToken}`)
       .expect(200);
 
     const history = await db.all(
       'SELECT old_status, new_status FROM order_status_history WHERE order_id = ?',
-      [orderRes.body.orderId]
+      [orderRes.body.data.orderId]
     );
 
     expect(history).toEqual([{ old_status: 'pending', new_status: 'paid' }]);
@@ -185,7 +185,7 @@ describe('Payment Sandbox API', () => {
       .send({ paymentOrderId, amount: 30, reason: '测试退款' });
 
     expect(res.status).toBe(200);
-    expect(res.body.status).toBe('success');
+    expect(res.body.data.status).toBe('success');
 
     const payment = await db.get('SELECT status FROM payment_orders WHERE id = ?', [paymentOrderId]);
     expect(payment.status).toBe('refunded');
@@ -224,7 +224,7 @@ describe('Payment Sandbox API', () => {
         addressDetail: '测试路88号',
         items: [{ id: 1, quantity: 1 }],
       });
-    const failOrderId = orderRes.body.orderId;
+    const failOrderId = orderRes.body.data.orderId;
 
     // Create payment with an unsupported method to trigger failure
     const res = await request(app)
@@ -250,7 +250,7 @@ describe('Payment Sandbox API', () => {
         addressDetail: '测试路77号',
         items: [{ id: 1, quantity: 1 }],
       });
-    const wxOrderId = orderRes.body.orderId;
+    const wxOrderId = orderRes.body.data.orderId;
 
     const createRes = await request(app)
       .post('/api/payment/create')
@@ -258,14 +258,14 @@ describe('Payment Sandbox API', () => {
       .send({ orderId: wxOrderId, amount: 15, paymentMethod: 'wechat', subject: '轴承' });
 
     expect(createRes.status).toBe(200);
-    const wxPaymentId = createRes.body.paymentOrderId;
+    const wxPaymentId = createRes.body.data.paymentOrderId;
 
     const simRes = await request(app)
       .post(`/api/payment/simulate/${wxPaymentId}`)
       .set('Authorization', `Bearer ${adminToken}`);
 
     expect(simRes.status).toBe(200);
-    expect(simRes.body.status).toBe('paid');
+    expect(simRes.body.data.status).toBe('paid');
 
     const order = await db.get('SELECT status FROM orders WHERE id = ?', [wxOrderId]);
     expect(order.status).toBe('paid');

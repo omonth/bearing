@@ -14,7 +14,7 @@ describe("OrderService", () => {
 
   describe("create", () => {
     it("创建订单并扣减库存", async () => {
-      const { data, error } = await orderService.create({
+      const data = await orderService.create({
         customerName: "测试客户",
         customerPhone: "13800000001",
         province: "北京",
@@ -24,7 +24,6 @@ describe("OrderService", () => {
         items: [{ id: 1, quantity: 3 }, { id: 2, quantity: 2 }],
       });
 
-      expect(error).toBeNull();
       expect(data.orderId).toBeGreaterThan(0);
       expect(data.message).toBe("订单创建成功");
 
@@ -36,7 +35,7 @@ describe("OrderService", () => {
     });
 
     it("产品不存在时返回错误", async () => {
-      const { data, error } = await orderService.create({
+      await expect(orderService.create({
         customerName: "测试",
         customerPhone: "13800000002",
         province: "上海",
@@ -44,14 +43,11 @@ describe("OrderService", () => {
         district: "",
         addressDetail: "xx路",
         items: [{ id: 999, quantity: 1 }],
-      });
-
-      expect(data).toBeNull();
-      expect(error).toContain("不存在");
+      })).rejects.toThrow("不存在");
     });
 
     it("库存不足时返回错误且不扣减库存", async () => {
-      const { data, error } = await orderService.create({
+      await expect(orderService.create({
         customerName: "测试",
         customerPhone: "13800000003",
         province: "广东",
@@ -59,10 +55,7 @@ describe("OrderService", () => {
         district: "",
         addressDetail: "xx路",
         items: [{ id: 1, quantity: 99999 }],
-      });
-
-      expect(data).toBeNull();
-      expect(error).toContain("库存不足");
+      })).rejects.toThrow("库存不足");
 
       const bearing = await db.get("SELECT stock FROM bearings WHERE id = ?", [1]);
       expect(bearing.stock).toBe(97); // unchanged from previous test
@@ -72,7 +65,7 @@ describe("OrderService", () => {
       const stockBefore1 = (await db.get("SELECT stock FROM bearings WHERE id = ?", [1])).stock;
       const stockBefore2 = (await db.get("SELECT stock FROM bearings WHERE id = ?", [2])).stock;
 
-      const { data, error } = await orderService.create({
+      await expect(orderService.create({
         customerName: "测试",
         customerPhone: "13800000004",
         province: "浙江",
@@ -80,10 +73,7 @@ describe("OrderService", () => {
         district: "",
         addressDetail: "xx路",
         items: [{ id: 1, quantity: 5 }, { id: 2, quantity: 99999 }],
-      });
-
-      expect(data).toBeNull();
-      expect(error).toContain("库存不足");
+      })).rejects.toThrow("库存不足");
 
       const stockAfter1 = (await db.get("SELECT stock FROM bearings WHERE id = ?", [1])).stock;
       const stockAfter2 = (await db.get("SELECT stock FROM bearings WHERE id = ?", [2])).stock;
@@ -106,8 +96,7 @@ describe("OrderService", () => {
     });
 
     it("返回订单列表，按时间倒序", async () => {
-      const { data, error } = await orderService.list();
-      expect(error).toBeNull();
+      const data = await orderService.list();
       expect(data.length).toBeGreaterThanOrEqual(1);
       const names = data.map((o: any) => o.customer_name);
       expect(names).toContain("列表测试");
@@ -118,7 +107,7 @@ describe("OrderService", () => {
     let orderId: number;
 
     beforeAll(async () => {
-      const { data } = await orderService.create({
+      const data = await orderService.create({
         customerName: "查询测试",
         customerPhone: "13900000002",
         province: "湖北",
@@ -131,17 +120,13 @@ describe("OrderService", () => {
     });
 
     it("返回存在的订单", async () => {
-      const { data, error } = await orderService.getById(orderId);
-      expect(error).toBeNull();
+      const data = await orderService.getById(orderId);
       expect(data.id).toBe(orderId);
       expect(data.customer_name).toBe("查询测试");
     });
 
     it("不存在的订单返回 404", async () => {
-      const { data, error, status } = await orderService.getById(99999);
-      expect(data).toBeNull();
-      expect(error).toBe("订单不存在");
-      expect(status).toBe(404);
+      await expect(orderService.getById(99999)).rejects.toThrow("订单不存在");
     });
   });
 
@@ -149,7 +134,7 @@ describe("OrderService", () => {
     let orderId: number;
 
     beforeAll(async () => {
-      const { data } = await orderService.create({
+      const data = await orderService.create({
         customerName: "商品查询测试",
         customerPhone: "13900000003",
         province: "四川",
@@ -162,8 +147,7 @@ describe("OrderService", () => {
     });
 
     it("返回订单商品列表，包含名称和型号", async () => {
-      const { data, error } = await orderService.getItems(orderId);
-      expect(error).toBeNull();
+      const data = await orderService.getItems(orderId);
       expect(data.length).toBe(2);
       expect(data[0].name).toBeDefined();
       expect(data[0].model).toBeDefined();
@@ -174,7 +158,7 @@ describe("OrderService", () => {
     let orderId: number;
 
     beforeAll(async () => {
-      const { data } = await orderService.create({
+      const data = await orderService.create({
         customerName: "状态测试",
         customerPhone: "13900000004",
         province: "湖南",
@@ -187,8 +171,7 @@ describe("OrderService", () => {
     });
 
     it("更新为 paid", async () => {
-      const { data, error } = await orderService.updateStatus(orderId, "paid");
-      expect(error).toBeNull();
+      const data = await orderService.updateStatus(orderId, "paid");
       expect(data.oldStatus).toBe("pending");
       expect(data.newStatus).toBe("paid");
 
@@ -197,8 +180,7 @@ describe("OrderService", () => {
     });
 
     it("更新为 shipped 并记录 tracking_number", async () => {
-      const { data, error } = await orderService.updateStatus(orderId, "shipped", null, "SF1234567890");
-      expect(error).toBeNull();
+      const data = await orderService.updateStatus(orderId, "shipped", null, "SF1234567890");
       expect(data.oldStatus).toBe("paid");
       expect(data.newStatus).toBe("shipped");
 
@@ -208,8 +190,7 @@ describe("OrderService", () => {
     });
 
     it("更新为 completed 记录 completed_at", async () => {
-      const { data, error } = await orderService.updateStatus(orderId, "completed");
-      expect(error).toBeNull();
+      const data = await orderService.updateStatus(orderId, "completed");
       expect(data.newStatus).toBe("completed");
 
       const order = await db.get("SELECT status, completed_at FROM orders WHERE id = ?", [orderId]);
@@ -218,15 +199,11 @@ describe("OrderService", () => {
     });
 
     it("不存在的订单返回 404", async () => {
-      const { data, error, status } = await orderService.updateStatus(99999, "paid");
-      expect(data).toBeNull();
-      expect(error).toBe("订单不存在");
-      expect(status).toBe(404);
+      await expect(orderService.updateStatus(99999, "paid")).rejects.toThrow("订单不存在");
     });
 
     it("记录状态历史", async () => {
-      const { data, error } = await orderService.getStatusHistory(orderId);
-      expect(error).toBeNull();
+      const data = await orderService.getStatusHistory(orderId);
       expect(data.length).toBeGreaterThanOrEqual(3); // pending→paid, paid→shipped, shipped→completed
     });
   });
@@ -245,7 +222,7 @@ describe("OrderService", () => {
         addressDetail: "测试地址",
         items: [{ id: 1, quantity: 5 }],
       });
-      pendingOrderId = r1.data.orderId;
+      pendingOrderId = r1.orderId;
 
       const r2 = await orderService.create({
         customerName: "不可删测试",
@@ -256,15 +233,14 @@ describe("OrderService", () => {
         addressDetail: "测试地址",
         items: [{ id: 1, quantity: 3 }],
       });
-      paidOrderId = r2.data.orderId;
+      paidOrderId = r2.orderId;
       await orderService.updateStatus(paidOrderId, "paid");
     });
 
     it("删除 pending 状态订单并恢复库存", async () => {
       const stockBefore = (await db.get("SELECT stock FROM bearings WHERE id = ?", [1])).stock;
 
-      const { data, error } = await orderService.delete(pendingOrderId);
-      expect(error).toBeNull();
+      const data = await orderService.delete(pendingOrderId);
       expect(data.restoredStock).toBe(true);
       expect(data.itemsCount).toBe(1);
 
@@ -273,17 +249,11 @@ describe("OrderService", () => {
     });
 
     it("无法删除已支付订单", async () => {
-      const { data, error, status } = await orderService.delete(paidOrderId);
-      expect(data).toBeNull();
-      expect(error).toContain("无法删除");
-      expect(status).toBe(400);
+      await expect(orderService.delete(paidOrderId)).rejects.toThrow("无法删除");
     });
 
     it("不存在的订单返回 404", async () => {
-      const { data, error, status } = await orderService.delete(99999);
-      expect(data).toBeNull();
-      expect(error).toBe("订单不存在");
-      expect(status).toBe(404);
+      await expect(orderService.delete(99999)).rejects.toThrow("订单不存在");
     });
   });
 
@@ -301,7 +271,7 @@ describe("OrderService", () => {
         addressDetail: "测试地址",
         items: [{ id: 1, quantity: 1 }],
       });
-      orderId1 = r1.data.orderId;
+      orderId1 = r1.orderId;
 
       const r2 = await orderService.create({
         customerName: "批量状态2",
@@ -312,12 +282,11 @@ describe("OrderService", () => {
         addressDetail: "测试地址",
         items: [{ id: 2, quantity: 1 }],
       });
-      orderId2 = r2.data.orderId;
+      orderId2 = r2.orderId;
     });
 
     it("批量更新订单状态（事务成功）", async () => {
-      const { data, error } = await orderService.batchUpdateStatus([orderId1, orderId2], "cancelled", "批量取消");
-      expect(error).toBeNull();
+      const data = await orderService.batchUpdateStatus([orderId1, orderId2], "cancelled", "批量取消");
       expect(data.updated).toBe(2);
 
       const o1 = await db.get("SELECT status FROM orders WHERE id = ?", [orderId1]);
@@ -332,13 +301,11 @@ describe("OrderService", () => {
     });
 
     it("混合状态——任一订单不存在则事务回滚", async () => {
-      const { data, error } = await orderService.batchUpdateStatus(
+      await expect(orderService.batchUpdateStatus(
         [orderId1, 99999],
         "shipped",
         "批量发货"
-      );
-      expect(data).toBeNull();
-      expect(error).toContain("不存在");
+      )).rejects.toThrow("不存在");
 
       // orderId1 should NOT have been updated (transaction rolled back)
       const o1 = await db.get("SELECT status FROM orders WHERE id = ?", [orderId1]);
@@ -346,10 +313,7 @@ describe("OrderService", () => {
     });
 
     it("空 ID 数组返回错误", async () => {
-      const { data, error, status } = await orderService.batchUpdateStatus([], "shipped");
-      expect(data).toBeNull();
-      expect(error).toBe("订单ID列表不能为空");
-      expect(status).toBe(400);
+      await expect(orderService.batchUpdateStatus([], "shipped")).rejects.toThrow("订单ID列表不能为空");
     });
   });
 
@@ -357,7 +321,7 @@ describe("OrderService", () => {
     let printableOrderId: number;
 
     beforeAll(async () => {
-      const { data } = await orderService.create({
+      const data = await orderService.create({
         customerName: "Printable",
         customerPhone: "13900000901",
         province: "P",
@@ -370,26 +334,20 @@ describe("OrderService", () => {
     });
 
     it("returns printable order data with items", async () => {
-      const { data, error } = await orderService.getPrintableOrder(printableOrderId);
+      const data = await orderService.getPrintableOrder(printableOrderId);
 
-      expect(error).toBeNull();
       expect(data.order.id).toBe(printableOrderId);
       expect(data.items.length).toBe(1);
       expect(data.items[0].bearing_id).toBe(1);
     });
 
     it("returns 404 for missing printable order", async () => {
-      const { data, error, status } = await orderService.getPrintableOrder(99999);
-
-      expect(data).toBeNull();
-      expect(error).toBeTruthy();
-      expect(status).toBe(404);
+      await expect(orderService.getPrintableOrder(99999)).rejects.toThrow();
     });
 
     it("returns export order rows", async () => {
-      const { data, error } = await orderService.getExportOrders();
+      const data = await orderService.getExportOrders();
 
-      expect(error).toBeNull();
       expect(data.some((order: any) => order.id === printableOrderId)).toBe(true);
     });
   });

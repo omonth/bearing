@@ -24,9 +24,9 @@ describe('Auth API', () => {
       .post('/api/auth/login')
       .send({ username: 'admin', password: 'admin123' });
     expect(res.status).toBe(200);
-    expect(res.body.token).toBeDefined();
-    expect(res.body.user.username).toBe('admin');
-    expect(res.body.user.role).toBe('admin');
+    expect(res.body.data.token).toBeDefined();
+    expect(res.body.data.user.username).toBe('admin');
+    expect(res.body.data.user.role).toBe('admin');
   });
 
   it('should reject invalid password', async () => {
@@ -58,9 +58,9 @@ describe('Auth API', () => {
 
     const res = await request(app)
       .get('/api/auth/me')
-      .set('Authorization', `Bearer ${loginRes.body.token}`);
+      .set('Authorization', `Bearer ${loginRes.body.data.token}`);
     expect(res.status).toBe(200);
-    expect(res.body.username).toBe('admin');
+    expect(res.body.data.username).toBe('admin');
   });
 
   it('should reject /me without token', async () => {
@@ -75,7 +75,7 @@ describe('Auth API', () => {
 
     const res = await request(app)
       .post('/api/auth/change-password')
-      .set('Authorization', `Bearer ${loginRes.body.token}`)
+      .set('Authorization', `Bearer ${loginRes.body.data.token}`)
       .send({ oldPassword: 'admin123', newPassword: 'newpass123' });
     expect(res.status).toBe(200);
 

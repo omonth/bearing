@@ -82,7 +82,7 @@ describe('PaymentSettlement', () => {
       expect(result.status).toBe('paid');
       expect(result.idempotent).toBe(false);
 
-      const po = await db.get('SELECT * FROM payment_orders WHERE id = ?', [paymentId]);
+      const po: any = await db.get('SELECT * FROM payment_orders WHERE id = ?', [paymentId]);
       expect(po.status).toBe('paid');
       expect(po.trade_no).toBe('TRADE123');
       expect(po.paid_at).toBeTruthy();
@@ -181,10 +181,10 @@ describe('PaymentSettlement', () => {
       expect(result.status).toBe('success');
       expect(result.refundNo).toBe('REF123');
 
-      const po = await db.get('SELECT status FROM payment_orders WHERE id = ?', [paymentId]);
+      const po: any = await db.get('SELECT status FROM payment_orders WHERE id = ?', [paymentId]);
       expect(po.status).toBe('refunded');
 
-      const refund = await db.get('SELECT * FROM refund_records WHERE payment_order_id = ?', [paymentId]);
+      const refund: any = await db.get('SELECT * FROM refund_records WHERE payment_order_id = ?', [paymentId]);
       expect(refund).toBeTruthy();
       expect(refund.refund_amount).toBe(100);
       expect(refund.refund_reason).toBe('测试退款');
@@ -261,7 +261,7 @@ describe('PaymentSettlement', () => {
       expect(result.success).toBe(true);
       expect(result.status).toBe('failed');
 
-      const po = await db.get('SELECT status FROM payment_orders WHERE id = ?', [paymentId]);
+      const po: any = await db.get('SELECT status FROM payment_orders WHERE id = ?', [paymentId]);
       expect(po.status).toBe('failed');
 
       await db.close();

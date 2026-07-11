@@ -126,16 +126,14 @@ describe('Customer self-service module', () => {
   });
 
   it('OrderService lists orders for one customer without exposing phone lookup to callers', async () => {
-    const { data, error } = await orderService.listForCustomer(1);
+    const data = await orderService.listForCustomer(1);
 
-    expect(error).toBeNull();
     expect(data).toMatchObject([{ customer_phone: '13800000001' }]);
   });
 
   it('OrderService returns a customer-owned order with items and history', async () => {
-    const { data, error } = await orderService.getForCustomer(1, 1);
+    const data = await orderService.getForCustomer(1, 1);
 
-    expect(error).toBeNull();
     expect(data).toMatchObject({
       id: 1,
       customer_phone: '13800000001',
@@ -145,28 +143,22 @@ describe('Customer self-service module', () => {
   });
 
   it('OrderService rejects a customer reading another customer order', async () => {
-    const { data, error, status } = await orderService.getForCustomer(2, 1);
-
-    expect(data).toBeNull();
-    expect(error).toBe('订单不存在');
-    expect(status).toBe(404);
+    await expect(orderService.getForCustomer(2, 1)).rejects.toThrow('订单不存在');
   });
 
   it('CouponService lists only unused active coupons for one customer', async () => {
-    const { data, error } = await couponService.listForCustomer(1);
+    const data = await couponService.listForCustomer(1);
 
-    expect(error).toBeNull();
     expect(data).toMatchObject([{ code: 'SAVE10', status: 'unused' }]);
   });
 
   it('registers a customer and returns the same public shape as the route', async () => {
-    const { data, error } = await customerSelfService.register({
+    const data = await customerSelfService.register({
       name: 'New Customer',
       phone: '13900000001',
       password: 'secret123',
     });
 
-    expect(error).toBeNull();
     expect(data).toMatchObject({
       token: expect.any(String),
       user: {
@@ -184,12 +176,11 @@ describe('Customer self-service module', () => {
       phone: '13800000001',
       password: 'test123',
     });
-    const orders = await customerSelfService.listOrders(login.data.user.id);
-    const coupons = await customerSelfService.listCoupons(login.data.user.id);
+    const orders = await customerSelfService.listOrders(login.user.id);
+    const coupons = await customerSelfService.listCoupons(login.user.id);
 
-    expect(login.error).toBeNull();
-    expect(login.data.user).toMatchObject({ phone: '13800000001', level: 'gold' });
-    expect(orders.data).toMatchObject([{ customer_phone: '13800000001' }]);
-    expect(coupons.data).toMatchObject([{ code: 'SAVE10' }]);
+    expect(login.user).toMatchObject({ phone: '13800000001', level: 'gold' });
+    expect(orders).toMatchObject([{ customer_phone: '13800000001' }]);
+    expect(coupons).toMatchObject([{ code: 'SAVE10' }]);
   });
 });

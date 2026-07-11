@@ -19,7 +19,7 @@ beforeAll(async () => {
   const res = await request(app)
     .post('/api/auth/login')
     .send({ username: 'admin', password: 'admin123' });
-  authToken = res.body.token;
+  authToken = res.body.data.token;
 });
 
 afterAll(async () => {
@@ -40,8 +40,8 @@ describe('Orders API', () => {
         items: [{ id: 1, quantity: 2 }],
       });
     expect(res.status).toBe(200);
-    expect(res.body.orderId).toBeDefined();
-    expect(res.body.message).toBe('订单创建成功');
+    expect(res.body.data.orderId).toBeDefined();
+    expect(res.body.data.message).toBe('订单创建成功');
 
     // Verify stock decremented
     const bearing = await db.get('SELECT stock FROM bearings WHERE id = ?', [1]);
@@ -76,7 +76,7 @@ describe('Orders API', () => {
         addressDetail: '淮海中路200号',
         items: [{ id: 999, quantity: 1 }],
       });
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(404);
     expect(res.body.error).toContain('不存在');
   });
 
@@ -126,9 +126,9 @@ describe('Orders API', () => {
       .get('/api/orders')
       .set('Authorization', `Bearer ${authToken}`);
     expect(res.status).toBe(200);
-    expect(Array.isArray(res.body)).toBe(true);
-    expect(res.body.length).toBeGreaterThan(0);
-    expect(res.body.some((o: any) => o.customer_name === '测试')).toBe(true);
+    expect(Array.isArray(res.body.data)).toBe(true);
+    expect(res.body.data.length).toBeGreaterThan(0);
+    expect(res.body.data.some((o: any) => o.customer_name === '测试')).toBe(true);
   });
 
   it('should reject order list without auth', async () => {
@@ -142,7 +142,7 @@ describe('Orders API', () => {
       .set('Authorization', `Bearer ${authToken}`)
       .send({ status: 'paid' });
     expect(res.status).toBe(200);
-    expect(res.body.newStatus).toBe('paid');
+    expect(res.body.data.newStatus).toBe('paid');
 
     // Verify order status changed
     const order = await db.get('SELECT status FROM orders WHERE id = ?', [1]);
@@ -154,9 +154,9 @@ describe('Orders API', () => {
       .get('/api/orders/1/items')
       .set('Authorization', `Bearer ${authToken}`);
     expect(res.status).toBe(200);
-    expect(Array.isArray(res.body)).toBe(true);
-    expect(res.body.length).toBeGreaterThan(0);
-    expect(res.body[0].bearing_id).toBeDefined();
+    expect(Array.isArray(res.body.data)).toBe(true);
+    expect(res.body.data.length).toBeGreaterThan(0);
+    expect(res.body.data[0].bearing_id).toBeDefined();
   });
 
   it('should get order status history', async () => {
@@ -164,8 +164,8 @@ describe('Orders API', () => {
       .get('/api/orders/1/history')
       .set('Authorization', `Bearer ${authToken}`);
     expect(res.status).toBe(200);
-    expect(Array.isArray(res.body)).toBe(true);
-    expect(res.body[0].new_status).toBe('paid');
+    expect(Array.isArray(res.body.data)).toBe(true);
+    expect(res.body.data[0].new_status).toBe('paid');
   });
 
   it('should reject deletion of paid order', async () => {
@@ -186,7 +186,7 @@ describe('Orders API', () => {
       addressDetail: '五四路',
       items: [{ id: 2, quantity: 3 }],
     });
-    const orderId = createRes.body.orderId;
+    const orderId = createRes.body.data.orderId;
 
     // Check stock before delete
     const beforeBearing = await db.get('SELECT stock FROM bearings WHERE id = ?', [2]);
@@ -196,7 +196,7 @@ describe('Orders API', () => {
       .delete(`/api/orders/${orderId}`)
       .set('Authorization', `Bearer ${authToken}`);
     expect(res.status).toBe(200);
-    expect(res.body.restoredStock).toBe(true);
+    expect(res.body.data.restoredStock).toBe(true);
 
     // Verify stock restored
     const afterBearing = await db.get('SELECT stock FROM bearings WHERE id = ?', [2]);
@@ -238,9 +238,9 @@ describe('Orders API', () => {
     const res = await request(app)
       .put('/api/orders/batch/status')
       .set('Authorization', `Bearer ${authToken}`)
-      .send({ orderIds: [a.body.orderId, b.body.orderId], status: 'cancelled' });
+      .send({ orderIds: [a.body.data.orderId, b.body.data.orderId], status: 'cancelled' });
     expect(res.status).toBe(200);
-    expect(res.body.updated).toBe(2);
+    expect(res.body.data.updated).toBe(2);
   });
 
   it('should reject batch status with nonexistent order (rollback)', async () => {
@@ -251,11 +251,11 @@ describe('Orders API', () => {
     const res = await request(app)
       .put('/api/orders/batch/status')
       .set('Authorization', `Bearer ${authToken}`)
-      .send({ orderIds: [a.body.orderId, 99999], status: 'shipped' });
+      .send({ orderIds: [a.body.data.orderId, 99999], status: 'shipped' });
     expect(res.status).toBe(404);
 
     // Verify first order NOT updated (rollback)
-    const o = await db.get('SELECT status FROM orders WHERE id = ?', [a.body.orderId]);
+    const o = await db.get('SELECT status FROM orders WHERE id = ?', [a.body.data.orderId]);
     expect(o.status).toBe('pending');
   });
 });

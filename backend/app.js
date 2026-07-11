@@ -124,25 +124,44 @@ function createApp(db, services = {}) {
 
   // ==================== Error handling ====================
 
+  // 404 handler for unmatched routes
   app.use((req, res) => {
-    res.status(404).json({ error: '接口不存在' });
+    res.status(404).json({ error: '接口不存在', code: 'NOT_FOUND' });
   });
 
+  // Global error handler — catches AppError (operational) and unexpected errors
   app.use((err, req, res, _next) => {
     const isProduction = process.env.NODE_ENV === 'production';
-    const statusCode = err.statusCode || 500;
-    const code = err.code || 'INTERNAL_ERROR';
 
+    // Operational errors: expected failures from services (NotFoundError, ValidationError, etc.)
+    if (err.isOperational) {
+      const statusCode = err.statusCode || 500;
+      const code = err.code || 'INTERNAL_ERROR';
+
+      logger.warn(err.message, {
+        code,
+        statusCode,
+        path: req.path,
+      });
+
+      return res.status(statusCode).json({
+        error: isProduction && statusCode === 500 ? '服务器内部错误' : err.message,
+        code: isProduction && statusCode === 500 ? 'INTERNAL_ERROR' : code,
+        ...(err.field && { field: err.field }),
+      });
+    }
+
+    // Programmer bugs / unexpected errors: log full stack, return generic 500
     logger.error(err.message, {
-      code,
-      statusCode,
+      code: 'INTERNAL_ERROR',
+      statusCode: 500,
       stack: err.stack,
       path: req.path,
     });
 
-    res.status(statusCode).json({
-      error: isProduction && statusCode === 500 ? '服务器内部错误' : err.message,
-      code: isProduction && statusCode === 500 ? 'INTERNAL_ERROR' : code,
+    res.status(500).json({
+      error: isProduction ? '服务器内部错误' : err.message || '未知错误',
+      code: 'INTERNAL_ERROR',
     });
   });
 

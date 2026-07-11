@@ -5,6 +5,7 @@ const UnionPayProvider = require('./providers/UnionPayProvider');
 const SandboxProvider = require('./providers/SandboxProvider');
 const OrderLifecycleAdapter = require('./OrderLifecycleAdapter');
 const PaymentSettlement = require('./PaymentSettlement');
+const { NotFoundError, ValidationError, BusinessError } = require('../../utils/errors');
 
 class PaymentOrchestrator {
   constructor(db, orderService) {
@@ -50,12 +51,12 @@ class PaymentOrchestrator {
 
   async createPayment({ orderId, amount, paymentMethod, subject }) {
     if (!orderId || !amount || !paymentMethod) {
-      throw new Error('订单ID、金额和支付方式不能为空');
+      throw new ValidationError('订单ID、金额和支付方式不能为空');
     }
 
     const validMethods = ['alipay', 'wechat', 'unionpay', 'cod', 'balance'];
     if (!validMethods.includes(paymentMethod)) {
-      throw new Error(`不支持的支付方式: ${paymentMethod}`);
+      throw new ValidationError(`不支持的支付方式: ${paymentMethod}`);
     }
 
     const orderNo = this.generateOrderNo();
@@ -92,7 +93,7 @@ class PaymentOrchestrator {
 
   async queryPaymentStatus(paymentOrderId) {
     const po = await this.settlement.getPaymentOrder(paymentOrderId);
-    if (!po) throw new Error('支付订单不存在');
+    if (!po) throw new NotFoundError('支付订单');
     return {
       id: po.id, orderId: po.order_id, paymentMethod: po.payment_method,
       amount: po.amount, status: po.status, transactionId: po.transaction_id,
@@ -106,7 +107,7 @@ class PaymentOrchestrator {
 
   async queryExternalStatus(paymentOrderId) {
     const po = await this.settlement.getPaymentOrder(paymentOrderId);
-    if (!po) throw new Error('支付订单不存在');
+    if (!po) throw new NotFoundError('支付订单');
     if (po.status === 'paid') return { status: 'paid', message: '已支付' };
 
     const provider = this._provider(po.payment_method);
@@ -139,7 +140,7 @@ class PaymentOrchestrator {
     const cbResult = await provider.handleCallback(params, headers);
 
     const po = await this.db.get('SELECT * FROM payment_orders WHERE transaction_id = ?', [cbResult.transactionId]);
-    if (!po) throw new Error('支付订单不存在');
+    if (!po) throw new NotFoundError('支付订单');
 
     if (cbResult.status === 'paid') {
       const result = await this.settlement.settlePaid(po.id, {
@@ -147,7 +148,7 @@ class PaymentOrchestrator {
         payer: cbResult.payer || {},
       });
       if (!result.success && result.status !== 'refunded') {
-        throw new Error(result.error);
+        throw new BusinessError(result.error);
       }
     }
 
@@ -163,7 +164,7 @@ class PaymentOrchestrator {
 
   async simulatePayment(paymentOrderId) {
     const po = await this.settlement.getPaymentOrder(paymentOrderId);
-    if (!po) throw new Error('支付订单不存在');
+    if (!po) throw new NotFoundError('支付订单');
 
     const result = await this.settlement.settlePaid(paymentOrderId, {
       tradeNo: `SIM${Date.now()}`,
@@ -171,7 +172,7 @@ class PaymentOrchestrator {
     });
 
     if (!result.success && result.status !== 'refunded') {
-      throw new Error(result.error);
+      throw new BusinessError(result.error);
     }
 
     return { paymentOrderId, status: result.status || 'paid', message: result.idempotent ? '已处理' : '支付成功（模拟）' };
@@ -181,9 +182,9 @@ class PaymentOrchestrator {
 
   async createRefund({ paymentOrderId, amount, reason }) {
     const po = await this.settlement.getPaymentOrder(paymentOrderId);
-    if (!po) throw new Error('支付订单不存在');
-    if (po.status !== 'paid') throw new Error('只有已支付的订单才能退款');
-    if (parseFloat(amount) > parseFloat(po.amount)) throw new Error('退款金额不能超过支付金额');
+    if (!po) throw new NotFoundError('支付订单');
+    if (po.status !== 'paid') throw new BusinessError('只有已支付的订单才能退款');
+    if (parseFloat(amount) > parseFloat(po.amount)) throw new BusinessError('退款金额不能超过支付金额');
 
     const refundNo = this.generateRefundNo();
 
@@ -194,7 +195,7 @@ class PaymentOrchestrator {
 
     const result = await this.settlement.settleRefund(paymentOrderId, { amount, reason, refundNo });
     if (!result.success) {
-      throw new Error(result.error);
+      throw new BusinessError(result.error);
     }
 
     return { refundId: result.refundId, refundNo, amount, status: 'success', message: '退款成功' };

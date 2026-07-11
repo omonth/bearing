@@ -17,49 +17,60 @@ module.exports = function(db, bearingService, upload, imagesDir) {
     body('category').trim().notEmpty().withMessage('分类不能为空'),
     body('stock').isInt({ min: 0 }).withMessage('库存不能为负数'),
     handleValidationErrors
-  ], async (req, res) => {
-    if (!bearingService) return res.status(500).json({ error: '产品服务未配置' });
-    const { data, error, status } = await bearingService.create(req.body);
-    if (error) return res.status(status || 500).json({ error });
-    res.json(data);
+  ], async (req, res, next) => {
+    try {
+      if (!bearingService) return res.status(500).json({ error: '产品服务未配置' });
+      const data = await bearingService.create(req.body);
+      res.json({ data });
+    } catch (err) {
+      next(err);
+    }
   });
 
-  router.put('/:id', verifyToken, requireAdmin, async (req, res) => {
-    if (!bearingService) return res.status(500).json({ error: '产品服务未配置' });
-    const { data, error, status } = await bearingService.update(req.params.id, req.body);
-    if (error) return res.status(status || 500).json({ error });
-    res.json(data);
+  router.put('/:id', verifyToken, requireAdmin, async (req, res, next) => {
+    try {
+      if (!bearingService) return res.status(500).json({ error: '产品服务未配置' });
+      const data = await bearingService.update(req.params.id, req.body);
+      res.json({ data });
+    } catch (err) {
+      next(err);
+    }
   });
 
-  router.delete('/:id', verifyToken, requireAdmin, async (req, res) => {
-    if (!bearingService) return res.status(500).json({ error: '产品服务未配置' });
-    const { data, error, status } = await bearingService.delete(req.params.id);
-    if (error) return res.status(status || 500).json({ error });
-    res.json(data);
+  router.delete('/:id', verifyToken, requireAdmin, async (req, res, next) => {
+    try {
+      if (!bearingService) return res.status(500).json({ error: '产品服务未配置' });
+      const data = await bearingService.delete(req.params.id);
+      res.json({ data });
+    } catch (err) {
+      next(err);
+    }
   });
 
-  router.put('/:id/stock', verifyToken, requireAdmin, async (req, res) => {
-    if (!bearingService) return res.status(500).json({ error: '产品服务未配置' });
-    const { data, error, status } = await bearingService.updateStock(req.params.id, req.body.stock);
-    if (error) return res.status(status || 500).json({ error });
-    res.json(data);
+  router.put('/:id/stock', verifyToken, requireAdmin, async (req, res, next) => {
+    try {
+      if (!bearingService) return res.status(500).json({ error: '产品服务未配置' });
+      const data = await bearingService.updateStock(req.params.id, req.body.stock);
+      res.json({ data });
+    } catch (err) {
+      next(err);
+    }
   });
 
-  router.put('/:id/image', verifyToken, requireAdmin, (req, res) => {
+  router.put('/:id/image', verifyToken, requireAdmin, (req, res, next) => {
     upload.single('image')(req, res, async (err) => {
       if (err) return res.status(400).json({ error: err.message });
       if (!req.file) return res.status(400).json({ error: '请选择要上传的图片' });
       try {
         if (bearingService) {
-          const { data: oldData } = await bearingService.getImagePath(req.params.id);
+          const oldData = await bearingService.getImagePath(req.params.id);
           if (oldData && oldData.image && oldData.image.startsWith('/images/')) {
             const oldPath = path.join(imagesDir, path.basename(oldData.image));
             if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
           }
           const imageUrl = `/images/${req.file.filename}`;
-          const { data, error, status } = await bearingService.updateImage(req.params.id, imageUrl);
-          if (error) return res.status(status || 500).json({ error });
-          return res.json(data);
+          const data = await bearingService.updateImage(req.params.id, imageUrl);
+          return res.json({ data });
         }
         const row = await db.get('SELECT image FROM bearings WHERE id = ?', [req.params.id]);
         if (row && row.image && row.image.startsWith('/images/')) {
@@ -70,10 +81,9 @@ module.exports = function(db, bearingService, upload, imagesDir) {
         await db.run('UPDATE bearings SET image = ? WHERE id = ?', [imageUrl, req.params.id]);
         clearCache('bearings:*');
         logger.info('产品图片已更新', { bearingId: req.params.id, image: imageUrl });
-        res.json({ message: '产品图片已更新', url: imageUrl });
+        res.json({ data: { message: '产品图片已更新', url: imageUrl } });
       } catch (dbErr) {
-        logger.error('更新产品图片失败', { error: dbErr.message });
-        res.status(500).json({ error: '更新产品图片失败' });
+        next(dbErr);
       }
     });
   });

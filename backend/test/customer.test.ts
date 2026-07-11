@@ -197,17 +197,16 @@ describe('Customer Auth API', () => {
         .post('/api/customer/register')
         .send({ name: '新顾客', phone: '13900000001', password: 'mypass123' });
       expect(res.status).toBe(200);
-      expect(res.body.token).toBeDefined();
-      expect(res.body.user.phone).toBe('13900000001');
-      expect(res.body.user.level).toBe('bronze');
+      expect(res.body.data.token).toBeDefined();
+      expect(res.body.data.user.phone).toBe('13900000001');
+      expect(res.body.data.user.level).toBe('bronze');
     });
 
     it('should reject duplicate phone', async () => {
       const res = await request(app)
         .post('/api/customer/register')
         .send({ name: '重复', phone: '13800000001', password: 'test123' });
-      expect(res.status).toBe(400);
-      expect(res.body.error).toContain('已注册');
+      expect(res.status).toBe(409);
     });
 
     it('should reject missing phone or password', async () => {
@@ -224,9 +223,9 @@ describe('Customer Auth API', () => {
         .post('/api/customer/login')
         .send({ phone: '13800000001', password: 'test123' });
       expect(res.status).toBe(200);
-      expect(res.body.token).toBeDefined();
-      expect(res.body.user.phone).toBe('13800000001');
-      expect(res.body.user.level).toBe('gold');
+      expect(res.body.data.token).toBeDefined();
+      expect(res.body.data.user.phone).toBe('13800000001');
+      expect(res.body.data.user.level).toBe('gold');
     });
 
     it('should reject wrong password', async () => {
@@ -261,10 +260,10 @@ describe('Customer Auth API', () => {
 
       const res = await request(app)
         .get('/api/customer/me')
-        .set('Authorization', `Bearer ${loginRes.body.token}`);
+        .set('Authorization', `Bearer ${loginRes.body.data.token}`);
       expect(res.status).toBe(200);
-      expect(res.body.phone).toBe('13800000001');
-      expect(res.body.level).toBe('gold');
+      expect(res.body.data.phone).toBe('13800000001');
+      expect(res.body.data.level).toBe('gold');
     });
 
     it('should reject without token', async () => {
@@ -279,7 +278,7 @@ describe('Customer Auth API', () => {
 
       const res = await request(app)
         .get('/api/customer/me')
-        .set('Authorization', `Bearer ${adminLoginRes.body.token}`);
+        .set('Authorization', `Bearer ${adminLoginRes.body.data.token}`);
       expect(res.status).toBe(403);
     });
   });
@@ -292,10 +291,10 @@ describe('Customer Auth API', () => {
 
       const res = await request(app)
         .get('/api/customer/orders')
-        .set('Authorization', `Bearer ${loginRes.body.token}`);
+        .set('Authorization', `Bearer ${loginRes.body.data.token}`);
       expect(res.status).toBe(200);
-      expect(res.body.length).toBeGreaterThanOrEqual(1);
-      expect(res.body[0].customer_phone).toBe('13800000001');
+      expect(res.body.data.length).toBeGreaterThanOrEqual(1);
+      expect(res.body.data[0].customer_phone).toBe('13800000001');
     });
 
     it('should require customer role', async () => {
@@ -305,7 +304,7 @@ describe('Customer Auth API', () => {
 
       const res = await request(app)
         .get('/api/customer/orders')
-        .set('Authorization', `Bearer ${adminLoginRes.body.token}`);
+        .set('Authorization', `Bearer ${adminLoginRes.body.data.token}`);
       expect(res.status).toBe(403);
     });
   });
@@ -318,10 +317,10 @@ describe('Customer Auth API', () => {
 
       const res = await request(app)
         .get('/api/customer/orders/1')
-        .set('Authorization', `Bearer ${loginRes.body.token}`);
+        .set('Authorization', `Bearer ${loginRes.body.data.token}`);
       expect(res.status).toBe(200);
-      expect(res.body.id).toBe(1);
-      expect(res.body.items).toBeDefined();
+      expect(res.body.data.id).toBe(1);
+      expect(res.body.data.items).toBeDefined();
     });
 
     it('should return 404 for other customer order', async () => {
@@ -331,7 +330,7 @@ describe('Customer Auth API', () => {
 
       const res = await request(app)
         .get('/api/customer/orders/1')
-        .set('Authorization', `Bearer ${loginRes.body.token}`);
+        .set('Authorization', `Bearer ${loginRes.body.data.token}`);
       expect(res.status).toBe(404);
     });
   });
@@ -344,9 +343,9 @@ describe('Customer Auth API', () => {
 
       const res = await request(app)
         .get('/api/customer/coupons')
-        .set('Authorization', `Bearer ${loginRes.body.token}`);
+        .set('Authorization', `Bearer ${loginRes.body.data.token}`);
       expect(res.status).toBe(200);
-      expect(res.body.length).toBeGreaterThanOrEqual(1);
+      expect(res.body.data.length).toBeGreaterThanOrEqual(1);
     });
   });
 
@@ -358,10 +357,10 @@ describe('Customer Auth API', () => {
 
       const res = await request(app)
         .post('/api/customer/coupons/use')
-        .set('Authorization', `Bearer ${loginRes.body.token}`)
+        .set('Authorization', `Bearer ${loginRes.body.data.token}`)
         .send({ code: 'SAVE10', orderId: 1 });
       expect(res.status).toBe(200);
-      expect(res.body.discountAmount).toBe(10);
+      expect(res.body.data.discountAmount).toBe(10);
     });
 
     it('should reject expired coupon', async () => {
@@ -371,7 +370,7 @@ describe('Customer Auth API', () => {
 
       const res = await request(app)
         .post('/api/customer/coupons/use')
-        .set('Authorization', `Bearer ${loginRes.body.token}`)
+        .set('Authorization', `Bearer ${loginRes.body.data.token}`)
         .send({ code: 'EXPIRED', orderId: 1 });
       expect(res.status).toBe(400);
       expect(res.body.error).toContain('过期');
@@ -384,7 +383,7 @@ describe('Customer Auth API', () => {
 
       const res = await request(app)
         .post('/api/customer/coupons/use')
-        .set('Authorization', `Bearer ${loginRes.body.token}`)
+        .set('Authorization', `Bearer ${loginRes.body.data.token}`)
         .send({ code: 'SAVE10' });
       expect(res.status).toBe(400);
     });

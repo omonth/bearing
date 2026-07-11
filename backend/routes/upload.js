@@ -52,7 +52,7 @@ module.exports = function(db, upload, imagesDir) {
       logger.info('图片已删除', { filename: req.params.filename });
       res.json({ message: '图片已删除' });
     } catch (err) {
-      res.status(500).json({ error: '删除图片失败' });
+      next(err);
     }
   });
 

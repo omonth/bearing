@@ -4,7 +4,7 @@ const { verifyToken } = require('../middleware/auth');
 module.exports = function(db, analytics) {
   const router = express.Router();
 
-  router.get('/dashboard', verifyToken, async (req, res) => {
+  router.get('/dashboard', verifyToken, async (req, res, next) => {
     try {
       const data = await analytics.getDashboardSummary();
       const salesTrendRaw = await analytics.getSalesTrend('day', 30);
@@ -29,7 +29,7 @@ module.exports = function(db, analytics) {
         salesTrend,
         recentOrders,
       });
-    } catch (e) { res.status(500).json({ error: e.message }); }
+    } catch (e) { next(e); }
   });
 
   return router;
