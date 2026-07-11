@@ -25,10 +25,12 @@ module.exports = function(db, paymentService) {
       );
       // 只返回必要信息，不暴露内部细节
       res.json({
-        status: result.status,
-        paymentMethod: result.paymentMethod,
-        amount: result.amount,
-        paidAt: result.paidAt,
+        data: {
+          status: result.status,
+          paymentMethod: result.paymentMethod,
+          amount: result.amount,
+          paidAt: result.paidAt,
+        },
       });
     } catch (err) {
       next(err);

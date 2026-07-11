@@ -12,7 +12,9 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
     const err = await res.json().catch(() => ({ error: '请求失败' }));
     throw new Error(err.error || `HTTP ${res.status}`);
   }
-  return res.json();
+  const body = await res.json();
+  // Backend wraps all success responses as { data: ... }
+  return body.data as T;
 }
 
 const getAuthHeaders = () => {
