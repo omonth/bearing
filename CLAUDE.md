@@ -128,7 +128,7 @@ Entry: `backend/server.js` → `backend/app.js` (Express app factory `createApp(
 - **i18n:** Backend uses `i18next` with resource files in `backend/locales/` (zh-CN, en). Frontend is Chinese-only hardcoded strings.
 - **Testing:** Vitest with `globals: true`. Backend tests use in-memory SQLite (`test/helpers.ts`) + supertest (app created via `createApp(db, {})` without listening on a port). Frontend tests are store-only unit tests with `vi.mock('@/lib/api')` and `vi.useFakeTimers()` for polling tests.
 - **TypeScript strict mode is off** (`strict: false`). Types are defined in `src/types/index.ts` but some are unused (CRM, AI types).
-- **Error handling:** Backend returns `{ error: "message" }` JSON. Frontend `request()` throws on non-2xx with parsed error message.
+- **Error handling:** Services throw `AppError` subclasses (`NotFoundError`, `ValidationError`, `UnauthorizedError`, `ForbiddenError`, `ConflictError`, `BusinessError`). Routes delegate to `next(err)`. The global error handler in `app.js` formats responses as `{ error: string, code: string }` for operational errors and `{ error: "服务器内部错误", code: "INTERNAL_ERROR" }` for unexpected errors. See `backend/utils/errors.js` for the full class hierarchy.
 - **The API base URL** is read from `NEXT_PUBLIC_API_URL` env var (defaults to `http://localhost:3001/api`), set in `.env` at project root.
 
 ## Environment variables
