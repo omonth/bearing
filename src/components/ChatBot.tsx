@@ -77,6 +77,7 @@ export default function ChatBot({ initialOpen = false, onToggle }: ChatBotProps)
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
+  const streamRef = useRef<{ botMsg: string; products: ProductCard[] | undefined }>({ botMsg: "", products: undefined });
   const addItem = useCartStore((s) => s.addItem);
 
   useEffect(() => {
@@ -163,8 +164,7 @@ export default function ChatBot({ initialOpen = false, onToggle }: ChatBotProps)
       if (contentType.includes("text/event-stream")) {
         const reader = res.body!.getReader();
         const decoder = new TextDecoder();
-        let botMsg = "";
-        let products: ProductCard[] | undefined;
+        streamRef.current = { botMsg: "", products: undefined };
         setMessages((prev) => [...prev, { role: "bot", content: "", timestamp: new Date().toISOString() }]);
 
         while (true) {
@@ -180,17 +180,17 @@ export default function ChatBot({ initialOpen = false, onToggle }: ChatBotProps)
                 const parsed = JSON.parse(data);
                 // Product cards arrive as a special event
                 if (parsed.type === "products") {
-                  products = parsed.products;
+                  streamRef.current.products = parsed.products;
                   continue;
                 }
                 if (parsed.content) {
-                  botMsg += parsed.content;
+                  streamRef.current.botMsg += parsed.content;
                   setMessages((prev) => {
                     const copy = [...prev];
                     copy[copy.length - 1] = {
                       role: "bot",
-                      content: botMsg,
-                      products,
+                      content: streamRef.current.botMsg,
+                      products: streamRef.current.products,
                       timestamp: new Date().toISOString(),
                     };
                     return copy;

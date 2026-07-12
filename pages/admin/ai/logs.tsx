@@ -80,7 +80,31 @@ export default function AdminLogs() {
   };
 
   useEffect(() => {
-    fetchLogs();
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      try {
+        const token = localStorage.getItem("ai_token");
+        const params = new URLSearchParams({ page: String(page), limit: "20" });
+        if (filterAction) params.set("action", filterAction);
+        if (filterStatus) params.set("status", filterStatus);
+
+        const res = await fetch(`/api/ai/auth/logs?${params}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (!cancelled) {
+          setLogs(data.data || []);
+          setTotal(data.total || 0);
+        }
+      } catch {
+        if (!cancelled) { /* silent fail */ }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
   }, [page, filterAction, filterStatus]);
 
   const parseJson = (val: string | null) => {

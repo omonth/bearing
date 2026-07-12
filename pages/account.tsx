@@ -54,7 +54,7 @@ const couponStatusColor: Record<string, string> = {
 
 export default function AccountPage() {
   const router = useRouter();
-  const { user, token, loading, fetchMe, logout, _rehydrated } = useAuthStore();
+  const { user, token, fetchMe, logout, _rehydrated } = useAuthStore();
   const { toggleCart } = useCartStore();
   const totalCount = useTotalCount();
   const [tab, setTab] = useState<Tab>("orders");
@@ -87,11 +87,25 @@ export default function AccountPage() {
       return;
     }
     fetchMe();
-  }, [token, _rehydrated]);
+  }, [token, _rehydrated, fetchMe, router]);
 
   useEffect(() => {
-    fetchData();
+    if (!token) return;
+    let cancelled = false;
+    const id = setTimeout(() => {
+      if (cancelled) return;
+      setFetching(true);
+      setFetchError(false);
+      const fetcher = tab === "orders" ? getCustomerOrders() : getCustomerCoupons();
+      const setter = tab === "orders" ? setOrders : setCoupons;
+      fetcher
+        .then((data) => { if (!cancelled) setter(data); })
+        .catch(() => { if (!cancelled) setFetchError(true); })
+        .finally(() => { if (!cancelled) setFetching(false); });
+    }, 0);
+    return () => { cancelled = true; clearTimeout(id); };
   }, [tab, token]);
+
 
   const handleLogout = () => {
     logout();

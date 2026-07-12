@@ -28,22 +28,28 @@ const roleLabels: Record<string, string> = {
   admin: "管理员",
 };
 
+function readAdminUser(): AdminUser | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const stored = localStorage.getItem("ai_user");
+    if (!stored) return null;
+    const parsed = JSON.parse(stored);
+    return parsed && parsed.username ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function AdminLayout({ children, title }: AdminLayoutProps) {
   const router = useRouter();
-  const [user, setUser] = useState<AdminUser | null>(null);
+  const [user] = useState<AdminUser | null>(readAdminUser);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   useEffect(() => {
     const token = localStorage.getItem("ai_token");
-    const stored = localStorage.getItem("ai_user");
     if (!token) {
       router.replace("/admin/login");
       return;
-    }
-    if (stored) {
-      try {
-        setUser(JSON.parse(stored));
-      } catch {}
     }
   }, [router]);
 

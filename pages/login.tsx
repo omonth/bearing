@@ -1,13 +1,11 @@
 import { useState } from "react";
-import { useRouter } from "next/router";
 import Head from "next/head";
 import Header from "@/components/Header";
 import { useCartStore, useTotalCount } from "@/store/cartStore";
 import { useAuthStore } from "@/store/authStore";
 
 export default function LoginPage() {
-  const router = useRouter();
-  const { items: cart, toggleCart } = useCartStore();
+  const { toggleCart } = useCartStore();
   const totalCount = useTotalCount();
   const { login, register } = useAuthStore();
   const [mode, setMode] = useState<"login" | "register">("login");
