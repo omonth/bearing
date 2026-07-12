@@ -115,6 +115,7 @@ npm run dev
 | 服务 | 地址 |
 | --- | --- |
 | 前台商城 | http://localhost:3000 |
+| AI 管理后台 | http://localhost:3000/admin |
 | 后端 API | http://localhost:3001 |
 | 管理后台 | http://localhost:5173 |
 
