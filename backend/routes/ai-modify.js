@@ -67,6 +67,20 @@ module.exports = function(db, aiService, aiAuthService, bearingService, requireA
       }
 
       // 2. Find target product
+      // Validate LLM-generated SQL — only SELECT allowed, block all mutation keywords
+      const BLOCKED_KEYWORDS = /\b(DROP|DELETE|INSERT|UPDATE|ALTER|TRUNCATE|CREATE|EXEC|EXECUTE|GRANT|REVOKE|LOAD_FILE|INTO\s+(OUTFILE|DUMPFILE)|SLEEP|BENCHMARK|WAITFOR)\b/i;
+      if (!intent.find_query || typeof intent.find_query !== 'string') {
+        return res.json({ error: 'AI 生成的查询无效' });
+      }
+      if (!/^\s*SELECT\b/i.test(intent.find_query)) {
+        return res.json({ error: '只允许 SELECT 查询' });
+      }
+      if (BLOCKED_KEYWORDS.test(intent.find_query)) {
+        return res.json({ error: '查询包含禁止的关键词' });
+      }
+      if (intent.find_query.length > 2000) {
+        return res.json({ error: '查询语句过长' });
+      }
       const safeSql = intent.find_query.includes('LIMIT') ? intent.find_query : `${intent.find_query} LIMIT 10`;
       let rows;
       try {

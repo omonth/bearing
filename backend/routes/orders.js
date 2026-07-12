@@ -1,7 +1,12 @@
 const express = require('express');
 const { body, param } = require('express-validator');
 const { handleValidationErrors } = require('../middleware/validation');
-const { verifyToken, requireAdmin } = require('../middleware/auth');
+const {
+  generateOrderAccessToken,
+  optionalToken,
+  verifyToken,
+  requireAdmin,
+} = require('../middleware/auth');
 const { orderLimiter } = require('../middleware/rateLimiter');
 const { exportOrdersToExcel, exportOrderToPDF } = require('../utils/exportOrders');
 const logger = require('../logger');
@@ -9,8 +14,10 @@ const logger = require('../logger');
 module.exports = function(db, orderService) {
   const router = express.Router();
 
-  // Public: create order
-  router.post('/', orderLimiter, [
+  // Guest checkout is supported, but a signed access token scopes the payment
+  // session to the newly-created order. Authenticated customers are bound to
+  // their verified profile by OrderService.
+  router.post('/', orderLimiter, optionalToken, [
     body('customerName').trim().notEmpty().withMessage('客户姓名不能为空'),
     body('customerPhone').trim().matches(/^1[3-9]\d{9}$/).withMessage('手机号格式不正确'),
     body('province').trim().notEmpty().withMessage('省份不能为空'),
@@ -24,7 +31,11 @@ module.exports = function(db, orderService) {
   ], async (req, res, next) => {
     try {
       if (!orderService) return res.status(500).json({ error: '订单服务未配置' });
-      const data = await orderService.createOrder(req.body);
+      const data = await orderService.createOrder({
+        ...req.body,
+        customerId: req.user?.role === 'customer' ? req.user.userId : null,
+      });
+      data.orderAccessToken = generateOrderAccessToken(data.orderId);
       res.json({ data });
     } catch (err) {
       next(err);

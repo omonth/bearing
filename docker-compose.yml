@@ -2,6 +2,7 @@
 services:
   # ── Vector Service (Python + turbovec + bge-base-zh-v1.5) ────────────────
   vector-service:
+    image: ${VECTOR_SERVICE_IMAGE:-bearing-sales-vector:local}
     build:
       context: ./backend/vector-service
       dockerfile: Dockerfile
@@ -30,9 +31,9 @@ services:
     container_name: bearing-sales-db
     restart: unless-stopped
     environment:
-      POSTGRES_DB: bearing_sales
-      POSTGRES_USER: bearing_admin
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-bearing_sales_pwd_2024}
+      POSTGRES_DB: ${DB_NAME:-bearing_sales}
+      POSTGRES_USER: ${DB_USER:-bearing_admin}
+      POSTGRES_PASSWORD: "${DB_PASSWORD:?Set DB_PASSWORD in .env.production or the shell}"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/db/init.sql:/docker-entrypoint-initdb.d/01_init.sql
@@ -54,7 +55,7 @@ services:
     image: redis:7-alpine
     container_name: bearing-sales-redis
     restart: unless-stopped
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis_pwd_2024}
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env.production or the shell}
     volumes:
       - redis_data:/data
     ports:
@@ -68,6 +69,7 @@ services:
       retries: 5
 
   backend:
+    image: ${BACKEND_IMAGE:-bearing-sales-backend:local}
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -79,23 +81,52 @@ services:
       DB_TYPE: postgres
       DB_HOST: postgres
       DB_PORT: 5432
-      DB_NAME: bearing_sales
-      DB_USER: bearing_admin
-      DB_PASSWORD: ${DB_PASSWORD:-bearing_sales_pwd_2024}
+      DB_NAME: ${DB_NAME:-bearing_sales}
+      DB_USER: ${DB_USER:-bearing_admin}
+      DB_PASSWORD: "${DB_PASSWORD:?Set DB_PASSWORD in .env.production or the shell}"
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_pwd_2024}
-      JWT_SECRET: ${JWT_SECRET:-bearing-jwt-secret-change-in-production-min-32-chars}
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
+      REDIS_PASSWORD: "${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env.production or the shell}"
+      JWT_SECRET: "${JWT_SECRET:?Set JWT_SECRET in .env.production or the shell}"
+      AI_JWT_SECRET: "${AI_JWT_SECRET:?Set AI_JWT_SECRET in .env.production or the shell}"
+      INITIAL_ADMIN_USERNAME: "${INITIAL_ADMIN_USERNAME:?Set INITIAL_ADMIN_USERNAME in .env.production or the shell}"
+      INITIAL_ADMIN_PASSWORD: "${INITIAL_ADMIN_PASSWORD:?Set INITIAL_ADMIN_PASSWORD in .env.production or the shell}"
+      AI_BOOTSTRAP_USERNAME: "${AI_BOOTSTRAP_USERNAME:?Set AI_BOOTSTRAP_USERNAME in .env.production or the shell}"
+      AI_BOOTSTRAP_PASSWORD: "${AI_BOOTSTRAP_PASSWORD:?Set AI_BOOTSTRAP_PASSWORD in .env.production or the shell}"
+      PAYMENT_MODE: "${PAYMENT_MODE:?Set PAYMENT_MODE=production in .env.production or the shell}"
+      CORS_ORIGIN: "${CORS_ORIGIN:?Set CORS_ORIGIN in .env.production or the shell}"
       GRAY_RELEASE_ENABLED: ${GRAY_RELEASE_ENABLED:-false}
       GRAY_RELEASE_PERCENTAGE: ${GRAY_RELEASE_PERCENTAGE:-0}
       GRAY_RELEASE_VARIANT: ${GRAY_RELEASE_VARIANT:-canary}
       GRAY_RELEASE_FORCE_HEADER: ${GRAY_RELEASE_FORCE_HEADER:-x-gray-release}
       VECTOR_SERVICE_URL: http://vector-service:5050
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      ALIPAY_APP_ID: ${ALIPAY_APP_ID:-}
+      ALIPAY_PRIVATE_KEY: ${ALIPAY_PRIVATE_KEY:-}
+      ALIPAY_PUBLIC_KEY: ${ALIPAY_PUBLIC_KEY:-}
+      ALIPAY_NOTIFY_URL: ${ALIPAY_NOTIFY_URL:-}
+      ALIPAY_MODE: ${ALIPAY_MODE:-production}
+      ALIPAY_APP_CERT_PATH: ${ALIPAY_APP_CERT_PATH:-}
+      ALIPAY_ALIPAY_CERT_PATH: ${ALIPAY_ALIPAY_CERT_PATH:-}
+      ALIPAY_ROOT_CERT_PATH: ${ALIPAY_ROOT_CERT_PATH:-}
+      WECHAT_APP_ID: ${WECHAT_APP_ID:-}
+      WECHAT_MCH_ID: ${WECHAT_MCH_ID:-}
+      WECHAT_API_KEY_V3: ${WECHAT_API_KEY_V3:-}
+      WECHAT_CERT_SERIAL: ${WECHAT_CERT_SERIAL:-}
+      WECHAT_PRIVATE_KEY: ${WECHAT_PRIVATE_KEY:-}
+      WECHAT_NOTIFY_URL: ${WECHAT_NOTIFY_URL:-}
+      WECHAT_PLATFORM_CERT_PATH: ${WECHAT_PLATFORM_CERT_PATH:-}
+      UNIONPAY_MERCHANT_ID: ${UNIONPAY_MERCHANT_ID:-}
+      UNIONPAY_CERT_PATH: ${UNIONPAY_CERT_PATH:-}
+      UNIONPAY_CERT_PWD: ${UNIONPAY_CERT_PWD:-}
+      UNIONPAY_VERIFY_CERT_PATH: ${UNIONPAY_VERIFY_CERT_PATH:-}
+      UNIONPAY_ENCRYPT_CERT_PATH: ${UNIONPAY_ENCRYPT_CERT_PATH:-}
+      UNIONPAY_NOTIFY_URL: ${UNIONPAY_NOTIFY_URL:-}
+      UNIONPAY_FRONT_URL: ${UNIONPAY_FRONT_URL:-}
+      UNIONPAY_MODE: ${UNIONPAY_MODE:-production}
     volumes:
       - backend_logs:/app/logs
-      - backend_uploads:/app/public
+      - backend_uploads:/app/public/images
     depends_on:
       postgres:
         condition: service_healthy
@@ -107,6 +138,7 @@ services:
       - bearing-network
 
   frontend:
+    image: ${FRONTEND_IMAGE:-bearing-sales-frontend:local}
     build:
       context: .
       dockerfile: Dockerfile

@@ -1,494 +1,117 @@
-# 轴承销售系统 - 生产环境部署文档
+# 轴承销售系统生产部署
 
-## 目录
-1. [系统要求](#系统要求)
-2. [安装步骤](#安装步骤)
-3. [配置说明](#配置说明)
-4. [启动服务](#启动服务)
-5. [维护操作](#维护操作)
-6. [故障排查](#故障排查)
-7. [安全建议](#安全建议)
+## 支持的部署路径
 
----
+完整生产栈以 Docker Compose 为受支持的部署路径。它启动 PostgreSQL、Redis、后端、Next.js 前端、向量服务和 Nginx。`render.yaml` 仅描述后端服务，适合由平台提供持久磁盘且前端/HTTPS 另行托管的场景；它不替代完整栈的 Redis、向量服务和反向代理配置。
 
-## 系统要求
+独立的 `admin/` Vite 管理后台不在 Compose 或 Kubernetes 清单中。若生产需要该界面，应把它作为单独、版本化的静态应用部署在受控 HTTPS 域名，并验证其 API 地址、管理员认证和访问边界；不要误以为它已随商城前端发布。
 
-### 硬件要求
-- CPU: 2核心或以上
-- 内存: 2GB RAM 或以上
-- 硬盘: 10GB 可用空间
+`start-prod.sh` 及其旧 PM2/`build/` 复制流程已经弃用：Next.js 的构建产物不是 Create React App 的 `build/` 目录，旧脚本还会删除 `backend/public`，可能导致上传文件丢失。不要使用它，也不要把前端构建产物复制到后端静态目录。
 
-### 软件要求
-- 操作系统: Linux (Ubuntu 20.04+) / Windows Server 2016+ / macOS
-- Node.js: v14.0.0 或更高版本
-- npm: v6.0.0 或更高版本
-- PM2: v5.0.0 或更高版本（生产环境推荐）
+Kubernetes 清单是基础设施参考，不是替代本指南的一键部署方案；使用它前必须自行完成镜像、Secret、数据库初始化、迁移和 TLS 的发布流程。
 
----
+## 前置条件
 
-## 安装步骤
+- 已安装 Docker Engine 和 Docker Compose v2（使用 `docker compose`）。
+- 已有公网域名与受管 TLS/HTTPS 终止层。仓库中的 Nginx 仅监听 HTTP 80，适合部署在该层之后。
+- 已为 PostgreSQL 数据、Redis 数据、上传文件和备份规划持久化与异地备份。
+- 已选定一个真实支付提供方，并能提供其生产凭据、回调地址和证书。没有完成支付验签配置时，不得开放支付入口。
 
-### 1. 安装 Node.js
-
-**Ubuntu/Debian:**
-```bash
-curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-sudo apt-get install -y nodejs
-```
-
-**Windows:**
-从 https://nodejs.org/ 下载并安装 LTS 版本
-
-**验证安装:**
-```bash
-node --version
-npm --version
-```
-
-### 2. 安装 PM2（生产环境）
+## 1. 创建私有生产配置
 
 ```bash
-npm install -g pm2
+cp .env.production.example .env.production
+chmod 600 .env.production
 ```
 
-### 3. 下载项目代码
+编辑 `.env.production`，填写每个空值。它已被 Git 忽略，仍不得通过聊天、工单、镜像层、日志或版本库分享。可以用下面的命令生成密钥：
 
 ```bash
-# 如果使用 Git
-git clone <repository-url>
-cd bearing-sales
-
-# 或者直接解压项目压缩包
-unzip bearing-sales.zip
-cd bearing-sales
+openssl rand -base64 48
 ```
 
-### 4. 安装依赖
+以下变量会被 Compose 强制要求，缺失或为空时部署会停止，而不会使用公开默认值：
 
-**后端依赖:**
-```bash
-cd backend
-npm install --production
-cd ..
-```
+| 变量 | 要求 |
+| --- | --- |
+| `DB_PASSWORD` | PostgreSQL 的强随机密码 |
+| `REDIS_PASSWORD` | Redis 的强随机密码 |
+| `JWT_SECRET` | 主 JWT 密钥，至少 32 个随机字符 |
+| `AI_JWT_SECRET` | 独立的 AI JWT 密钥，不能复用主密钥 |
+| `INITIAL_ADMIN_USERNAME` / `INITIAL_ADMIN_PASSWORD` | 首次主管理员账户，仅用于引导；首次使用后轮换密码 |
+| `AI_BOOTSTRAP_USERNAME` / `AI_BOOTSTRAP_PASSWORD` | 首次 AI 管理员账户，仅用于引导；首次使用后轮换密码 |
+| `CORS_ORIGIN` | 商城的实际 HTTPS 源，例如 `https://shop.example.com`，不带尾随斜杠 |
+| `PAYMENT_MODE` | 必须显式设为 `production` |
 
-**前端依赖:**
-```bash
-npm install
-```
+仅启用实际使用的支付提供方，并在同一私有文件中填写相应 `ALIPAY_*`、`WECHAT_*` 或 `UNIONPAY_*` 变量以及可从公网访问的 HTTPS 回调地址。`ALIPAY_MODE` 和 `UNIONPAY_MODE` 必须保持 `production`。私钥和证书文件不得复制进镜像；应由受管 Secret/只读挂载提供，并将对应路径变量指向挂载路径。
 
----
+## 2. 部署和验证
 
-## 配置说明
-
-### 1. 后端配置
-
-复制环境配置文件:
-```bash
-cp backend/.env.example backend/.env
-```
-
-编辑 `backend/.env` 文件:
-```env
-# 服务器配置
-PORT=3001
-NODE_ENV=production
-
-# 数据库配置
-DB_PATH=./bearings.db
-
-# CORS配置（设置为前端域名或服务器IP）
-CORS_ORIGIN=http://your-domain.com
-
-# 日志配置
-LOG_LEVEL=info
-LOG_DIR=./logs
-
-# 备份配置
-BACKUP_DIR=./backups
-BACKUP_INTERVAL=86400000
-```
-
-### 2. 前端配置
-
-复制环境配置文件:
-```bash
-cp .env.example .env
-```
-
-编辑 `.env` 文件:
-```env
-# API配置（设置为后端服务器地址）
-REACT_APP_API_URL=http://your-domain.com:3001/api
-```
-
-### 3. 初始化数据库
+先在不启动容器的情况下验证 Compose 插值：
 
 ```bash
-cd backend
-npm run init-db
-cd ..
+docker compose --env-file .env.production config --quiet
 ```
 
----
-
-## 启动服务
-
-### 开发环境
-
-**方式1: 使用启动脚本（推荐）**
-
-Linux/macOS:
-```bash
-chmod +x start.sh
-./start.sh
-```
-
-Windows:
-```bash
-start.bat
-```
-
-**方式2: 手动启动**
-
-终端1 - 启动后端:
-```bash
-cd backend
-npm start
-```
-
-终端2 - 启动前端:
-```bash
-npm start
-```
-
-访问地址:
-- 前端: http://localhost:3000
-- 后端API: http://localhost:3001
-- 管理后台: http://localhost:3001/admin.html
-
-### 生产环境
-
-**方式1: 使用PM2（推荐）**
+首次部署或从源构建时：
 
 ```bash
-chmod +x start-prod.sh
-./start-prod.sh
+docker compose --env-file .env.production up -d --build
+docker compose --env-file .env.production ps
+docker compose --env-file .env.production logs --tail=100 backend
+curl --fail http://127.0.0.1/health
 ```
 
-**方式2: 手动部署**
+`/health` 返回成功只说明进程可响应；上线前还要用专用测试账号验证登录、商品查询、下单、真实支付回调、退款、库存恢复和管理员授权。不要在生产环境调用任何沙箱支付模拟接口。
 
-1. 构建前端:
-```bash
-npm run build
-```
+首次创建 PostgreSQL 数据卷时，Compose 会执行 `backend/db/*.sql` 的初始化脚本。已有数据卷不会再次执行这些脚本；生产升级必须使用经评审、可回滚的数据库迁移，不能依赖重建容器或删除卷。上传文件单独持久化在 `backend_uploads` 卷的 `/app/public/images`，不会遮蔽镜像内的其他静态资源。
 
-2. 复制构建文件到后端:
-```bash
-cp -r build backend/public
-```
+## 3. 日志、备份和恢复
 
-3. 使用PM2启动后端:
-```bash
-pm2 start ecosystem.config.json
-pm2 save
-pm2 startup
-```
-
-访问地址:
-- 生产环境: http://your-domain.com:3001
-- 管理后台: http://your-domain.com:3001/admin.html
-
----
-
-## 维护操作
-
-### PM2 常用命令
+查看服务状态和日志：
 
 ```bash
-# 查看服务状态
-pm2 status
-
-# 查看日志
-pm2 logs
-
-# 重启服务
-pm2 restart bearing-sales-backend
-
-# 停止服务
-pm2 stop bearing-sales-backend
-
-# 删除服务
-pm2 delete bearing-sales-backend
-
-# 监控服务
-pm2 monit
+docker compose --env-file .env.production ps
+docker compose --env-file .env.production logs --tail=200 backend
+docker compose --env-file .env.production logs --tail=200 nginx
 ```
 
-### 数据库备份
-
-**手动备份:**
-```bash
-cd backend
-npm run backup
-```
-
-**自动备份（使用 cron）:**
-
-编辑 crontab:
-```bash
-crontab -e
-```
-
-添加每天凌晨3点自动备份:
-```cron
-0 3 * * * cd /path/to/bearing-sales/backend && npm run backup
-```
-
-**恢复备份:**
-```bash
-cd backend
-cp backups/bearings_backup_YYYY-MM-DDTHH-mm-ss.db bearings.db
-pm2 restart bearing-sales-backend
-```
-
-### 日志管理
-
-日志文件位置:
-- 应用日志: `backend/logs/combined.log`
-- 错误日志: `backend/logs/error.log`
-- PM2日志: `backend/logs/pm2-*.log`
-
-清理旧日志:
-```bash
-cd backend/logs
-find . -name "*.log" -mtime +30 -delete
-```
-
----
-
-## 故障排查
-
-### 问题1: 端口被占用
-
-**错误信息:**
-```
-Error: listen EADDRINUSE: address already in use :::3001
-```
-
-**解决方案:**
-
-Linux/macOS:
-```bash
-# 查找占用端口的进程
-lsof -i :3001
-
-# 终止进程
-kill -9 <PID>
-```
-
-Windows:
-```bash
-# 查找占用端口的进程
-netstat -ano | findstr :3001
-
-# 终止进程
-taskkill /PID <PID> /F
-```
-
-或修改 `backend/.env` 中的 PORT 配置。
-
-### 问题2: 数据库文件不存在
-
-**错误信息:**
-```
-Error: SQLITE_CANTOPEN: unable to open database file
-```
-
-**解决方案:**
-```bash
-cd backend
-npm run init-db
-```
-
-### 问题3: CORS 错误
-
-**错误信息:**
-```
-Access to fetch at 'http://...' from origin 'http://...' has been blocked by CORS policy
-```
-
-**解决方案:**
-
-修改 `backend/.env` 中的 CORS_ORIGIN:
-```env
-CORS_ORIGIN=http://your-frontend-domain.com
-```
-
-然后重启服务:
-```bash
-pm2 restart bearing-sales-backend
-```
-
-### 问题4: 前端无法连接后端
-
-**检查步骤:**
-
-1. 确认后端服务正在运行:
-```bash
-pm2 status
-# 或
-curl http://localhost:3001/api/bearings
-```
-
-2. 检查前端 `.env` 配置:
-```env
-REACT_APP_API_URL=http://correct-backend-url:3001/api
-```
-
-3. 重新构建前端:
-```bash
-npm run build
-cp -r build backend/public
-pm2 restart bearing-sales-backend
-```
-
----
-
-## 安全建议
-
-### 1. 使用反向代理
-
-推荐使用 Nginx 作为反向代理:
-
-```nginx
-server {
-    listen 80;
-    server_name your-domain.com;
-
-    location / {
-        proxy_pass http://localhost:3001;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
-    }
-}
-```
-
-### 2. 启用 HTTPS
-
-使用 Let's Encrypt 获取免费 SSL 证书:
-```bash
-sudo apt-get install certbot python3-certbot-nginx
-sudo certbot --nginx -d your-domain.com
-```
-
-### 3. 配置防火墙
+备份 PostgreSQL（将备份保存到受控、加密的位置）：
 
 ```bash
-# Ubuntu/Debian
-sudo ufw allow 80/tcp
-sudo ufw allow 443/tcp
-sudo ufw enable
+mkdir -p backups
+docker compose --env-file .env.production exec -T postgres \
+  sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB"' > "backups/bearing-sales-$(date +%F-%H%M%S).sql"
 ```
 
-### 4. 定期更新依赖
+恢复前必须先在隔离环境演练，并停止写入流量。恢复示例：
 
 ```bash
-cd backend
-npm audit
-npm audit fix
-
-cd ..
-npm audit
-npm audit fix
+docker compose --env-file .env.production exec -T postgres \
+  sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < backups/approved-restore.sql
 ```
 
-### 5. 数据库安全
+不要将 `docker compose down -v` 用于生产环境；它会删除数据库、Redis 和上传文件卷。
 
-- 定期备份数据库
-- 限制数据库文件访问权限:
-```bash
-chmod 600 backend/bearings.db
-```
+## 4. 升级和回滚
 
-### 6. 环境变量保护
+1. 记录当前 Git 提交和镜像标签，先完成数据库备份。
+2. 审核迁移、配置变更与 `docker compose --env-file .env.production config --quiet` 的结果。
+3. 发布新版本并检查各服务健康状态与关键业务流程。
+4. 若应用回滚，检出上一个已验证版本并重新执行 Compose。数据库回滚必须按该版本的迁移回滚计划执行，绝不能用删除卷代替。
 
-确保 `.env` 文件不被提交到版本控制:
-```bash
-# .gitignore 中应包含:
-.env
-backend/.env
-```
+使用 CI 推送的镜像时，应使用不可变的提交 SHA 或镜像摘要，而不是 `latest`。部署主机上的 `.env.production` 只保存运行时密钥，不应保存到 Git 仓库。
 
----
+## 5. 安全核对
 
-## 性能优化
+- 确认 `.env.production`、支付私钥、证书、数据库、备份和日志没有被 Git 跟踪或进入 Docker 镜像。
+- 确认生产前端可通过 HTTPS 访问，`CORS_ORIGIN` 与实际源完全匹配。
+- 确认 `PAYMENT_MODE=production`，真实支付回调验签和幂等性已经用测试商户验证。
+- 轮换首次管理员密码、JWT 密钥和第三方密钥，并限制数据库与 Redis 端口只对内部网络开放。
+- 为数据库备份、镜像回滚、告警值班和安全事件建立实际负责人及演练记录。
 
-### 1. 启用 PM2 集群模式
+## Render 后端部署
 
-编辑 `ecosystem.config.json`:
-```json
-{
-  "apps": [{
-    "instances": "max",
-    "exec_mode": "cluster"
-  }]
-}
-```
+`render.yaml` 使用 `npm ci`、持久化 SQLite 磁盘和 `/health` 检查。Render 控制台必须显式填写标记为 `sync: false` 的 `CORS_ORIGIN`、`INITIAL_ADMIN_*` 与 `AI_BOOTSTRAP_*`，并确认自动生成的 `JWT_SECRET` 和 `AI_JWT_SECRET` 已轮换或妥善保管。它固定 `PAYMENT_MODE=production`，因此必须先配置真实支付提供方凭据和回调地址；没有配置时不得开放支付。
 
-### 2. 配置 Nginx 缓存
-
-```nginx
-location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg)$ {
-    expires 1y;
-    add_header Cache-Control "public, immutable";
-}
-```
-
-### 3. 数据库优化
-
-定期执行 VACUUM 清理数据库:
-```bash
-sqlite3 backend/bearings.db "VACUUM;"
-```
-
----
-
-## 监控和告警
-
-### 使用 PM2 Plus（可选）
-
-1. 注册 PM2 Plus 账号: https://pm2.io/
-2. 连接服务器:
-```bash
-pm2 link <secret_key> <public_key>
-```
-
-### 自定义健康检查
-
-创建健康检查脚本 `backend/health-check.sh`:
-```bash
-#!/bin/bash
-response=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3001/api/bearings)
-if [ $response != "200" ]; then
-    echo "服务异常，HTTP状态码: $response"
-    pm2 restart bearing-sales-backend
-fi
-```
-
-添加到 crontab（每5分钟检查一次）:
-```cron
-*/5 * * * * /path/to/backend/health-check.sh
-```
-
----
-
-## 联系支持
-
-如有问题，请联系技术支持团队。
-
-**文档版本:** 1.0.0  
-**最后更新:** 2026-05-01
+Render 服务只部署 API。将商城前端部署到独立 HTTPS 域名后，把该确切源填入 `CORS_ORIGIN`；不要把 SQLite、日志或上传目录当作可替代的异地备份。

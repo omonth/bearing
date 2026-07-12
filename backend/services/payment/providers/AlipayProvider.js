@@ -58,7 +58,12 @@ class AlipayProvider extends PaymentProvider {
       bizContent: { outTradeNo: paymentOrder.transaction_id },
     });
     if (result.tradeStatus === 'TRADE_SUCCESS') {
-      return { status: 'paid', tradeNo: result.tradeNo, payer: { buyerUserId: result.buyerUserId } };
+      return {
+        status: 'paid',
+        tradeNo: result.tradeNo,
+        amount: Number(result.totalAmount),
+        payer: { buyerUserId: result.buyerUserId },
+      };
     }
     return { status: paymentOrder.status, message: result.tradeStatus || '待支付' };
   }
@@ -67,8 +72,14 @@ class AlipayProvider extends PaymentProvider {
     const isValid = this.alipayClient.checkNotifySign(params);
     if (!isValid) throw new Error('支付宝回调签名验证失败');
 
-    const { out_trade_no, trade_no, buyer_id } = params;
-    return { transactionId: out_trade_no, status: 'paid', tradeNo: trade_no, payer: { buyer_id } };
+    const { out_trade_no, trade_no, buyer_id, total_amount } = params;
+    return {
+      transactionId: out_trade_no,
+      status: 'paid',
+      tradeNo: trade_no,
+      amount: Number(total_amount),
+      payer: { buyer_id },
+    };
   }
 
   async createRefund({ paymentOrder, amount, reason, refundNo }) {

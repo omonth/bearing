@@ -119,14 +119,21 @@ async function migrateData() {
     });
 
     if (admins.length === 0) {
-      // 创建默认管理员
-      const defaultPassword = await bcrypt.hash('admin123', 10);
+      // Create admin from env vars or generate a random password (printed once)
+      const username = process.env.INITIAL_ADMIN_USERNAME || 'admin';
+      const rawPassword = process.env.INITIAL_ADMIN_PASSWORD || require('crypto').randomBytes(16).toString('hex');
+      const hashedPassword = await bcrypt.hash(rawPassword, 10);
       await pool.query(`
         INSERT INTO admins (username, password, email, role)
         VALUES ($1, $2, $3, $4)
         ON CONFLICT (username) DO NOTHING
-      `, ['admin', defaultPassword, 'admin@bearing-sales.com', 'admin']);
-      console.log('✅ 创建了默认管理员账号');
+      `, [username, hashedPassword, process.env.INITIAL_ADMIN_EMAIL || null, 'admin']);
+      if (!process.env.INITIAL_ADMIN_PASSWORD) {
+        console.log(`✅ 创建了管理员账号: ${username} / ${rawPassword}`);
+        console.log('⚠️  请立即修改此密码，此密码仅在本次迁移输出中可见');
+      } else {
+        console.log(`✅ 创建了管理员账号: ${username}`);
+      }
     } else {
       for (const admin of admins) {
         await pool.query(`

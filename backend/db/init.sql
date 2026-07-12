@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS bearings (
     inner_diameter DECIMAL(10, 2),
     outer_diameter DECIMAL(10, 2),
     width DECIMAL(10, 2),
-    stock INTEGER NOT NULL DEFAULT 0,
+    stock INTEGER NOT NULL DEFAULT 0 CHECK (stock >= 0),
     description TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -58,8 +58,8 @@ CREATE TABLE IF NOT EXISTS order_items (
     id SERIAL PRIMARY KEY,
     order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
     bearing_id INTEGER NOT NULL REFERENCES bearings(id),
-    quantity INTEGER NOT NULL,
-    price DECIMAL(10, 2) NOT NULL
+    quantity INTEGER NOT NULL CHECK (quantity > 0),
+    price DECIMAL(10, 2) NOT NULL CHECK (price >= 0)
 );
 
 -- 创建索引
@@ -149,11 +149,8 @@ VALUES
     ('推力球轴承', '51205', 40.00, '推力球轴承', 25, 47, 15, 70, '/images/51205.jpg', '专门承受轴向负荷')
 ON CONFLICT DO NOTHING;
 
--- 9. 创建默认管理员（密码: admin123，已用bcrypt加密）
--- 注意：这是示例密码的hash，生产环境请使用脚本生成
-INSERT INTO admins (username, password, email, role)
-VALUES ('admin', '$2b$10$jRp./B/fJ5WJSK3BFs2n9Ow4cUyZx96qFxOxKvKmG3eo575wk9L.m', 'admin@bearing-sales.com', 'admin')
-ON CONFLICT (username) DO NOTHING;
+-- 9. Do not seed administrator credentials in schema SQL. Configure
+-- INITIAL_ADMIN_USERNAME and INITIAL_ADMIN_PASSWORD for one-time bootstrap.
 
 -- 10. 创建视图：产品销售统计
 CREATE OR REPLACE VIEW product_sales_stats AS

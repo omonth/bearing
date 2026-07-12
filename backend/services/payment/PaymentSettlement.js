@@ -31,6 +31,19 @@ class PaymentSettlement {
       return { success: false, error: `当前状态 ${po.status} 不允许结算为已支付` };
     }
 
+    const order = await this.db.get('SELECT status FROM orders WHERE id = ?', [po.order_id]);
+    if (!order) {
+      return { success: false, error: '订单不存在' };
+    }
+    if (!['pending', 'paid'].includes(order.status)) {
+      logger.warn('拒绝已取消或已完成订单的支付回调', {
+        paymentOrderId,
+        orderId: po.order_id,
+        orderStatus: order.status,
+      });
+      return { success: false, error: '订单当前不可支付', status: order.status };
+    }
+
     const resolvedTradeNo = tradeNo || `TRADE${Date.now()}`;
     const payerInfo = JSON.stringify(payer || {});
 
@@ -67,8 +80,11 @@ class PaymentSettlement {
     if (!amount || isNaN(parseFloat(amount))) {
       return { success: false, error: '退款金额无效' };
     }
-    if (parseFloat(amount) > parseFloat(po.amount)) {
+    if (Number(amount) > Number(po.amount)) {
       return { success: false, error: '退款金额不能超过支付金额' };
+    }
+    if (Number(amount) !== Number(po.amount)) {
+      return { success: false, error: '当前仅支持整单退款' };
     }
 
     try {

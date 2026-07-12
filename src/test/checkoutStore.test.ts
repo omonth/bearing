@@ -74,13 +74,23 @@ describe('checkoutStore', () => {
 
   it('should throw if required fields are empty', async () => {
     await expect(
-      useCheckoutStore.getState().submitOrder(mockItems as any, 20)
+      useCheckoutStore.getState().submitOrder(mockItems as any)
     ).rejects.toThrow('请填写完整的收货信息');
   });
 
   it('should submit order and transition to payment', async () => {
-    mockCreateOrder.mockResolvedValueOnce({ orderId: 42, message: '订单创建成功' });
-    mockCreatePayment.mockResolvedValueOnce({ paymentOrderId: 100, orderNo: 'ORD-42', qrUrl: 'http://qr.example.com' });
+    mockCreateOrder.mockResolvedValueOnce({
+      orderId: 42,
+      message: '订单创建成功',
+      orderAccessToken: 'order-access-token',
+    });
+    mockCreatePayment.mockResolvedValueOnce({
+      amount: 20,
+      paymentMethod: 'alipay',
+      paymentOrderId: 100,
+      orderNo: 'ORD-42',
+      qrUrl: 'http://qr.example.com',
+    });
     mockQueryPaymentStatus.mockResolvedValue({ status: 'pending' });
 
     const store = useCheckoutStore.getState();
@@ -91,7 +101,7 @@ describe('checkoutStore', () => {
     store.setField('district', '天河区');
     store.setField('addressDetail', '体育西路100号');
 
-    await store.submitOrder(mockItems as any, 20);
+    await store.submitOrder(mockItems as any);
 
     const s = useCheckoutStore.getState();
     expect(s.checkoutStep).toBe('payment');
@@ -99,12 +109,21 @@ describe('checkoutStore', () => {
     expect(s.paymentInfo.paymentOrderId).toBe(100);
     expect(s.paymentInfo.orderNo).toBe('ORD-42');
     expect(mockCreateOrder).toHaveBeenCalledTimes(1);
-    expect(mockCreatePayment).toHaveBeenCalledTimes(1);
+    expect(mockCreatePayment).toHaveBeenCalledWith(
+      { orderId: 42, paymentMethod: 'alipay', subject: '订单 #42' },
+      'order-access-token'
+    );
   });
 
   it('should poll payment status and detect paid', async () => {
-    mockCreateOrder.mockResolvedValueOnce({ orderId: 43 });
-    mockCreatePayment.mockResolvedValueOnce({ paymentOrderId: 101, orderNo: 'ORD-43', qrUrl: '' });
+    mockCreateOrder.mockResolvedValueOnce({ orderId: 43, orderAccessToken: 'order-access-token' });
+    mockCreatePayment.mockResolvedValueOnce({
+      amount: 20,
+      paymentMethod: 'alipay',
+      paymentOrderId: 101,
+      orderNo: 'ORD-43',
+      qrUrl: '',
+    });
     mockQueryPaymentStatus
       .mockResolvedValueOnce({ status: 'pending' })
       .mockResolvedValueOnce({ status: 'pending' })
@@ -118,7 +137,7 @@ describe('checkoutStore', () => {
     store.setField('district', '东华门街道');
     store.setField('addressDetail', '王府井');
 
-    await store.submitOrder(mockItems as any, 20);
+    await store.submitOrder(mockItems as any);
     expect(useCheckoutStore.getState().paymentStatus).toBe('pending');
 
     // First poll - still pending
@@ -132,11 +151,55 @@ describe('checkoutStore', () => {
     // Third poll - paid
     await vi.advanceTimersByTimeAsync(2000);
     expect(useCheckoutStore.getState().paymentStatus).toBe('paid');
+    expect(mockQueryPaymentStatus).toHaveBeenLastCalledWith(101, 'order-access-token');
+  });
+
+  it('completes cash on delivery without starting payment polling', async () => {
+    mockCreateOrder.mockResolvedValueOnce({ orderId: 44, orderAccessToken: 'order-access-token' });
+    mockCreatePayment.mockResolvedValueOnce({
+      amount: 20,
+      message: '货到付款',
+      paymentMethod: 'cod',
+      paymentOrderId: 102,
+      orderNo: 'ORD-44',
+    });
+
+    const store = useCheckoutStore.getState();
+    store.setField('customerName', '赵六');
+    store.setField('customerPhone', '13600136000');
+    store.setProvince('广东省');
+    store.setField('city', '广州市');
+    store.setField('district', '天河区');
+    store.setField('addressDetail', '体育西路100号');
+    store.setPaymentMethod('cod');
+
+    await store.submitOrder(mockItems as any);
+
+    expect(useCheckoutStore.getState()).toMatchObject({
+      checkoutStep: 'payment',
+      paymentStatus: 'processing',
+      paymentInfo: {
+        amount: 20,
+        orderAccessToken: 'order-access-token',
+        paymentMethod: 'cod',
+      },
+    });
+
+    await vi.advanceTimersByTimeAsync(6000);
+    expect(mockQueryPaymentStatus).not.toHaveBeenCalled();
   });
 
   it('should reset checkout', () => {
     useCheckoutStore.setState({
-      checkoutStep: 'payment', paymentInfo: { orderNo: 'X' }, paymentStatus: 'paid',
+      checkoutStep: 'payment',
+      paymentInfo: {
+        amount: 20,
+        orderAccessToken: 'order-access-token',
+        orderNo: 'X',
+        paymentMethod: 'alipay',
+        paymentOrderId: 1,
+      },
+      paymentStatus: 'paid',
     });
     useCheckoutStore.getState().resetCheckout();
     const s = useCheckoutStore.getState();
@@ -156,7 +219,7 @@ describe('checkoutStore', () => {
     store.setField('district', '徐家汇街道');
     store.setField('addressDetail', '淮海中路');
 
-    await expect(store.submitOrder(mockItems as any, 20)).rejects.toThrow('库存不足');
+    await expect(store.submitOrder(mockItems as any)).rejects.toThrow('库存不足');
     expect(useCheckoutStore.getState().submitting).toBe(false);
   });
 });

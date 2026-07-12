@@ -1,5 +1,6 @@
 import "@/index.css";
 import { StorefrontLanguageProvider } from "@/lib/storefrontLanguage";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Head from "next/head";
 import type { AppProps } from "next/app";
 
@@ -8,14 +9,16 @@ const FAVICON =
 
 export default function App({ Component, pageProps }: AppProps) {
   return (
-    <StorefrontLanguageProvider>
-      <Head>
-        <link rel="icon" href={FAVICON} />
-      </Head>
-      <a href="#main-content" className="skip-link">
-        跳到主要内容
-      </a>
-      <Component {...pageProps} />
-    </StorefrontLanguageProvider>
+    <ErrorBoundary>
+      <StorefrontLanguageProvider>
+        <Head>
+          <link rel="icon" href={FAVICON} />
+        </Head>
+        <a href="#main-content" className="skip-link">
+          跳到主要内容
+        </a>
+        <Component {...pageProps} />
+      </StorefrontLanguageProvider>
+    </ErrorBoundary>
   );
 }

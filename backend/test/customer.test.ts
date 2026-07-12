@@ -170,6 +170,15 @@ beforeAll(async () => {
   await seedTestData(db);
   await setupCustomerTables(db);
   await seedCustomerData(db);
+  await db.run("UPDATE orders SET status = 'pending' WHERE id = ?", [1]);
+  await db.run(
+    'INSERT INTO orders (customer_name, customer_phone, province, city, address_detail, total_price, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    ['Primary Customer', '13800000001', 'Guangdong', 'Shenzhen', 'Coupon Test Road', 200, 'pending']
+  );
+  await db.run(
+    'INSERT INTO orders (customer_name, customer_phone, province, city, address_detail, total_price, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    ['Other Customer', '13800000002', 'Guangdong', 'Shenzhen', 'Other Customer Road', 200, 'pending']
+  );
 
   const authService = new AuthService(db);
   const customerService = new CustomerService(db);
@@ -371,9 +380,22 @@ describe('Customer Auth API', () => {
       const res = await request(app)
         .post('/api/customer/coupons/use')
         .set('Authorization', `Bearer ${loginRes.body.data.token}`)
-        .send({ code: 'EXPIRED', orderId: 1 });
+        .send({ code: 'EXPIRED', orderId: 2 });
       expect(res.status).toBe(400);
       expect(res.body.error).toContain('过期');
+    });
+
+    it('should reject a coupon applied to another customer order', async () => {
+      const loginRes = await request(app)
+        .post('/api/customer/login')
+        .send({ phone: '13800000001', password: 'test123' });
+
+      const res = await request(app)
+        .post('/api/customer/coupons/use')
+        .set('Authorization', `Bearer ${loginRes.body.data.token}`)
+        .send({ code: 'PCT5', orderId: 3 });
+
+      expect(res.status).toBe(403);
     });
 
     it('should reject missing code or orderId', async () => {

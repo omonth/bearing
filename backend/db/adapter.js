@@ -119,6 +119,7 @@ function initDatabase() {
       : path.join(__dirname, '..', 'bearings.db');
     const dbPath = process.env.DB_PATH || defaultDbPath;
     const sqliteDb = new sqlite3.Database(dbPath);
+    sqliteDb.run('PRAGMA foreign_keys = ON');
 
     db = {
       type: 'sqlite',

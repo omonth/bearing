@@ -17,13 +17,49 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
   return body.data as T;
 }
 
-const getAuthHeaders = () => {
+export const getAuthHeaders = () => {
   if (typeof window !== 'undefined') {
     const token = localStorage.getItem('token');
     return token ? { Authorization: `Bearer ${token}` } : {};
   }
   return {};
 };
+
+export type PaymentMethod = 'alipay' | 'wechat' | 'unionpay' | 'cod' | 'balance';
+
+export interface CreateOrderRequest {
+  customerName: string;
+  customerPhone: string;
+  province: string;
+  city: string;
+  district: string;
+  addressDetail: string;
+  items: Array<{ id: number; quantity: number }>;
+}
+
+export interface CreateOrderResponse {
+  orderId: number;
+  message: string;
+  orderAccessToken: string;
+}
+
+export interface CreatePaymentRequest {
+  orderId: number;
+  paymentMethod: PaymentMethod;
+  subject?: string;
+}
+
+export interface PaymentResponse {
+  amount: number;
+  formParams?: Record<string, unknown>;
+  message?: string;
+  orderNo: string;
+  paymentMethod: PaymentMethod;
+  paymentOrderId: number;
+  payUrl?: string;
+  qrUrl?: string;
+  sandbox?: boolean;
+}
 
 export {
   getCategories,
@@ -38,10 +74,11 @@ export const searchProducts = (params: Record<string, string>) => {
 };
 
 // Orders
-export const createOrder = (data: any) =>
-  request<{ orderId: number; message: string }>('/orders', {
+export const createOrder = (data: CreateOrderRequest) =>
+  request<CreateOrderResponse>('/orders', {
     method: 'POST',
     body: JSON.stringify(data),
+    headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
   });
 
 // Recommendations
@@ -98,15 +135,27 @@ export const applyCustomerCoupon = (code: string, orderId: number) =>
   });
 
 // Payment
-export const createPayment = (data: any) =>
-  request<any>('/payment/checkout', {
+export const createPayment = (data: CreatePaymentRequest, orderAccessToken: string) =>
+  request<PaymentResponse>('/payment/checkout', {
     method: 'POST',
     body: JSON.stringify(data),
+    headers: {
+      ...getAuthHeaders(),
+      'Content-Type': 'application/json',
+      'X-Order-Access-Token': orderAccessToken,
+    },
   });
 
-export const queryPaymentStatus = (paymentOrderId: number) =>
+export const queryPaymentStatus = (paymentOrderId: number, orderAccessToken: string) =>
   request<{ status: string; paymentMethod: string; amount: number; paidAt: string | null }>(
-    `/payment/status/${paymentOrderId}`
+    `/payment/status/${paymentOrderId}`,
+    {
+      headers: {
+        ...getAuthHeaders(),
+        'Content-Type': 'application/json',
+        'X-Order-Access-Token': orderAccessToken,
+      },
+    }
   );
 
 // AI
@@ -119,5 +168,3 @@ export const chatWithBot = (message: string, context?: any) =>
 // Search suggestions
 export const getSearchSuggestions = (q: string) =>
   request<{ name: string; model: string }[]>(`/search/suggestions?q=${encodeURIComponent(q)}`);
-
-export { getAuthHeaders };

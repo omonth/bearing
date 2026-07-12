@@ -16,22 +16,15 @@ class AIService {
   async _fastPath(message, context = {}) {
     const msg = message.toLowerCase().trim();
 
-    // Phone number → order lookup
+    // A phone number is not an authentication factor. Keep order lookups in
+    // the authenticated customer account flow instead of the public chatbot.
     if (/^1[3-9]\d{9}$/.test(msg.trim())) {
-      const orders = await this.db.all(
-        'SELECT id, status, total_price, created_at FROM orders WHERE customer_phone = ? ORDER BY created_at DESC LIMIT 5',
-        [msg.trim()]
-      );
-      if (orders.length > 0) {
-        const statusMap = { pending: '待处理', paid: '已支付', shipped: '已发货', completed: '已完成', cancelled: '已取消' };
-        return {
-          message: `找到 ${orders.length} 个订单：\n\n` + orders.map(o => `#${o.id} - ${statusMap[o.status]} - ¥${o.total_price} - ${o.created_at}`).join('\n'),
-          suggestions: ['查看产品', '热销推荐'],
-          intent: 'order_lookup',
-          fastPath: true,
-        };
-      }
-      return { message: '未找到相关订单。如果您是新客户，欢迎浏览我们的产品！', suggestions: ['查看产品', '热销推荐'], intent: 'order_lookup', fastPath: true };
+      return {
+        message: '为保护订单隐私，请登录客户账户后在“我的订单”中查询订单状态。',
+        suggestions: ['查看产品', '帮助'],
+        intent: 'order_lookup_requires_auth',
+        fastPath: true,
+      };
     }
 
     // Stock inquiry

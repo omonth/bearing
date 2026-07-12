@@ -24,6 +24,5 @@ CREATE TABLE IF NOT EXISTS ai_operation_logs (
     executed_at TIMESTAMP
 );
 
--- 默认管理员账户 (密码: admin123, bcrypt hash)
-INSERT OR IGNORE INTO ai_users (username, password_hash, role) VALUES
-    ('ai_admin', '$2b$10$defaulthashchangethisinproduction', 'admin');
+-- Do not seed credentials here. The application creates a one-time administrator
+-- only when AI_BOOTSTRAP_USERNAME and AI_BOOTSTRAP_PASSWORD are configured.

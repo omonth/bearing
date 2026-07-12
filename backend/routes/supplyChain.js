@@ -1,4 +1,6 @@
 const express = require('express');
+const { body, param } = require('express-validator');
+const { handleValidationErrors } = require('../middleware/validation');
 const router = express.Router();
 const logger = require('../logger');
 
@@ -24,7 +26,10 @@ router.get('/suppliers', async (req, res, next) => {
 });
 
 // 创建供应商
-router.post('/suppliers', async (req, res, next) => {
+router.post('/suppliers', [
+  body('name').trim().notEmpty().withMessage('供应商名称不能为空'),
+  handleValidationErrors,
+], async (req, res, next) => {
   try {
     const result = await svc.createSupplier(req.body);
     res.json({ message: '供应商创建成功', id: result.id });
@@ -72,7 +77,11 @@ router.get('/purchase-orders/:id', async (req, res, next) => {
 });
 
 // 创建采购订单
-router.post('/purchase-orders', async (req, res, next) => {
+router.post('/purchase-orders', [
+  body('supplierId').isInt({ min: 1 }).withMessage('供应商ID无效'),
+  body('items').isArray({ min: 1 }).withMessage('采购项目不能为空'),
+  handleValidationErrors,
+], async (req, res, next) => {
   try {
     const result = await svc.createPurchaseOrder({
       ...req.body,

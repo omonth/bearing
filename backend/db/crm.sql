@@ -95,6 +95,9 @@ CREATE TABLE IF NOT EXISTS customer_coupons (
 
 CREATE INDEX IF NOT EXISTS idx_customer_coupons_customer ON customer_coupons(customer_id);
 CREATE INDEX IF NOT EXISTS idx_customer_coupons_status ON customer_coupons(status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_customer_coupons_one_used_per_order
+    ON customer_coupons(used_order_id)
+    WHERE used_order_id IS NOT NULL AND status = 'used';
 
 -- 6. 客户标签表
 CREATE TABLE IF NOT EXISTS customer_tags (

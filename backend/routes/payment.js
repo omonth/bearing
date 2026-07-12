@@ -1,15 +1,41 @@
 const express = require('express');
 const router = express.Router();
+const { body, param, query } = require('express-validator');
+const { handleValidationErrors } = require('../middleware/validation');
 const logger = require('../logger');
+const { UnauthorizedError } = require('../utils/errors');
 
 module.exports = function(db, paymentService) {
-  const { verifyToken, requireAdmin } = require('../middleware/auth');
-  const { orderLimiter } = require('../middleware/rateLimiter');
+  const {
+    optionalToken,
+    requireAdmin,
+    verifyOrderAccessToken,
+    verifyToken,
+  } = require('../middleware/auth');
+  const { paymentLimiter } = require('../middleware/rateLimiter');
 
-  // 创建支付（公开 — 前端结账用）
-  router.post('/checkout', orderLimiter, async (req, res, next) => {
+  const getPaymentActor = (req, expectedOrderId) => {
+    if (req.user) return { user: req.user };
+
+    const accessToken = req.get('x-order-access-token') || req.body?.orderAccessToken;
+    const access = accessToken && verifyOrderAccessToken(accessToken);
+    if (!access || (expectedOrderId !== undefined && access.orderId !== Number(expectedOrderId))) {
+      throw new UnauthorizedError('需要订单支付访问令牌');
+    }
+    return { orderId: access.orderId };
+  };
+
+  router.post('/checkout', paymentLimiter, optionalToken, [
+    body('orderId').isInt({ min: 1 }).withMessage('订单ID无效'),
+    body('paymentMethod').isIn(['alipay', 'wechat', 'unionpay', 'cod', 'balance']).withMessage('不支持的支付方式'),
+    body('subject').optional().trim().isLength({ max: 256 }).withMessage('支付描述过长'),
+    handleValidationErrors,
+  ], async (req, res, next) => {
     try {
-      const data = await paymentService.createPayment(req.body);
+      const data = await paymentService.createPayment(
+        req.body,
+        getPaymentActor(req, req.body.orderId)
+      );
       logger.info('支付订单创建成功', { data });
       res.json({ data });
     } catch (err) {
@@ -17,11 +43,14 @@ module.exports = function(db, paymentService) {
     }
   });
 
-  // 查询支付状态（公开 — 前端轮询用）
-  router.get('/status/:paymentOrderId', async (req, res, next) => {
+  router.get('/status/:paymentOrderId', optionalToken, [
+    param('paymentOrderId').isInt({ min: 1 }).withMessage('支付订单ID无效'),
+    handleValidationErrors,
+  ], async (req, res, next) => {
     try {
       const result = await paymentService.queryPaymentStatus(
-        parseInt(req.params.paymentOrderId)
+        parseInt(req.params.paymentOrderId),
+        getPaymentActor(req)
       );
       // 只返回必要信息，不暴露内部细节
       res.json({
@@ -37,11 +66,12 @@ module.exports = function(db, paymentService) {
     }
   });
 
-  // 主动查询第三方支付状态（需认证）
+  // 主动查询第三方支付状态（仅订单所有者或管理员）
   router.get('/external-status/:paymentOrderId', verifyToken, async (req, res, next) => {
     try {
       const data = await paymentService.queryExternalStatus(
-        parseInt(req.params.paymentOrderId)
+        parseInt(req.params.paymentOrderId),
+        { user: req.user }
       );
       res.json({ data });
     } catch (err) {

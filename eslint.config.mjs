@@ -7,8 +7,8 @@ const config = [
   {
     rules: {
       '@typescript-eslint/no-explicit-any': 'warn',
-      'react-hooks/immutability': 'warn',
-      'react-hooks/set-state-in-effect': 'warn',
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'warn',
     },
   },
   {

@@ -53,9 +53,10 @@ function saveHistory(messages: Message[]) {
 
 interface ChatBotProps {
   initialOpen?: boolean;
+  onToggle?: (open: boolean) => void;
 }
 
-export default function ChatBot({ initialOpen = false }: ChatBotProps) {
+export default function ChatBot({ initialOpen = false, onToggle }: ChatBotProps) {
   const [open, setOpen] = useState(initialOpen);
   const [messages, setMessages] = useState<Message[]>(() => {
     const saved = loadHistory();
@@ -290,7 +291,7 @@ export default function ChatBot({ initialOpen = false }: ChatBotProps) {
     <>
       {/* ── Toggle button ─────────────────────────────────────────────── */}
       <button
-        onClick={() => setOpen(!open)}
+        onClick={() => { const next = !open; setOpen(next); onToggle?.(next); }}
         className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-amber-500 hover:bg-amber-400 text-neutral-950 shadow-lg flex items-center justify-center transition-colors"
       >
         {open ? (

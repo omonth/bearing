@@ -42,6 +42,36 @@ beforeAll(async () => {
     )
   `);
 
+  await db.run(`
+    CREATE TABLE IF NOT EXISTS coupons (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      code TEXT UNIQUE NOT NULL,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL,
+      discount_value REAL NOT NULL,
+      max_discount REAL,
+      min_order_amount REAL DEFAULT 0,
+      total_quantity INTEGER DEFAULT 1000,
+      used_quantity INTEGER DEFAULT 0,
+      valid_from TEXT,
+      valid_until TEXT,
+      status TEXT DEFAULT 'active',
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+
+  await db.run(`
+    CREATE TABLE IF NOT EXISTS customer_coupons (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      customer_id INTEGER NOT NULL,
+      coupon_id INTEGER NOT NULL,
+      status TEXT DEFAULT 'unused',
+      used_order_id INTEGER,
+      used_at TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+
   const authService = new AuthService(db);
   const orderService = new OrderService(db);
   const paymentService = new PaymentOrchestrator(db, orderService);
@@ -102,6 +132,54 @@ describe('Payment Sandbox API', () => {
 
     const order = await db.get('SELECT status FROM orders WHERE id = ?', [orderId]);
     expect(order.status).toBe('paid');
+  });
+
+  it('derives amounts on the server and requires guest order access tokens', async () => {
+    const orderRes = await request(app)
+      .post('/api/orders')
+      .send({
+        customerName: 'Guest Payment Access',
+        customerPhone: '13900000911',
+        province: 'P',
+        city: 'C',
+        district: 'D',
+        addressDetail: 'A',
+        items: [{ id: 1, quantity: 1 }],
+      });
+    const guestOrderId = orderRes.body.data.orderId;
+    const orderAccessToken = orderRes.body.data.orderAccessToken;
+
+    await request(app)
+      .post('/api/payment/checkout')
+      .send({ orderId: guestOrderId, paymentMethod: 'alipay' })
+      .expect(401);
+
+    const paymentRes = await request(app)
+      .post('/api/payment/checkout')
+      .send({
+        orderId: guestOrderId,
+        orderAccessToken,
+        amount: 0.01,
+        paymentMethod: 'alipay',
+      })
+      .expect(200);
+
+    expect(paymentRes.body.data.amount).toBe(15);
+
+    await request(app)
+      .get(`/api/payment/status/${paymentRes.body.data.paymentOrderId}`)
+      .expect(401);
+
+    const statusRes = await request(app)
+      .get(`/api/payment/status/${paymentRes.body.data.paymentOrderId}`)
+      .set('X-Order-Access-Token', orderAccessToken)
+      .expect(200);
+    expect(statusRes.body.data.amount).toBe(15);
+
+    await request(app)
+      .post('/api/payment/checkout')
+      .send({ orderId: guestOrderId, orderAccessToken, paymentMethod: 'alipay' })
+      .expect(409);
   });
 
   it('should use the order lifecycle status interface when payment is simulated', async () => {

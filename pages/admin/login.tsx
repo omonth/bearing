@@ -84,9 +84,6 @@ export default function AdminLogin() {
               </button>
             </form>
 
-            <p className="text-[10px] text-neutral-600 text-center mt-4">
-              默认账户: ai_admin / admin123
-            </p>
           </div>
         </div>
       </div>

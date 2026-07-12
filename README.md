@@ -43,14 +43,14 @@ bearing-sales/
 ### 1. 安装依赖
 
 ```bash
-npm install
+npm ci
 
 cd backend
-npm install
+npm ci
 cd ..
 
 cd admin
-npm install
+npm ci
 cd ..
 ```
 
@@ -62,7 +62,7 @@ cd ..
 NEXT_PUBLIC_API_URL=http://localhost:3001/api
 ```
 
-后端可在 `backend/.env` 中配置数据库、JWT、Redis、CORS 和第三方支付。没有特殊需求时可以先使用默认 SQLite 配置启动。
+后端可在 `backend/.env` 中配置数据库、JWT、Redis、CORS 和第三方支付。SQLite 与沙箱支付仅限本地开发；不要把开发 `.env`、数据库或种子账号带入生产。
 
 关键变量：
 
@@ -70,12 +70,17 @@ NEXT_PUBLIC_API_URL=http://localhost:3001/api
 | --- | --- | --- |
 | `PORT` | 后端端口 | `3001` |
 | `DB_TYPE` | 数据库类型 | `sqlite` 或 `postgres` |
-| `JWT_SECRET` | JWT 签名密钥 | 生产环境必须替换 |
+| `JWT_SECRET` | 主 JWT 签名密钥 | 生产环境必填，至少 32 个随机字符 |
+| `AI_JWT_SECRET` | AI 管理端 JWT 签名密钥 | 生产环境必填，且不得复用主 JWT 密钥 |
+| `INITIAL_ADMIN_USERNAME` / `INITIAL_ADMIN_PASSWORD` | 首次主管理员引导账户 | 生产环境必填，仅用于首次初始化 |
+| `AI_BOOTSTRAP_USERNAME` / `AI_BOOTSTRAP_PASSWORD` | 首次 AI 管理员引导账户 | 生产环境必填，仅用于首次初始化 |
+| `PAYMENT_MODE` | 支付提供方模式 | 生产环境必须显式为 `production` |
 | `CORS_ORIGIN` | 允许访问 API 的前端源 | `http://localhost:3000` |
 | `REDIS_HOST` / `REDIS_PORT` | Redis 连接信息 | Docker 环境使用 `redis:6379` |
+| `REDIS_PASSWORD` | Redis 认证密钥 | 生产环境必填，使用强随机值 |
 | `DEEPSEEK_API_KEY` | AI 助手密钥 | 可选 |
 
-生产环境变量示例见 `.env.production.example`。
+生产环境变量示例见 `.env.production.example`。复制后必须填写所有空值；该文件受 `.gitignore` 保护，仍应限制其读取权限。
 
 ### 3. 初始化数据库
 
@@ -85,11 +90,7 @@ npm run init-db
 cd ..
 ```
 
-默认管理员账号：
-
-```text
-admin / admin123
-```
+开发种子数据可能包含演示账号，仅用于本地测试。生产环境不得运行默认账号/密码，必须通过 `INITIAL_ADMIN_*` 与 `AI_BOOTSTRAP_*` 提供一次性、强随机的初始化凭据，并在首次登录后轮换。
 
 ### 4. 启动本地开发服务
 
@@ -170,10 +171,13 @@ npx playwright test
 
 ## Docker 部署
 
-使用 Docker Compose 可以同时启动数据库、缓存、后端、前端和 Nginx：
+生产环境使用 Docker Compose 同时启动数据库、缓存、后端、前端和 Nginx。Compose 不再提供数据库、Redis、JWT 或初始化账号的默认值：
 
 ```bash
-docker-compose up -d
+cp .env.production.example .env.production
+# 编辑 .env.production，填写所有空值（不要提交该文件）
+chmod 600 .env.production
+docker compose --env-file .env.production up -d --build
 ```
 
 Compose 默认启动：
@@ -184,14 +188,17 @@ Compose 默认启动：
 - Next.js frontend
 - Nginx reverse proxy
 
-生产部署前请至少替换 `DB_PASSWORD`、`REDIS_PASSWORD`、`JWT_SECRET` 和 `CORS_ORIGIN`。部署细节见 `DEPLOYMENT.md`、`DOCKER-DEPLOYMENT.md` 和 `PRODUCTION-READY.md`。
+生产部署前必须设置 `DB_PASSWORD`、`REDIS_PASSWORD`、`JWT_SECRET`、`AI_JWT_SECRET`、两组首次管理员凭据、`CORS_ORIGIN` 和 `PAYMENT_MODE=production`。Nginx 配置仅提供 HTTP 反向代理；公网部署还应在其前方配置受管 TLS 或 HTTPS 终止。部署、备份、恢复和回滚细节见 `DEPLOYMENT.md` 与 `DOCKER-DEPLOYMENT.md`。
 
 ## 测试
 
 ```bash
 npm test
+npm run lint
+npm run build
 cd backend && npm test
 cd admin && npm test
+cd admin && npm run build
 cd admin && npx playwright test
 ```
 

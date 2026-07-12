@@ -4,6 +4,7 @@ import { createTestDb, seedTestData } from './helpers';
 const createApp = require('../app');
 const AuthService = require('../services/authService');
 const Analytics = require('../utils/analytics');
+const { generateToken } = require('../middleware/auth');
 
 let app: any;
 let db: any;
@@ -45,5 +46,13 @@ describe('Analytics API', () => {
   it('should reject dashboard without auth', async () => {
     const res = await request(app).get('/api/analytics/dashboard');
     expect(res.status).toBe(401);
+  });
+
+  it('should reject a customer token from revenue analytics', async () => {
+    const customerToken = generateToken(1, 'customer', 'customer');
+    const res = await request(app)
+      .get('/api/analytics/dashboard')
+      .set('Authorization', `Bearer ${customerToken}`);
+    expect(res.status).toBe(403);
   });
 });

@@ -1,13 +1,28 @@
+require('dotenv').config();
 const sqlite3 = require('sqlite3').verbose();
 const bcrypt = require('bcryptjs');
 const path = require('path');
+
+const username = process.env.INITIAL_ADMIN_USERNAME;
+const password = process.env.INITIAL_ADMIN_PASSWORD;
+const email = process.env.INITIAL_ADMIN_EMAIL || null;
+
+if (!username || !password) {
+  console.error('Set INITIAL_ADMIN_USERNAME and INITIAL_ADMIN_PASSWORD before creating an administrator.');
+  process.exitCode = 1;
+  return;
+}
+if (!/^[A-Za-z0-9_.-]{3,100}$/.test(username) || password.length < 12) {
+  console.error('Administrator usernames must be 3-100 URL-safe characters and passwords at least 12 characters.');
+  process.exitCode = 1;
+  return;
+}
 
 const dbPath = path.isAbsolute(process.env.DB_PATH || '')
   ? process.env.DB_PATH
   : path.join(__dirname, '..', process.env.DB_PATH || 'bearings.db');
 const db = new sqlite3.Database(dbPath);
 
-// 创建管理员表
 db.serialize(() => {
   db.run(`
     CREATE TABLE IF NOT EXISTS admins (
@@ -20,36 +35,38 @@ db.serialize(() => {
       last_login DATETIME
     )
   `);
-
-  // 检查是否已有管理员
-  db.get('SELECT COUNT(*) as count FROM admins', async (err, row) => {
-    if (err) {
-      console.error('检查管理员失败:', err);
+  db.get('SELECT COUNT(*) AS count FROM admins', async (error, row) => {
+    if (error) {
+      console.error('Unable to inspect administrators:', error.message);
+      db.close();
+      process.exitCode = 1;
+      return;
+    }
+    if (Number(row.count) > 0) {
+      console.log('An administrator already exists; refusing to create another bootstrap account.');
       db.close();
       return;
     }
 
-    if (row.count === 0) {
-      // 创建默认管理员账号
-      const defaultPassword = await bcrypt.hash('admin123', 10);
+    try {
+      const passwordHash = await bcrypt.hash(password, 10);
       db.run(
         'INSERT INTO admins (username, password, email, role) VALUES (?, ?, ?, ?)',
-        ['admin', defaultPassword, 'admin@bearing-sales.com', 'admin'],
-        (err) => {
-          if (err) {
-            console.error('创建默认管理员失败:', err);
+        [username, passwordHash, email, 'admin'],
+        (insertError) => {
+          if (insertError) {
+            console.error('Unable to create administrator:', insertError.message);
+            process.exitCode = 1;
           } else {
-            console.log('✓ 默认管理员账号已创建');
-            console.log('  用户名: admin');
-            console.log('  密码: admin123');
-            console.log('  请登录后立即修改密码！');
+            console.log(`Administrator ${username} created.`);
           }
           db.close();
         }
       );
-    } else {
-      console.log('✓ 管理员表已存在');
+    } catch (hashError) {
+      console.error('Unable to hash administrator password:', hashError.message);
       db.close();
+      process.exitCode = 1;
     }
   });
 });

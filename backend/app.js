@@ -55,6 +55,9 @@ function createApp(db, services = {}) {
   app.use(express.static(path.join(__dirname, 'public')));
 
   const { upload, imagesDir } = createUploadMiddleware();
+  const requireAIRole = aiAuthService
+    ? require('./middleware/aiAuth').createAIAuthMiddleware(aiAuthService)
+    : null;
 
   // ==================== Route mounting ====================
 
@@ -104,15 +107,8 @@ function createApp(db, services = {}) {
     app.use('/api/supply-chain', supplyChainRoutes);
   }
 
-  if (aiService) {
-    const aiRoutes = require('./routes/ai')(db, aiService);
-    app.use('/api/ai', aiRoutes);
-  }
-
   if (aiAuthService) {
-    const { createAIAuthMiddleware } = require('./middleware/aiAuth');
-    const requireAIRole = createAIAuthMiddleware(aiAuthService);
-    const aiAuthRoutes = require('./routes/ai-auth')(aiAuthService, requireAIRole);
+    const aiAuthRoutes = require('./routes/ai-auth')(aiAuthService, requireAIRole, db);
     app.use('/api/ai/auth', aiAuthRoutes);
 
     // Smart product modification (requires editor/admin role)
@@ -120,6 +116,11 @@ function createApp(db, services = {}) {
       const aiModifyRoutes = require('./routes/ai-modify')(db, aiService, aiAuthService, bearingService, requireAIRole);
       app.use('/api/ai/modify-product', aiModifyRoutes);
     }
+  }
+
+  if (aiService) {
+    const aiRoutes = require('./routes/ai')(db, aiService, requireAIRole);
+    app.use('/api/ai', aiRoutes);
   }
 
   // ==================== Error handling ====================

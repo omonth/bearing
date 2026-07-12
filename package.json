@@ -20,7 +20,6 @@
     "dev": "next dev -p 3000",
     "start": "next dev -p 3000",
     "build": "next build",
-    "export": "next build && next export",
     "lint": "eslint . --ext .ts,.tsx",
     "preview": "next start -p 3000",
     "perf:storefront": "node scripts/measure-storefront.mjs",

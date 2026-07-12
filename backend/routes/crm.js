@@ -113,7 +113,7 @@ module.exports = function(db, { customerService, couponService, pointsService })
     }
   });
 
-  router.post('/coupons/use', verifyToken, async (req, res, next) => {
+  router.post('/coupons/use', verifyToken, requireAdmin, async (req, res, next) => {
     try {
       if (!couponService) return res.status(500).json({ error: '优惠券服务未配置' });
       const { code, customerId, orderId } = req.body;

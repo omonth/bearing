@@ -5,7 +5,13 @@ const UnionPayProvider = require('./providers/UnionPayProvider');
 const SandboxProvider = require('./providers/SandboxProvider');
 const OrderLifecycleAdapter = require('./OrderLifecycleAdapter');
 const PaymentSettlement = require('./PaymentSettlement');
-const { NotFoundError, ValidationError, BusinessError } = require('../../utils/errors');
+const {
+  BusinessError,
+  ConflictError,
+  ForbiddenError,
+  NotFoundError,
+  ValidationError,
+} = require('../../utils/errors');
 
 class PaymentOrchestrator {
   constructor(db, orderService) {
@@ -18,16 +24,20 @@ class PaymentOrchestrator {
 
   enable() {
     const configStatus = checkConfig();
+    const isProduction = process.env.NODE_ENV === 'production';
+    if (isProduction && paymentConfig.mode !== 'production') {
+      throw new Error('生产环境必须将 PAYMENT_MODE 设置为 production');
+    }
 
     this.providers.alipay = configStatus.alipay
       ? new AlipayProvider(paymentConfig.alipay)
-      : new SandboxProvider('alipay');
+      : isProduction ? null : new SandboxProvider('alipay');
     this.providers.wechat = configStatus.wechat
       ? new WechatProvider(paymentConfig.wechat)
-      : new SandboxProvider('wechat');
+      : isProduction ? null : new SandboxProvider('wechat');
     this.providers.unionpay = configStatus.unionpay
       ? new UnionPayProvider(paymentConfig.unionpay)
-      : new SandboxProvider('unionpay');
+      : isProduction ? null : new SandboxProvider('unionpay');
 
     const enabled = Object.entries(configStatus).filter(([, v]) => v).map(([k]) => k).join(', ') || '无（全部沙箱）';
     console.log('[支付] 当前模式:', paymentConfig.mode);
@@ -36,7 +46,7 @@ class PaymentOrchestrator {
 
   _provider(method) {
     if (method === 'cod' || method === 'balance') return null;
-    return this.providers[method] || this.providers.alipay;
+    return this.providers[method] || null;
   }
 
   generateOrderNo() {
@@ -49,9 +59,44 @@ class PaymentOrchestrator {
 
   // ==================== 创建支付 ====================
 
-  async createPayment({ orderId, amount, paymentMethod, subject }) {
-    if (!orderId || !amount || !paymentMethod) {
-      throw new ValidationError('订单ID、金额和支付方式不能为空');
+  async _assertOrderAccess(order, actor) {
+    if (!actor) return;
+    if (actor.user?.role === 'admin' || actor.orderId === Number(order.id)) {
+      return;
+    }
+    if (actor.user?.role === 'customer') {
+      const customer = await this.db.get('SELECT phone FROM customers WHERE id = ?', [actor.user.userId]);
+      if (customer?.phone === order.customer_phone) {
+        return;
+      }
+    }
+    throw new ForbiddenError('无权访问该订单的支付信息');
+  }
+
+  async _getPayableAmount(queryable, order) {
+    const coupon = await queryable.get(
+      `SELECT c.type, c.discount_value, c.max_discount
+       FROM customer_coupons cc
+       JOIN coupons c ON c.id = cc.coupon_id
+       WHERE cc.used_order_id = ? AND cc.status = 'used'
+       ORDER BY cc.used_at DESC, cc.id DESC
+       LIMIT 1`,
+      [order.id]
+    );
+    if (!coupon) return Number(order.total_price);
+
+    let discount = coupon.type === 'percentage'
+      ? Number(order.total_price) * (Number(coupon.discount_value) / 100)
+      : Number(coupon.discount_value);
+    if (coupon.max_discount !== null && coupon.max_discount !== undefined) {
+      discount = Math.min(discount, Number(coupon.max_discount));
+    }
+    return Math.max(0, Math.round((Number(order.total_price) - discount) * 100) / 100);
+  }
+
+  async createPayment({ orderId, paymentMethod, subject }, actor) {
+    if (!orderId || !paymentMethod) {
+      throw new ValidationError('订单ID和支付方式不能为空');
     }
 
     const validMethods = ['alipay', 'wechat', 'unionpay', 'cod', 'balance'];
@@ -59,16 +104,40 @@ class PaymentOrchestrator {
       throw new ValidationError(`不支持的支付方式: ${paymentMethod}`);
     }
 
-    const orderNo = this.generateOrderNo();
-    const result = await this.db.run(
-      'INSERT INTO payment_orders (order_id, payment_method, amount, status, transaction_id) VALUES (?, ?, ?, ?, ?)',
-      [orderId, paymentMethod, amount, 'pending', orderNo]
-    );
-
-    const paymentOrderId = result.lastID;
-    const paymentInfo = { orderNo, paymentOrderId, paymentMethod };
+    const requestedOrder = await this.db.get('SELECT * FROM orders WHERE id = ?', [orderId]);
+    if (!requestedOrder) throw new NotFoundError('订单');
+    await this._assertOrderAccess(requestedOrder, actor);
 
     const provider = this._provider(paymentMethod);
+    if (!['cod', 'balance'].includes(paymentMethod) && !provider) {
+      throw new BusinessError('该支付方式尚未配置');
+    }
+
+    const paymentRecord = await this.db.transaction(async (tx) => {
+      const order = await tx.get('SELECT * FROM orders WHERE id = ?', [orderId]);
+      if (!order) throw new NotFoundError('订单');
+      if (order.status !== 'pending') {
+        throw new BusinessError('只有待支付订单可以创建支付单', 409, 'ORDER_NOT_PAYABLE');
+      }
+      const existingPayment = await tx.get(
+        "SELECT id FROM payment_orders WHERE order_id = ? AND status IN ('pending', 'processing')",
+        [orderId]
+      );
+      if (existingPayment) {
+        throw new ConflictError('该订单已有待处理支付单');
+      }
+
+      const amount = await this._getPayableAmount(tx, order);
+      const orderNo = this.generateOrderNo();
+      const result = await tx.run(
+        'INSERT INTO payment_orders (order_id, payment_method, amount, status, transaction_id) VALUES (?, ?, ?, ?, ?)',
+        [orderId, paymentMethod, amount, 'pending', orderNo]
+      );
+      return { amount, orderNo, paymentOrderId: result.lastID };
+    });
+
+    const { amount, orderNo, paymentOrderId } = paymentRecord;
+    const paymentInfo = { amount, orderNo, paymentOrderId, paymentMethod };
 
     try {
       if (paymentMethod === 'cod') {
@@ -91,9 +160,12 @@ class PaymentOrchestrator {
 
   // ==================== 查询支付状态 ====================
 
-  async queryPaymentStatus(paymentOrderId) {
+  async queryPaymentStatus(paymentOrderId, actor) {
     const po = await this.settlement.getPaymentOrder(paymentOrderId);
     if (!po) throw new NotFoundError('支付订单');
+    const order = await this.db.get('SELECT * FROM orders WHERE id = ?', [po.order_id]);
+    if (!order) throw new NotFoundError('订单');
+    await this._assertOrderAccess(order, actor);
     return {
       id: po.id, orderId: po.order_id, paymentMethod: po.payment_method,
       amount: po.amount, status: po.status, transactionId: po.transaction_id,
@@ -105,9 +177,12 @@ class PaymentOrchestrator {
     return await this.db.get('SELECT * FROM payment_orders WHERE transaction_id = ?', [transactionId]);
   }
 
-  async queryExternalStatus(paymentOrderId) {
+  async queryExternalStatus(paymentOrderId, actor) {
     const po = await this.settlement.getPaymentOrder(paymentOrderId);
     if (!po) throw new NotFoundError('支付订单');
+    const order = await this.db.get('SELECT * FROM orders WHERE id = ?', [po.order_id]);
+    if (!order) throw new NotFoundError('订单');
+    await this._assertOrderAccess(order, actor);
     if (po.status === 'paid') return { status: 'paid', message: '已支付' };
 
     const provider = this._provider(po.payment_method);
@@ -118,6 +193,9 @@ class PaymentOrchestrator {
     try {
       const result = await provider.queryStatus({ paymentOrder: po });
       if (result.status === 'paid') {
+        if (result.amount === undefined || Number(result.amount) !== Number(po.amount)) {
+          return { status: po.status, message: '支付金额校验失败' };
+        }
         const settleResult = await this.settlement.settlePaid(paymentOrderId, {
           tradeNo: result.tradeNo,
           payer: result.payer || {},
@@ -137,12 +215,18 @@ class PaymentOrchestrator {
 
   async handleCallback(method, params, headers) {
     const provider = this._provider(method);
+    if (!provider || provider instanceof SandboxProvider) {
+      throw new BusinessError('当前环境不接受该支付回调', 403, 'PAYMENT_CALLBACK_DISABLED');
+    }
     const cbResult = await provider.handleCallback(params, headers);
 
     const po = await this.db.get('SELECT * FROM payment_orders WHERE transaction_id = ?', [cbResult.transactionId]);
     if (!po) throw new NotFoundError('支付订单');
 
     if (cbResult.status === 'paid') {
+      if (cbResult.amount === undefined || Number(cbResult.amount) !== Number(po.amount)) {
+        throw new BusinessError('支付回调金额与支付单不一致', 400, 'PAYMENT_AMOUNT_MISMATCH');
+      }
       const result = await this.settlement.settlePaid(po.id, {
         tradeNo: cbResult.tradeNo,
         payer: cbResult.payer || {},
@@ -163,6 +247,9 @@ class PaymentOrchestrator {
   // ==================== 模拟支付 ====================
 
   async simulatePayment(paymentOrderId) {
+    if (paymentConfig.mode !== 'sandbox') {
+      throw new ForbiddenError('生产环境不允许模拟支付');
+    }
     const po = await this.settlement.getPaymentOrder(paymentOrderId);
     if (!po) throw new NotFoundError('支付订单');
 
@@ -184,21 +271,30 @@ class PaymentOrchestrator {
     const po = await this.settlement.getPaymentOrder(paymentOrderId);
     if (!po) throw new NotFoundError('支付订单');
     if (po.status !== 'paid') throw new BusinessError('只有已支付的订单才能退款');
-    if (parseFloat(amount) > parseFloat(po.amount)) throw new BusinessError('退款金额不能超过支付金额');
+    const refundAmount = Number(amount);
+    if (!Number.isFinite(refundAmount) || refundAmount <= 0) {
+      throw new ValidationError('退款金额无效');
+    }
+    if (refundAmount > Number(po.amount)) {
+      throw new BusinessError('退款金额不能超过支付金额');
+    }
+    if (refundAmount !== Number(po.amount)) {
+      throw new BusinessError('当前仅支持整单退款', 400, 'PARTIAL_REFUND_UNSUPPORTED');
+    }
 
     const refundNo = this.generateRefundNo();
 
     const provider = this._provider(po.payment_method);
     if (provider && !(provider instanceof SandboxProvider)) {
-      await provider.createRefund({ paymentOrder: po, amount, reason, refundNo });
+      await provider.createRefund({ paymentOrder: po, amount: refundAmount, reason, refundNo });
     }
 
-    const result = await this.settlement.settleRefund(paymentOrderId, { amount, reason, refundNo });
+    const result = await this.settlement.settleRefund(paymentOrderId, { amount: refundAmount, reason, refundNo });
     if (!result.success) {
       throw new BusinessError(result.error);
     }
 
-    return { refundId: result.refundId, refundNo, amount, status: 'success', message: '退款成功' };
+    return { refundId: result.refundId, refundNo, amount: refundAmount, status: 'success', message: '退款成功' };
   }
 
   // ==================== 列表和统计 ====================

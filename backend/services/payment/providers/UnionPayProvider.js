@@ -78,9 +78,14 @@ class UnionPayProvider extends PaymentProvider {
 
   async handleCallback(params) {
     if (!this._verifySign(params)) throw new Error('银联回调签名验证失败');
-    const { orderId, respCode, queryId } = params;
+    const { orderId, respCode, queryId, txnAmt } = params;
     if (respCode === '00') {
-      return { transactionId: orderId, status: 'paid', tradeNo: queryId || '' };
+      return {
+        transactionId: orderId,
+        status: 'paid',
+        tradeNo: queryId || '',
+        amount: Number(txnAmt) / 100,
+      };
     }
     return { transactionId: orderId, status: 'failed' };
   }

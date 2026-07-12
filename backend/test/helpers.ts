@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 
 export async function createTestDb() {
   const sqliteDb = new sqlite3.Database(':memory:');
+  sqliteDb.run('PRAGMA foreign_keys = ON');
 
   const db = {
     type: 'sqlite',

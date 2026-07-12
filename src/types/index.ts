@@ -29,10 +29,15 @@ export interface Order {
   id: number;
   customer_name: string;
   customer_phone: string;
-  customer_address: string;
+  province: string;
+  city: string;
+  district?: string;
+  address_detail: string;
   total_price: number;
   status: 'pending' | 'paid' | 'shipped' | 'completed' | 'cancelled';
   tracking_number?: string;
+  shipped_at?: string;
+  completed_at?: string;
   created_at: string;
 }
 

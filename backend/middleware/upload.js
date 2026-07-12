@@ -50,8 +50,10 @@ async function validateMime(filePath) {
       return { valid: false, error: '文件类型不被允许' };
     }
     return { valid: true };
-  } catch {
-    return { valid: true };
+  } catch (err) {
+    // Fail closed — if we cannot verify the file type, reject the upload
+    try { fs.unlinkSync(filePath); } catch { /* ignore cleanup errors */ }
+    return { valid: false, error: '无法验证文件类型' };
   }
 }
 

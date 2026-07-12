@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS payment_orders (
     id SERIAL PRIMARY KEY,
     order_id INTEGER NOT NULL,
     payment_method VARCHAR(20) NOT NULL,
-    amount DECIMAL(10, 2) NOT NULL,
+    amount DECIMAL(10, 2) NOT NULL CHECK (amount >= 0),
     status VARCHAR(20) DEFAULT 'pending',
     transaction_id VARCHAR(100),
     trade_no VARCHAR(100),
@@ -16,6 +16,9 @@ CREATE TABLE IF NOT EXISTS payment_orders (
 CREATE INDEX IF NOT EXISTS idx_payment_orders_order ON payment_orders(order_id);
 CREATE INDEX IF NOT EXISTS idx_payment_orders_status ON payment_orders(status);
 CREATE INDEX IF NOT EXISTS idx_payment_orders_trade_no ON payment_orders(trade_no);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_payment_orders_active_order
+    ON payment_orders(order_id)
+    WHERE status IN ('pending', 'processing');
 
 -- 退款记录表
 CREATE TABLE IF NOT EXISTS refund_records (

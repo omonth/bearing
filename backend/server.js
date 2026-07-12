@@ -74,7 +74,10 @@ const app = createApp(db, {
   supplyChainService,
 });
 
-app.listen(PORT, '0.0.0.0', () => {
+authService.bootstrapInitialAdmin().then(() => app.listen(PORT, '0.0.0.0', () => {
   console.log(`后端服务器运行在端口 ${PORT}`);
   logger.info('服务器启动', { port: PORT, env: process.env.NODE_ENV || 'development' });
+})).catch((error) => {
+  logger.error('管理员初始化失败，服务未启动', { error: error.message });
+  process.exitCode = 1;
 });

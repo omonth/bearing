@@ -29,7 +29,6 @@ export default function CheckoutPage() {
     submitting,
     paymentStatus,
     selectedCoupon,
-    couponDiscount,
     setField,
     setProvince,
     setPaymentMethod,
@@ -42,10 +41,13 @@ export default function CheckoutPage() {
 
   const { token } = useAuthStore();
   const [coupons, setCoupons] = useState<any[]>([]);
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Reactive selectors — only re-render when their specific slice changes
   const totalPrice = useTotalPrice();
+  const totalCount = useTotalCount();
   const cities = useCities();
+  const provinces = useAllProvinces();
 
   // Load coupons
   useEffect(() => {
@@ -73,33 +75,34 @@ export default function CheckoutPage() {
   const stepIndex = checkoutStep === "cart" ? 0 : checkoutStep === "form" ? 1 : 2;
 
   const handleSubmitOrder = async () => {
+    setFormError(null);
     const phoneRegex = /^1[3-9]\d{9}$/;
     if (!phoneRegex.test(customerPhone)) {
-      alert("请输入正确的手机号");
+      setFormError("请输入正确的手机号");
       return;
     }
     if (!customerName.trim()) {
-      alert("请填写收货人姓名");
+      setFormError("请填写收货人姓名");
       return;
     }
     if (!province || !city) {
-      alert("请选择省份和城市");
+      setFormError("请选择省份和城市");
       return;
     }
     if (!addressDetail.trim()) {
-      alert("请填写详细地址");
+      setFormError("请填写详细地址");
       return;
     }
     try {
-      await submitOrder(items, totalPrice);
+      await submitOrder(items);
     } catch (error: any) {
-      alert(error.message || "下单失败");
+      setFormError(error.message || "下单失败");
     }
   };
 
   const handleComplete = () => {
     resetCheckout();
-    if (paymentStatus === "paid") {
+    if (paymentStatus === "paid" || paymentMethod === "cod") {
       clearCart();
     }
     router.push("/account");
@@ -124,7 +127,7 @@ export default function CheckoutPage() {
         <title>结账 - 轴承商城</title>
       </Head>
       <div className="min-h-screen bg-neutral-950">
-        <Header cartCount={useTotalCount()} onCartClick={toggleCart} />
+        <Header cartCount={totalCount} onCartClick={toggleCart} />
 
         <main className="max-w-3xl mx-auto px-6 py-8">
           {/* Step progress bar */}
@@ -188,16 +191,17 @@ export default function CheckoutPage() {
           {checkoutStep === "form" && (
             <AddressFormStep
               values={addressValues}
-              provinces={useAllProvinces()}
+              provinces={provinces}
               cities={cities}
               finalPrice={finalPrice}
               discountAmount={discountAmount}
               submitting={submitting}
+              formError={formError}
               onChangeField={setField}
               onSelectProvince={setProvince}
               onSelectPaymentMethod={setPaymentMethod}
               onSubmit={handleSubmitOrder}
-              onBack={() => setCheckoutStep("cart")}
+              onBack={() => { setFormError(null); setCheckoutStep("cart"); }}
             />
           )}
 
@@ -207,7 +211,6 @@ export default function CheckoutPage() {
               paymentStatus={paymentStatus}
               paymentInfo={paymentInfo}
               paymentMethod={paymentMethod}
-              totalPrice={totalPrice}
               onComplete={handleComplete}
             />
           )}

@@ -6,13 +6,16 @@ on:
   pull_request:
     branches: [ main ]
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
 
     strategy:
       matrix:
-        node-version: [20.x]
+        node-version: [22.x]
       fail-fast: true
 
     steps:
@@ -36,11 +39,17 @@ jobs:
     - name: 运行前端测试
       run: npm test
 
+    - name: 检查前端代码风格
+      run: npm run lint
+
     - name: 运行后端测试
       run: cd backend && npm test
 
     - name: 运行管理后台测试
       run: cd admin && npm test
+
+    - name: 构建管理后台
+      run: cd admin && npm run build
 
     - name: 构建前端
       run: npm run build
@@ -49,6 +58,8 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    outputs:
+      images_published: ${{ steps.guard.outputs.enabled }}
 
     steps:
     - uses: actions/checkout@v4
@@ -56,12 +67,13 @@ jobs:
     - name: 检查 Docker Hub 密钥
       id: guard
       env:
-        USER: ${{ secrets.DOCKER_USERNAME }}
+        DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+        DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
       run: |
-        if [ -n "$USER" ]; then
+        if [ -n "$DOCKER_USERNAME" ] && [ -n "$DOCKER_PASSWORD" ]; then
           echo "enabled=true" >> $GITHUB_OUTPUT
         else
-          echo "Docker Hub 密钥未配置，跳过镜像构建"
+          echo "Docker Hub 用户名或密码未配置，跳过镜像构建"
           echo "enabled=false" >> $GITHUB_OUTPUT
         fi
 
@@ -100,33 +112,53 @@ jobs:
         cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/bearing-sales-frontend:buildcache
         cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/bearing-sales-frontend:buildcache,mode=max
 
+    - name: 构建并推送向量服务镜像
+      if: steps.guard.outputs.enabled == 'true'
+      uses: docker/build-push-action@v4
+      with:
+        context: ./backend/vector-service
+        push: true
+        tags: |
+          ${{ secrets.DOCKER_USERNAME }}/bearing-sales-vector:latest
+          ${{ secrets.DOCKER_USERNAME }}/bearing-sales-vector:${{ github.sha }}
+        cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/bearing-sales-vector:buildcache
+        cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/bearing-sales-vector:buildcache,mode=max
+
   deploy:
     needs: build
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.build.outputs.images_published == 'true'
 
     steps:
     - name: 检查部署密钥
       id: guard
       env:
-        HOST: ${{ secrets.DEPLOY_HOST }}
+        DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
       run: |
-        if [ -n "$HOST" ]; then
+        if [ -n "$DEPLOY_HOST" ] && [ -n "$DEPLOY_USER" ] && [ -n "$DEPLOY_KEY" ]; then
           echo "enabled=true" >> $GITHUB_OUTPUT
         else
-          echo "部署密钥未配置，跳过部署"
+          echo "部署主机、用户或密钥未配置，跳过部署"
           echo "enabled=false" >> $GITHUB_OUTPUT
         fi
 
     - name: 部署到服务器
       if: steps.guard.outputs.enabled == 'true'
       uses: appleboy/ssh-action@master
+      env:
+        BACKEND_IMAGE: ${{ secrets.DOCKER_USERNAME }}/bearing-sales-backend:${{ github.sha }}
+        FRONTEND_IMAGE: ${{ secrets.DOCKER_USERNAME }}/bearing-sales-frontend:${{ github.sha }}
+        VECTOR_SERVICE_IMAGE: ${{ secrets.DOCKER_USERNAME }}/bearing-sales-vector:${{ github.sha }}
       with:
         host: ${{ secrets.DEPLOY_HOST }}
         username: ${{ secrets.DEPLOY_USER }}
         key: ${{ secrets.DEPLOY_KEY }}
+        envs: BACKEND_IMAGE,FRONTEND_IMAGE,VECTOR_SERVICE_IMAGE
         script: |
+          set -eu
           cd /opt/bearing-sales
-          docker-compose pull
-          docker-compose up -d
-          docker system prune -f
+          test -f .env.production
+          docker compose --env-file .env.production pull
+          docker compose --env-file .env.production up -d --no-build --remove-orphans

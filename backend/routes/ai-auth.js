@@ -1,7 +1,7 @@
 const express = require('express');
 const logger = require('../logger');
 
-module.exports = function(aiAuthService, requireAIRole) {
+module.exports = function(aiAuthService, requireAIRole, db) {
   const router = express.Router();
 
   // Login

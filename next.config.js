@@ -1,4 +1,8 @@
 /** @type {import('next').NextConfig} */
+const defaultApiUrl = 'http://localhost:3001/api';
+const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
+const apiUrl = (configuredApiUrl || defaultApiUrl).replace(/\/+$/, '');
+
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
@@ -35,7 +39,7 @@ const nextConfig = {
     return [
       {
         source: '/api/:path*',
-        destination: `${process.env.REACT_APP_API_URL || 'http://localhost:3001/api'}/:path*`
+        destination: `${apiUrl}/:path*`
       },
       {
         source: '/images/:path*',

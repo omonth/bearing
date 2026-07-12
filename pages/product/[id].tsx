@@ -16,6 +16,7 @@ export default function ProductPage() {
     currentProduct: product,
     similarProducts: similar,
     detailLoading: loading,
+    detailError: error,
     fetchProductDetail,
   } = useProductDetailStore();
 
@@ -53,14 +54,29 @@ export default function ProductPage() {
     return (
       <div className="min-h-screen bg-neutral-950">
         <Header cartCount={totalCount} onCartClick={toggleCart} />
-        <div className="flex flex-col items-center justify-center py-20 gap-4">
-          <h2 className="text-lg font-medium text-neutral-300">产品未找到</h2>
-          <button
-            onClick={() => router.push("/")}
-            className="px-4 py-2 text-sm font-medium text-neutral-950 bg-amber-500 hover:bg-amber-400 rounded-md transition-colors"
-          >
-            返回首页
-          </button>
+        <div className="flex flex-col items-center justify-center py-20 gap-4 px-6">
+          {error ? (
+            <>
+              <h2 className="text-lg font-medium text-red-400">加载失败</h2>
+              <p className="text-sm text-neutral-400">{error}</p>
+              <button
+                onClick={() => fetchProductDetail(Number(id))}
+                className="mt-2 px-4 py-2 text-sm font-medium text-neutral-950 bg-amber-500 hover:bg-amber-400 rounded-md transition-colors"
+              >
+                重试
+              </button>
+            </>
+          ) : (
+            <>
+              <h2 className="text-lg font-medium text-neutral-300">产品未找到</h2>
+              <button
+                onClick={() => router.push("/")}
+                className="px-4 py-2 text-sm font-medium text-neutral-950 bg-amber-500 hover:bg-amber-400 rounded-md transition-colors"
+              >
+                返回首页
+              </button>
+            </>
+          )}
         </div>
       </div>
     );

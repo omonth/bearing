@@ -1,11 +1,22 @@
 import { create } from 'zustand';
-import { applyCustomerCoupon, createOrder, createPayment, queryPaymentStatus } from '@/lib/api';
+import {
+  applyCustomerCoupon,
+  createOrder,
+  createPayment,
+  queryPaymentStatus,
+  type PaymentResponse,
+} from '@/lib/api';
 import { REGION_DATA, ALL_PROVINCES } from '@/data/regions';
 import type { CartItem } from '@/types';
 
 export type CheckoutStep = 'cart' | 'form' | 'payment';
 export type PaymentMethod = 'alipay' | 'wechat' | 'unionpay' | 'cod';
-export type PaymentStatus = 'pending' | 'paid';
+export type PaymentStatus = 'pending' | 'processing' | 'paid';
+
+export type CheckoutPaymentInfo = Omit<PaymentResponse, 'paymentMethod'> & {
+  orderAccessToken: string;
+  paymentMethod: PaymentMethod;
+};
 
 interface CheckoutStore {
   customerName: string;
@@ -16,7 +27,7 @@ interface CheckoutStore {
   addressDetail: string;
   paymentMethod: PaymentMethod;
   checkoutStep: CheckoutStep;
-  paymentInfo: any;
+  paymentInfo: CheckoutPaymentInfo | null;
   submitting: boolean;
   paymentStatus: PaymentStatus;
   selectedCoupon: string;
@@ -27,7 +38,7 @@ interface CheckoutStore {
   setPaymentMethod: (method: PaymentMethod) => void;
   setCheckoutStep: (step: CheckoutStep) => void;
   setSelectedCoupon: (code: string) => void;
-  submitOrder: (items: CartItem[], totalPrice: number) => Promise<void>;
+  submitOrder: (items: CartItem[]) => Promise<void>;
   resetCheckout: () => void;
   clearPolling: () => void;
 }
@@ -66,7 +77,7 @@ export const useCheckoutStore = create<CheckoutStore>()((set, get) => ({
 
   setSelectedCoupon: (code) => set({ selectedCoupon: code, couponDiscount: 0 }),
 
-  submitOrder: async (items, totalPrice) => {
+  submitOrder: async (items) => {
     const state = get();
     if (!state.customerName || !state.customerPhone || !state.province || !state.city || !state.district || !state.addressDetail) {
       throw new Error('请填写完整的收货信息');
@@ -84,10 +95,12 @@ export const useCheckoutStore = create<CheckoutStore>()((set, get) => ({
         items: items.map(item => ({
           id: item.id,
           quantity: item.quantity,
-          price: item.price,
         })),
-        totalPrice: Math.max(0, totalPrice),
       });
+
+      if (!orderResult.orderAccessToken) {
+        throw new Error('订单支付授权信息缺失，请重新提交订单');
+      }
 
       // Apply coupon if selected — must run before payment
       let discountAmount = 0;
@@ -101,40 +114,45 @@ export const useCheckoutStore = create<CheckoutStore>()((set, get) => ({
         } catch {}
       }
 
-      const paymentAmount = Math.max(0, Math.round((totalPrice - discountAmount) * 100) / 100);
-
       const payment = await createPayment({
         orderId: orderResult.orderId,
-        amount: paymentAmount,
         paymentMethod: state.paymentMethod,
         subject: `订单 #${orderResult.orderId}`,
-      });
+      }, orderResult.orderAccessToken);
 
-      const paymentInfo = {
+      const paymentInfo: CheckoutPaymentInfo = {
         ...payment,
-        amount: paymentAmount,
-        paymentOrderId: payment.paymentOrderId,
+        orderAccessToken: orderResult.orderAccessToken,
+        paymentMethod: state.paymentMethod,
       };
+      const isCashOnDelivery = paymentInfo.paymentMethod === 'cod';
 
       set({
         paymentInfo,
         checkoutStep: 'payment',
         submitting: false,
-        paymentStatus: 'pending',
+        paymentStatus: isCashOnDelivery ? 'processing' : 'pending',
       });
 
-      // Start polling
       clearPolling();
+      if (isCashOnDelivery) {
+        return;
+      }
+
+      // Start polling for online payments only.
       pollingTimer = setInterval(async () => {
         try {
-          const result = await queryPaymentStatus(paymentInfo.paymentOrderId);
+          const result = await queryPaymentStatus(
+            paymentInfo.paymentOrderId,
+            paymentInfo.orderAccessToken
+          );
           if (result.status === 'paid') {
             set({ paymentStatus: 'paid' });
             clearPolling();
           }
         } catch {}
       }, 2000);
-    } catch (error: any) {
+    } catch (error) {
       set({ submitting: false });
       throw error;
     }

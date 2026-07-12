@@ -1,5 +1,4 @@
 const sqlite3 = require('sqlite3').verbose();
-const bcrypt = require('bcryptjs');
 const path = require('path');
 
 const dbPath = path.isAbsolute(process.env.DB_PATH || '')
@@ -8,8 +7,6 @@ const dbPath = path.isAbsolute(process.env.DB_PATH || '')
 const db = new sqlite3.Database(dbPath);
 
 async function initializeDatabase() {
-  const passwordHash = await bcrypt.hash('admin123', 10);
-
   await new Promise((resolve, reject) => {
     db.serialize(() => {
   db.run(`
@@ -23,7 +20,7 @@ async function initializeDatabase() {
       inner_diameter TEXT NOT NULL,
       outer_diameter TEXT NOT NULL,
       width TEXT NOT NULL,
-      stock INTEGER NOT NULL DEFAULT 0,
+      stock INTEGER NOT NULL DEFAULT 0 CHECK (stock >= 0),
       description TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -41,6 +38,9 @@ async function initializeDatabase() {
       address_detail TEXT,
       total_price REAL NOT NULL,
       status TEXT DEFAULT 'pending',
+      tracking_number TEXT,
+      shipped_at DATETIME,
+      completed_at DATETIME,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
@@ -50,10 +50,57 @@ async function initializeDatabase() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       order_id INTEGER NOT NULL,
       bearing_id INTEGER NOT NULL,
-      quantity INTEGER NOT NULL,
-      price REAL NOT NULL,
+      quantity INTEGER NOT NULL CHECK (quantity > 0),
+      price REAL NOT NULL CHECK (price >= 0),
       FOREIGN KEY (order_id) REFERENCES orders(id),
       FOREIGN KEY (bearing_id) REFERENCES bearings(id)
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS order_status_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      order_id INTEGER NOT NULL,
+      old_status TEXT,
+      new_status TEXT NOT NULL,
+      note TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS payment_orders (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      order_id INTEGER NOT NULL,
+      payment_method TEXT NOT NULL,
+      amount REAL NOT NULL CHECK (amount >= 0),
+      status TEXT NOT NULL DEFAULT 'pending',
+      transaction_id TEXT UNIQUE,
+      trade_no TEXT,
+      payer_info TEXT,
+      paid_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE RESTRICT
+    )
+  `);
+  db.run(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_payment_orders_active_order
+    ON payment_orders(order_id)
+    WHERE status IN ('pending', 'processing')
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS refund_records (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      payment_order_id INTEGER NOT NULL,
+      refund_amount REAL NOT NULL CHECK (refund_amount >= 0),
+      refund_reason TEXT,
+      status TEXT NOT NULL DEFAULT 'pending',
+      refund_no TEXT UNIQUE,
+      refunded_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (payment_order_id) REFERENCES payment_orders(id) ON DELETE RESTRICT
     )
   `);
 
@@ -136,6 +183,11 @@ async function initializeDatabase() {
       FOREIGN KEY (coupon_id) REFERENCES coupons(id) ON DELETE CASCADE
     )
   `);
+  db.run(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_customer_coupons_one_used_per_order
+    ON customer_coupons(used_order_id)
+    WHERE used_order_id IS NOT NULL AND status = 'used'
+  `);
 
   db.run(`
     CREATE TABLE IF NOT EXISTS customer_tags (
@@ -171,6 +223,21 @@ async function initializeDatabase() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       replied_at DATETIME,
       FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Notifications table (in-app admin notifications)
+  db.run(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      type TEXT NOT NULL DEFAULT 'system',
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      is_read INTEGER NOT NULL DEFAULT 0,
+      source_type TEXT,
+      source_id INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
@@ -260,7 +327,8 @@ async function initializeDatabase() {
 
   stmt.finalize();
 
-  // Create admins table and seed default admin
+  // Create the admin table. A first administrator is bootstrapped by server.js
+  // only when INITIAL_ADMIN_USERNAME and INITIAL_ADMIN_PASSWORD are supplied.
   db.run(`
     CREATE TABLE IF NOT EXISTS admins (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -273,11 +341,6 @@ async function initializeDatabase() {
     )
   `);
 
-  db.run(
-    'INSERT OR IGNORE INTO admins (username, password, email, role) VALUES (?, ?, ?, ?)',
-    ['admin', passwordHash, 'admin@bearing-sales.com', 'admin']
-  );
-
   console.log('数据库初始化完成！');
   console.log('已创建以下表：');
   console.log('- admins (管理员表)');
@@ -285,7 +348,7 @@ async function initializeDatabase() {
   console.log('- orders (订单表)');
   console.log('- order_items (订单项表)');
   console.log(`已插入 ${bearingsData.length} 条轴承数据`);
-  console.log('默认管理员: admin / admin123');
+  console.log('请通过 INITIAL_ADMIN_USERNAME 和 INITIAL_ADMIN_PASSWORD 安全创建首个管理员');
       db.close((error) => {
         if (error) {
           reject(error);

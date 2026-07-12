@@ -7,27 +7,54 @@ class OrderService {
     this.clearCache = clearCacheFn || (() => {});
   }
 
-  async create({ customerName, customerPhone, province, city, district, addressDetail, items }) {
+  async create({ customerName, customerPhone, province, city, district, addressDetail, items, customerId }) {
     const result = await this.db.transaction(async (tx) => {
-      const checkedItems = [];
-      for (const item of items) {
-        const row = await tx.get('SELECT stock, price FROM bearings WHERE id = ?', [item.id]);
-        if (!row) throw new NotFoundError('产品');
-        if (row.stock < item.quantity) throw new BusinessError('库存不足');
-        checkedItems.push({ id: item.id, quantity: item.quantity, price: row.price });
+      let resolvedCustomerName = customerName;
+      let resolvedCustomerPhone = customerPhone;
+      if (customerId) {
+        const customer = await tx.get('SELECT name, phone FROM customers WHERE id = ?', [customerId]);
+        if (!customer) throw new NotFoundError('客户');
+        resolvedCustomerName = customer.name || customer.phone;
+        resolvedCustomerPhone = customer.phone;
       }
+
+      const quantitiesByBearingId = new Map();
+      for (const item of items) {
+        quantitiesByBearingId.set(item.id, (quantitiesByBearingId.get(item.id) || 0) + item.quantity);
+      }
+
+      const checkedItems = [];
+      for (const [bearingId, quantity] of quantitiesByBearingId) {
+        const row = await tx.get('SELECT price FROM bearings WHERE id = ?', [bearingId]);
+        if (!row) throw new NotFoundError('产品');
+
+        // The conditional update is the inventory reservation. It remains safe
+        // with duplicate line items and concurrent PostgreSQL transactions.
+        const stockResult = await tx.run(
+          'UPDATE bearings SET stock = stock - ? WHERE id = ? AND stock >= ?',
+          [quantity, bearingId, quantity]
+        );
+        if (!stockResult || stockResult.changes !== 1) {
+          throw new BusinessError('库存不足');
+        }
+        checkedItems.push({ id: bearingId, quantity, price: row.price });
+      }
+
       const totalPrice = checkedItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
       const orderResult = await tx.run(
         'INSERT INTO orders (customer_name, customer_phone, province, city, district, address_detail, total_price) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [customerName, customerPhone, province, city, district, addressDetail, totalPrice]
+        [resolvedCustomerName, resolvedCustomerPhone, province, city, district, addressDetail, totalPrice]
       );
       const orderId = orderResult.lastID;
       for (const item of checkedItems) {
-        await tx.run('INSERT INTO order_items (order_id, bearing_id, quantity, price) VALUES (?, ?, ?, ?)', [orderId, item.id, item.quantity, item.price]);
-        await tx.run('UPDATE bearings SET stock = stock - ? WHERE id = ?', [item.quantity, item.id]);
+        await tx.run(
+          'INSERT INTO order_items (order_id, bearing_id, quantity, price) VALUES (?, ?, ?, ?)',
+          [orderId, item.id, item.quantity, item.price]
+        );
       }
-      return { orderId, customerName, totalPrice };
+      return { orderId, customerName: resolvedCustomerName, totalPrice };
     });
+    this.clearCache('bearings:*');
     logger.info('订单创建成功', { orderId: result.orderId, customerName: result.customerName, totalPrice: result.totalPrice });
     return { orderId: result.orderId, message: '订单创建成功' };
   }
@@ -51,28 +78,73 @@ class OrderService {
     return order;
   }
 
-  async updateStatus(orderId, newStatus, note, trackingNumber) {
-    const order = await this.db.get('SELECT status FROM orders WHERE id = ?', [orderId]);
+  async _updateStatusInTransaction(tx, orderId, newStatus, note, trackingNumber) {
+    const order = await tx.get('SELECT status FROM orders WHERE id = ?', [orderId]);
     if (!order) throw new NotFoundError('订单');
     const oldStatus = order.status;
 
+    if (oldStatus === newStatus) {
+      return { oldStatus, newStatus, restoredStock: false, updated: false };
+    }
+
+    const transitions = {
+      pending: new Set(['paid', 'cancelled']),
+      paid: new Set(['shipped', 'completed', 'cancelled']),
+      shipped: new Set(['completed']),
+      completed: new Set(),
+      cancelled: new Set(),
+    };
+    if (!transitions[oldStatus]?.has(newStatus)) {
+      throw new BusinessError(`订单状态不能从 ${oldStatus} 变更为 ${newStatus}`, 409, 'INVALID_STATUS_TRANSITION');
+    }
+
     let updateQuery = 'UPDATE orders SET status = ?';
-    let params = [newStatus];
+    const params = [newStatus];
     if (newStatus === 'shipped') {
       updateQuery += ', shipped_at = CURRENT_TIMESTAMP';
-      if (trackingNumber) { updateQuery += ', tracking_number = ?'; params.push(trackingNumber); }
+      if (trackingNumber) {
+        updateQuery += ', tracking_number = ?';
+        params.push(trackingNumber);
+      }
     }
-    if (newStatus === 'completed') { updateQuery += ', completed_at = CURRENT_TIMESTAMP'; }
-    updateQuery += ' WHERE id = ?';
-    params.push(orderId);
+    if (newStatus === 'completed') {
+      updateQuery += ', completed_at = CURRENT_TIMESTAMP';
+    }
+    updateQuery += ' WHERE id = ? AND status = ?';
+    params.push(orderId, oldStatus);
+    const updateResult = await tx.run(updateQuery, params);
+    if (!updateResult || updateResult.changes !== 1) {
+      throw new BusinessError('订单状态已被并发更新', 409, 'ORDER_STATUS_CONFLICT');
+    }
 
-    await this.db.run(updateQuery, params);
-    await this.db.run(
+    let restoredStock = false;
+    if (newStatus === 'cancelled') {
+      const items = await tx.all('SELECT bearing_id, quantity FROM order_items WHERE order_id = ?', [orderId]);
+      for (const item of items) {
+        await tx.run('UPDATE bearings SET stock = stock + ? WHERE id = ?', [item.quantity, item.bearing_id]);
+      }
+      restoredStock = items.length > 0;
+    }
+
+    await tx.run(
       'INSERT INTO order_status_history (order_id, old_status, new_status, note) VALUES (?, ?, ?, ?)',
       [orderId, oldStatus, newStatus, note || null]
     );
-    logger.info('订单状态已更新', { orderId, oldStatus, newStatus });
-    return { message: '订单状态已更新', oldStatus, newStatus };
+    return { oldStatus, newStatus, restoredStock, updated: true };
+  }
+
+  async updateStatus(orderId, newStatus, note, trackingNumber) {
+    const result = await this.db.transaction((tx) => this._updateStatusInTransaction(
+      tx,
+      orderId,
+      newStatus,
+      note,
+      trackingNumber
+    ));
+    this.clearCache('orders:*');
+    if (result.restoredStock) this.clearCache('bearings:*');
+    logger.info('订单状态已更新', { orderId, oldStatus: result.oldStatus, newStatus: result.newStatus });
+    return { message: '订单状态已更新', oldStatus: result.oldStatus, newStatus: result.newStatus };
   }
 
   async batchUpdateStatus(orderIds, newStatus, note) {
@@ -84,29 +156,13 @@ class OrderService {
       const result = await this.db.transaction(async (tx) => {
         let updated = 0;
         for (const orderId of orderIds) {
-          const order = await tx.get('SELECT id, status FROM orders WHERE id = ?', [orderId]);
-          if (!order) {
-            throw new NotFoundError('订单');
-          }
-          const oldStatus = order.status;
-
-          let updateQuery = 'UPDATE orders SET status = ?';
-          let params = [newStatus];
-          if (newStatus === 'shipped') {
-            updateQuery += ', shipped_at = CURRENT_TIMESTAMP';
-          }
-          if (newStatus === 'completed') {
-            updateQuery += ', completed_at = CURRENT_TIMESTAMP';
-          }
-          updateQuery += ' WHERE id = ?';
-          params.push(orderId);
-
-          await tx.run(updateQuery, params);
-          await tx.run(
-            'INSERT INTO order_status_history (order_id, old_status, new_status, note) VALUES (?, ?, ?, ?)',
-            [orderId, oldStatus, newStatus, note || '批量操作']
+          const statusResult = await this._updateStatusInTransaction(
+            tx,
+            orderId,
+            newStatus,
+            note || '批量操作'
           );
-          updated++;
+          if (statusResult.updated) updated++;
         }
         return { updated };
       });
@@ -127,18 +183,24 @@ class OrderService {
         if (!order) throw new NotFoundError('订单');
         if (['paid', 'shipped', 'completed'].includes(order.status)) throw new BusinessError('无法删除已支付或已发货的订单', 400, 'CANNOT_DELETE');
         const items = await tx.all('SELECT * FROM order_items WHERE order_id = ?', [orderId]);
-        for (const item of items) {
-          await tx.run('UPDATE bearings SET stock = stock + ? WHERE id = ?', [item.quantity, item.bearing_id]);
+        if (order.status !== 'cancelled') {
+          for (const item of items) {
+            await tx.run('UPDATE bearings SET stock = stock + ? WHERE id = ?', [item.quantity, item.bearing_id]);
+          }
         }
         await tx.run('DELETE FROM order_items WHERE order_id = ?', [orderId]);
         await tx.run('DELETE FROM order_status_history WHERE order_id = ?', [orderId]);
         await tx.run('DELETE FROM orders WHERE id = ?', [orderId]);
-        return { customerName: order.customer_name, itemsCount: items.length };
+        return {
+          customerName: order.customer_name,
+          itemsCount: items.length,
+          restoredStock: order.status !== 'cancelled' && items.length > 0,
+        };
       });
       this.clearCache('orders:*');
       this.clearCache('bearings:*');
       logger.info('订单删除成功', { orderId, customerName: result.customerName, itemsCount: result.itemsCount });
-      return { message: '订单删除成功', restoredStock: result.itemsCount > 0, itemsCount: result.itemsCount };
+      return { message: '订单删除成功', restoredStock: result.restoredStock, itemsCount: result.itemsCount };
     } catch (err) {
       if (err instanceof AppError) throw err;
       logger.error('删除订单失败', { error: err.message, orderId });
@@ -158,13 +220,19 @@ class OrderService {
           throw err;
         }
         const items = await tx.all(`SELECT * FROM order_items WHERE order_id IN (${placeholders})`, orderIds);
+        const cancelledOrderIds = new Set(orders.filter((order) => order.status === 'cancelled').map((order) => order.id));
         for (const item of items) {
-          await tx.run('UPDATE bearings SET stock = stock + ? WHERE id = ?', [item.quantity, item.bearing_id]);
+          if (!cancelledOrderIds.has(item.order_id)) {
+            await tx.run('UPDATE bearings SET stock = stock + ? WHERE id = ?', [item.quantity, item.bearing_id]);
+          }
         }
         await tx.run(`DELETE FROM order_items WHERE order_id IN (${placeholders})`, orderIds);
         await tx.run(`DELETE FROM order_status_history WHERE order_id IN (${placeholders})`, orderIds);
         const deleteResult = await tx.run(`DELETE FROM orders WHERE id IN (${placeholders})`, orderIds);
-        return { changes: deleteResult.changes, restoredStock: items.length > 0 };
+        return {
+          changes: deleteResult.changes,
+          restoredStock: items.some((item) => !cancelledOrderIds.has(item.order_id)),
+        };
       });
       this.clearCache('orders:*');
       this.clearCache('bearings:*');

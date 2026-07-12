@@ -1,4 +1,6 @@
-# Kubernetes部署配置
+# Kubernetes 部署参考配置。
+# 生产发布前必须在集群外创建 bearing-sales-secrets，并完成数据库初始化/迁移。
+# 不要在此文件写入真实 Secret，也不要直接使用 latest 镜像标签。
 
 ---
 # ConfigMap - 配置
@@ -9,30 +11,19 @@ metadata:
   namespace: production
 data:
   NODE_ENV: "production"
+  DB_TYPE: "postgres"
   DB_HOST: "postgres-service"
   DB_PORT: "5432"
   DB_NAME: "bearing_sales"
   REDIS_HOST: "redis-service"
   REDIS_PORT: "6379"
   PORT: "3001"
+  CORS_ORIGIN: "https://REPLACE_WITH_PUBLIC_ORIGIN"
+  PAYMENT_MODE: "production"
   GRAY_RELEASE_ENABLED: "false"
   GRAY_RELEASE_PERCENTAGE: "0"
   GRAY_RELEASE_VARIANT: "canary"
   GRAY_RELEASE_FORCE_HEADER: "x-gray-release"
-
----
-# Secret - 敏感信息
-apiVersion: v1
-kind: Secret
-metadata:
-  name: bearing-sales-secrets
-  namespace: production
-type: Opaque
-stringData:
-  DB_USER: "bearing_admin"
-  DB_PASSWORD: "your_secure_password"
-  REDIS_PASSWORD: "your_redis_password"
-  JWT_SECRET: "your-jwt-secret-min-32-chars"
 
 ---
 # PostgreSQL Deployment
@@ -79,6 +70,8 @@ spec:
       - name: postgres-storage
         persistentVolumeClaim:
           claimName: postgres-pvc
+      # 此 Deployment 不会自动运行仓库中的 backend/db/*.sql。
+      # 在放行 backend 流量前，使用独立、经审查的初始化/迁移 Job 完成 schema 变更。
 
 ---
 # PostgreSQL Service
@@ -167,7 +160,7 @@ spec:
     spec:
       containers:
       - name: backend
-        image: your-registry/bearing-sales-backend:latest
+        image: registry.example.invalid/bearing-sales-backend:replace-with-immutable-tag
         ports:
         - containerPort: 3001
         envFrom:
@@ -177,13 +170,13 @@ spec:
             name: bearing-sales-secrets
         livenessProbe:
           httpGet:
-            path: /
+            path: /health
             port: 3001
           initialDelaySeconds: 30
           periodSeconds: 10
         readinessProbe:
           httpGet:
-            path: /
+            path: /health
             port: 3001
           initialDelaySeconds: 5
           periodSeconds: 5
@@ -229,9 +222,9 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: your-registry/bearing-sales-frontend:latest
+        image: registry.example.invalid/bearing-sales-frontend:replace-with-immutable-tag
         ports:
-        - containerPort: 80
+        - containerPort: 3000
         resources:
           requests:
             memory: "128Mi"
@@ -252,7 +245,7 @@ spec:
     app: frontend
   ports:
   - port: 80
-    targetPort: 80
+    targetPort: 3000
   type: LoadBalancer
 
 ---

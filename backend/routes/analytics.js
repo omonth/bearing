@@ -1,10 +1,10 @@
 const express = require('express');
-const { verifyToken } = require('../middleware/auth');
+const { requireAdmin, verifyToken } = require('../middleware/auth');
 
 module.exports = function(db, analytics) {
   const router = express.Router();
 
-  router.get('/dashboard', verifyToken, async (req, res, next) => {
+  router.get('/dashboard', verifyToken, requireAdmin, async (req, res, next) => {
     try {
       const data = await analytics.getDashboardSummary();
       const salesTrendRaw = await analytics.getSalesTrend('day', 30);

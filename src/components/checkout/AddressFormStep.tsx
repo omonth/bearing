@@ -17,6 +17,7 @@ interface AddressFormStepProps {
   finalPrice: number;
   discountAmount: number;
   submitting: boolean;
+  formError: string | null;
   onChangeField: (field: keyof ShippingAddress, value: string) => void;
   onSelectProvince: (province: string) => void;
   onSelectPaymentMethod: (method: string) => void;
@@ -31,6 +32,7 @@ export default function AddressFormStep({
   finalPrice,
   discountAmount,
   submitting,
+  formError,
   onChangeField,
   onSelectProvince,
   onSelectPaymentMethod,
@@ -40,6 +42,13 @@ export default function AddressFormStep({
   return (
     <div className="space-y-6">
       <h2 className="text-lg font-bold text-white">收货信息</h2>
+
+      {formError && (
+        <div className="bg-red-400/10 border border-red-400/30 rounded-lg px-4 py-3 text-sm text-red-400">
+          {formError}
+        </div>
+      )}
+
       <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-6 space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <div>

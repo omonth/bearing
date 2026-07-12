@@ -82,6 +82,46 @@ describe("OrderService", () => {
     });
   });
 
+  describe("inventory integrity", () => {
+    it("aggregates duplicate product lines before reserving stock", async () => {
+      const stockBefore = (await db.get("SELECT stock FROM bearings WHERE id = ?", [1])).stock;
+
+      await expect(orderService.create({
+        customerName: "Duplicate lines",
+        customerPhone: "13900000009",
+        province: "P",
+        city: "C",
+        district: "D",
+        addressDetail: "A",
+        items: [{ id: 1, quantity: stockBefore }, { id: 1, quantity: 1 }],
+      })).rejects.toThrow("库存不足");
+
+      const stockAfter = await db.get("SELECT stock FROM bearings WHERE id = ?", [1]);
+      expect(stockAfter.stock).toBe(stockBefore);
+    });
+
+    it("restores stock once when a pending order is cancelled", async () => {
+      const stockBefore = (await db.get("SELECT stock FROM bearings WHERE id = ?", [2])).stock;
+      const order = await orderService.create({
+        customerName: "Cancelled order",
+        customerPhone: "13900000010",
+        province: "P",
+        city: "C",
+        district: "D",
+        addressDetail: "A",
+        items: [{ id: 2, quantity: 2 }],
+      });
+
+      await orderService.updateStatus(order.orderId, "cancelled");
+
+      const stockAfterCancellation = await db.get("SELECT stock FROM bearings WHERE id = ?", [2]);
+      expect(stockAfterCancellation.stock).toBe(stockBefore);
+      await expect(orderService.updateStatus(order.orderId, "paid")).rejects.toMatchObject({
+        code: "INVALID_STATUS_TRANSITION",
+      });
+    });
+  });
+
   describe("list", () => {
     beforeAll(async () => {
       await orderService.create({
@@ -303,7 +343,7 @@ describe("OrderService", () => {
     it("混合状态——任一订单不存在则事务回滚", async () => {
       await expect(orderService.batchUpdateStatus(
         [orderId1, 99999],
-        "shipped",
+        "cancelled",
         "批量发货"
       )).rejects.toThrow("不存在");
 

@@ -251,7 +251,7 @@ describe('Orders API', () => {
     const res = await request(app)
       .put('/api/orders/batch/status')
       .set('Authorization', `Bearer ${authToken}`)
-      .send({ orderIds: [a.body.data.orderId, 99999], status: 'shipped' });
+      .send({ orderIds: [a.body.data.orderId, 99999], status: 'cancelled' });
     expect(res.status).toBe(404);
 
     // Verify first order NOT updated (rollback)

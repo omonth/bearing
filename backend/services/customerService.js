@@ -7,17 +7,22 @@ class CustomerService {
   }
 
   async list({ level, status, search, page = 1, pageSize = 20 }) {
-    let query = 'SELECT * FROM customers WHERE 1=1';
+    const conditions = [];
     const params = [];
-    if (level) { query += ' AND level = ?'; params.push(level); }
-    if (status) { query += ' AND status = ?'; params.push(status); }
-    if (search) { query += ' AND (name LIKE ? OR phone LIKE ?)'; params.push(`%${search}%`, `%${search}%`); }
+    if (level) { conditions.push('level = ?'); params.push(level); }
+    if (status) { conditions.push('status = ?'); params.push(status); }
+    if (search) { conditions.push('(name LIKE ? OR phone LIKE ?)'); params.push(`%${search}%`, `%${search}%`); }
+    const whereClause = conditions.length > 0 ? ' WHERE ' + conditions.join(' AND ') : '';
+
+    // Get total count (unpaginated)
+    const countRow = await this.db.get(`SELECT COUNT(*) as total FROM customers${whereClause}`, params);
+    const total = countRow ? Number(countRow.total) : 0;
+
     const offset = (parseInt(page) - 1) * parseInt(pageSize);
-    params.push(parseInt(pageSize), offset);
-    query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
-    const rows = await this.db.all(query, params);
+    const dataQuery = `SELECT * FROM customers${whereClause} ORDER BY created_at DESC LIMIT ? OFFSET ?`;
+    const rows = await this.db.all(dataQuery, [...params, parseInt(pageSize), offset]);
     const items = rows.map(r => ({ ...r, tags: JSON.parse(r.tags || '[]') }));
-    return { total: rows.length, page: parseInt(page), pageSize: parseInt(pageSize), items };
+    return { total, page: parseInt(page), pageSize: parseInt(pageSize), items };
   }
 
   async getById(id) {

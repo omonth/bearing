@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   applyCustomerCoupon,
+  createPayment,
   createOrder,
   getCustomerMe,
   getProducts,
+  queryPaymentStatus,
   searchProducts,
 } from '@/lib/api';
 
@@ -56,18 +58,70 @@ describe('api client', () => {
     });
   });
 
-  it('posts orders as JSON', async () => {
-    fetchMock.mockResolvedValueOnce(jsonResponse({ data: { orderId: 42, message: 'created' } }));
+  it('posts orders with the current customer authorization', async () => {
+    localStorage.setItem('token', 'customer-token');
+    fetchMock.mockResolvedValueOnce(jsonResponse({
+      data: { orderId: 42, message: 'created', orderAccessToken: 'order-access-token' },
+    }));
 
-    await expect(createOrder({ items: [{ id: 1, quantity: 2 }] })).resolves.toEqual({
+    const order = {
+      customerName: 'Test Customer',
+      customerPhone: '13800138000',
+      province: 'Guangdong',
+      city: 'Shenzhen',
+      district: 'Nanshan',
+      addressDetail: 'Test address',
+      items: [{ id: 1, quantity: 2 }],
+    };
+
+    await expect(createOrder(order)).resolves.toEqual({
       orderId: 42,
       message: 'created',
+      orderAccessToken: 'order-access-token',
     });
 
     expect(fetchMock).toHaveBeenCalledWith('/api/orders', {
       method: 'POST',
-      body: JSON.stringify({ items: [{ id: 1, quantity: 2 }] }),
-      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(order),
+      headers: {
+        Authorization: 'Bearer customer-token',
+        'Content-Type': 'application/json',
+      },
+    });
+  });
+
+  it('creates a payment with an order access token and no client amount', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({
+      data: { amount: 20, orderNo: 'PAY-42', paymentOrderId: 100, paymentMethod: 'alipay' },
+    }));
+
+    await createPayment(
+      { orderId: 42, paymentMethod: 'alipay', subject: 'order 42' },
+      'order-access-token'
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/payment/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ orderId: 42, paymentMethod: 'alipay', subject: 'order 42' }),
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Order-Access-Token': 'order-access-token',
+      },
+    });
+  });
+
+  it('uses the order access token when polling payment status', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({
+      data: { amount: 20, paidAt: null, paymentMethod: 'alipay', status: 'pending' },
+    }));
+
+    await queryPaymentStatus(100, 'order-access-token');
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/payment/status/100', {
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Order-Access-Token': 'order-access-token',
+      },
     });
   });
 

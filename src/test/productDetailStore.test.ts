@@ -20,6 +20,7 @@ describe('productDetailStore', () => {
       currentProduct: null,
       similarProducts: [],
       detailLoading: false,
+      detailError: null,
     });
   });
 
@@ -38,15 +39,24 @@ describe('productDetailStore', () => {
     expect(state.detailLoading).toBe(false);
   });
 
-  it('should set detail loading to false on error', async () => {
+  it('should set detailError and null product on fetch failure', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     const { getProduct } = await import('@/lib/productApi');
     vi.mocked(getProduct).mockRejectedValueOnce(new Error('Network error'));
 
     await useProductDetailStore.getState().fetchProductDetail(1);
 
-    expect(useProductDetailStore.getState().detailLoading).toBe(false);
+    const state = useProductDetailStore.getState();
+    expect(state.detailLoading).toBe(false);
+    expect(state.detailError).toBe('Network error');
+    expect(state.currentProduct).toBeNull();
     expect(consoleError).toHaveBeenCalledTimes(1);
     consoleError.mockRestore();
+  });
+
+  it('should clear error via clearError', () => {
+    useProductDetailStore.setState({ detailError: 'some error' });
+    useProductDetailStore.getState().clearError();
+    expect(useProductDetailStore.getState().detailError).toBeNull();
   });
 });

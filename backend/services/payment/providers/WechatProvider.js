@@ -48,7 +48,12 @@ class WechatProvider extends PaymentProvider {
   async queryStatus({ paymentOrder }) {
     const result = await this.wechatClient.query({ out_trade_no: paymentOrder.transaction_id });
     if (result.trade_state === 'SUCCESS') {
-      return { status: 'paid', tradeNo: result.transaction_id, payer: result.payer || {} };
+      return {
+        status: 'paid',
+        tradeNo: result.transaction_id,
+        amount: result.amount?.total === undefined ? undefined : result.amount.total / 100,
+        payer: result.payer || {},
+      };
     }
     return { status: paymentOrder.status, message: result.trade_state || '待支付' };
   }
@@ -61,7 +66,13 @@ class WechatProvider extends PaymentProvider {
       this.config.apiKeyV3
     );
     const result = JSON.parse(notification);
-    return { transactionId: result.out_trade_no, status: result.trade_state === 'SUCCESS' ? 'paid' : 'pending', tradeNo: result.transaction_id, payer: result.payer || {} };
+    return {
+      transactionId: result.out_trade_no,
+      status: result.trade_state === 'SUCCESS' ? 'paid' : 'pending',
+      tradeNo: result.transaction_id,
+      amount: result.amount?.total === undefined ? undefined : result.amount.total / 100,
+      payer: result.payer || {},
+    };
   }
 
   async createRefund({ paymentOrder, amount, reason, refundNo }) {

@@ -1,8 +1,18 @@
 const express = require('express');
-const router = express.Router();
 const logger = require('../logger');
 
-module.exports = function(db, aiService) {
+module.exports = function(db, aiService, requireAIRole) {
+  const router = express.Router();
+  const requireManagementRole = (...roles) => {
+    if (requireAIRole) {
+      return requireAIRole(...roles);
+    }
+
+    return (_req, res) => {
+      res.status(503).json({ error: 'AI 管理认证服务未配置' });
+    };
+  };
+  const readRoles = ['viewer', 'editor', 'admin'];
 
   // ==================== Smart Chatbot ====================
 
@@ -57,7 +67,7 @@ module.exports = function(db, aiService) {
     }
   });
 
-  router.post('/reindex', async (req, res, next) => {
+  router.post('/reindex', requireManagementRole('admin'), async (req, res, next) => {
     try {
       if (aiService.ragEngine) {
         await aiService.ragEngine.buildIndex();
@@ -71,7 +81,7 @@ module.exports = function(db, aiService) {
     }
   });
 
-  router.post('/admin-chat', async (req, res, next) => {
+  router.post('/admin-chat', requireManagementRole('admin'), async (req, res, next) => {
     try {
       const { message } = req.body;
       if (!message) return res.status(400).json({ error: '请输入问题' });
@@ -86,7 +96,7 @@ module.exports = function(db, aiService) {
   // ==================== Demand Prediction ====================
 
   // Predict demand for a specific product
-  router.get('/predict-demand/:productId', async (req, res, next) => {
+  router.get('/predict-demand/:productId', requireManagementRole(...readRoles), async (req, res, next) => {
     try {
       const { days = 30 } = req.query;
       const prediction = await aiService.predictDemand(
@@ -101,7 +111,7 @@ module.exports = function(db, aiService) {
   });
 
   // Predict demand for all products
-  router.get('/predict-demand', async (req, res, next) => {
+  router.get('/predict-demand', requireManagementRole(...readRoles), async (req, res, next) => {
     try {
       const predictions = await aiService.predictAllDemand();
       res.json(predictions);
@@ -113,7 +123,7 @@ module.exports = function(db, aiService) {
 
   // ==================== Smart Recommendations ====================
 
-  router.get('/recommendations', async (req, res, next) => {
+  router.get('/recommendations', requireManagementRole('admin'), async (req, res, next) => {
     try {
       const { customerPhone, limit = 10 } = req.query;
       const result = await aiService.getSmartRecommendations(
@@ -129,7 +139,7 @@ module.exports = function(db, aiService) {
 
   // ==================== Sales Forecasting ====================
 
-  router.get('/forecast', async (req, res, next) => {
+  router.get('/forecast', requireManagementRole(...readRoles), async (req, res, next) => {
     try {
       const { days = 30 } = req.query;
       const forecast = await aiService.forecastSales(parseInt(days));

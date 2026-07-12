@@ -98,7 +98,24 @@ export default function AccountPage() {
     router.push("/");
   };
 
-  if (!_rehydrated || !token) return null;
+  if (!_rehydrated) {
+    return (
+      <>
+        <Head>
+          <title>个人中心 - 轴承商城</title>
+        </Head>
+        <div className="min-h-screen bg-neutral-950">
+          <div className="h-16 bg-neutral-900/50 border-b border-neutral-800 animate-pulse" />
+          <main className="max-w-2xl mx-auto px-6 py-8 space-y-6">
+            <div className="h-32 bg-neutral-900 border border-neutral-800 rounded-lg animate-pulse" />
+            <div className="h-64 bg-neutral-900 border border-neutral-800 rounded-lg animate-pulse" />
+          </main>
+        </div>
+      </>
+    );
+  }
+
+  if (!token) return null;
 
   return (
     <>

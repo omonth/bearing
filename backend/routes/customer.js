@@ -9,6 +9,7 @@ function requireCustomer(req, res) {
 module.exports = function(customerSelfService) {
   const router = express.Router();
   const { verifyToken } = require('../middleware/auth');
+  const { customerLoginLimiter } = require('../middleware/rateLimiter');
 
   // ==================== 注册/登录 ====================
 
@@ -22,7 +23,7 @@ module.exports = function(customerSelfService) {
     }
   });
 
-  router.post('/login', async (req, res, next) => {
+  router.post('/login', customerLoginLimiter, async (req, res, next) => {
     try {
       if (!customerSelfService) return res.status(500).json({ error: '顾客自助服务未配置' });
       const data = await customerSelfService.login(req.body);
