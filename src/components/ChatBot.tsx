@@ -202,12 +202,12 @@ export default function ChatBot({ initialOpen = false, onToggle }: ChatBotProps)
         }
 
         // Final update with products if not already set
-        if (products) {
+        if (streamRef.current.products) {
           setMessages((prev) => {
             const copy = [...prev];
             const last = copy[copy.length - 1];
             if (last.role === "bot" && !last.products) {
-              copy[copy.length - 1] = { ...last, products };
+              copy[copy.length - 1] = { ...last, products: streamRef.current.products };
             }
             return copy;
           });
