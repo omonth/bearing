@@ -25,7 +25,7 @@ export default function AdminChat() {
 
     try {
       const res = await adminApi.post('/ai/admin-chat', { message: msg });
-      const d = res.data;
+      const d = res.data.data || res.data;
       const content = d.type === 'result' && d.data?.length
         ? `${d.message}\n${d.data.slice(0, 10).map((r: Record<string,unknown>) => JSON.stringify(r).slice(0, 120)).join('\n')}`
         : d.message;

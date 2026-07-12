@@ -26,7 +26,7 @@ export default function ProductList() {
       const res = await adminApi.get('/search', {
         params: { q: search || undefined, category: category || undefined, sortBy: 'id', order: 'desc' },
       });
-      const body = res.data;
+      const body = res.data.data || res.data;
       setProducts(body?.results || []);
       setTotal(body?.total || 0);
     } catch { message.error('加载产品失败'); }
