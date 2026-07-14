@@ -1,4 +1,5 @@
 import { primaryBtnClass } from "./shared";
+import Image from "next/image";
 
 interface PaymentInfo {
   orderNo: string;
@@ -30,7 +31,7 @@ export default function PaymentStep({
   const isCashOnDelivery = paymentInfo.paymentMethod === "cod" || paymentMethod === "cod";
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-testid="checkout-payment-step">
       <h2 className="text-lg font-bold text-white">支付</h2>
       <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-8 text-center space-y-4">
         {isCashOnDelivery ? (
@@ -46,7 +47,7 @@ export default function PaymentStep({
             </p>
           </>
         ) : isPaid ? (
-          <>
+          <div data-testid="checkout-payment-paid">
             <div className="w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-400 text-2xl flex items-center justify-center mx-auto">
               ✓
             </div>
@@ -55,7 +56,7 @@ export default function PaymentStep({
             <p className="text-sm text-neutral-400">
               支付金额: ¥{paymentInfo.amount.toFixed(2)}
             </p>
-          </>
+          </div>
         ) : (
           <>
             <h3 className="text-lg font-bold text-white">等待支付</h3>
@@ -65,9 +66,12 @@ export default function PaymentStep({
                 <p className="text-sm text-neutral-400 mb-3">
                   请使用{paymentMethod === "alipay" ? "支付宝" : "微信"}扫码支付:
                 </p>
-                <img
+                <Image
                   src={paymentInfo.qrUrl}
                   alt="支付二维码"
+                  width={200}
+                  height={200}
+                  unoptimized
                   className="w-[200px] h-[200px] border border-neutral-800 rounded-lg mx-auto"
                 />
               </div>
@@ -96,7 +100,7 @@ export default function PaymentStep({
             <p className="text-xs text-neutral-600">支付完成后页面将自动更新...</p>
           </>
         )}
-        <button onClick={onComplete} className={`w-full py-3 text-sm font-medium ${primaryBtnClass}`}>
+        <button data-testid="checkout-payment-complete" onClick={onComplete} className={`w-full py-3 text-sm font-medium ${primaryBtnClass}`}>
           {isPaid || isCashOnDelivery ? "完成订单" : "查看订单"}
         </button>
       </div>

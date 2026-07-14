@@ -93,7 +93,48 @@ CREATE TABLE IF NOT EXISTS admins (
 -- 创建索引
 CREATE INDEX IF NOT EXISTS idx_admins_username ON admins(username);
 
--- 6. 全文搜索配置（使用PostgreSQL的全文搜索）
+-- 6. 顾客自助服务与收货地址簿
+CREATE TABLE IF NOT EXISTS customers (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    phone VARCHAR(20) UNIQUE NOT NULL,
+    password VARCHAR(255),
+    email VARCHAR(255),
+    company VARCHAR(255),
+    address TEXT,
+    level VARCHAR(50) DEFAULT 'bronze',
+    points INTEGER DEFAULT 0,
+    total_spent DECIMAL(10, 2) DEFAULT 0,
+    total_orders INTEGER DEFAULT 0,
+    tags TEXT,
+    notes TEXT,
+    status VARCHAR(50) DEFAULT 'active',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone);
+
+CREATE TABLE IF NOT EXISTS customer_addresses (
+    id SERIAL PRIMARY KEY,
+    customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+    recipient_name VARCHAR(80) NOT NULL,
+    recipient_phone VARCHAR(20) NOT NULL,
+    province VARCHAR(80) NOT NULL,
+    city VARCHAR(80) NOT NULL,
+    district VARCHAR(80) NOT NULL,
+    address_detail VARCHAR(200) NOT NULL,
+    postal_code VARCHAR(20),
+    is_default INTEGER NOT NULL DEFAULT 0 CHECK (is_default IN (0, 1)),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_customer_addresses_customer
+    ON customer_addresses(customer_id, is_default);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_customer_addresses_one_default
+    ON customer_addresses(customer_id)
+    WHERE is_default = 1;
+
+-- 7. 全文搜索配置（使用PostgreSQL的全文搜索）
 -- 添加全文搜索列
 ALTER TABLE bearings ADD COLUMN IF NOT EXISTS search_vector tsvector;
 

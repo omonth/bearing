@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
 
@@ -33,33 +33,67 @@ function readAdminUser(): AdminUser | null {
   try {
     const stored = localStorage.getItem("ai_user");
     if (!stored) return null;
-    const parsed = JSON.parse(stored);
-    return parsed && parsed.username ? parsed : null;
+    const parsed: unknown = JSON.parse(stored);
+    if (
+      typeof parsed === "object"
+      && parsed !== null
+      && "id" in parsed
+      && "username" in parsed
+      && "role" in parsed
+      && typeof parsed.id === "number"
+      && typeof parsed.username === "string"
+      && typeof parsed.role === "string"
+    ) {
+      return {
+        id: parsed.id,
+        username: parsed.username,
+        role: parsed.role,
+      };
+    }
+    return null;
   } catch {
     return null;
   }
 }
 
+function readAdminToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("ai_token");
+}
+
+function subscribeToAdminSession(onStoreChange: () => void) {
+  window.addEventListener("storage", onStoreChange);
+  window.addEventListener("admin-session-change", onStoreChange);
+  return () => {
+    window.removeEventListener("storage", onStoreChange);
+    window.removeEventListener("admin-session-change", onStoreChange);
+  };
+}
+
+const serverAdminSession = () => null;
+
 export default function AdminLayout({ children, title }: AdminLayoutProps) {
   const router = useRouter();
-  const [user] = useState<AdminUser | null>(readAdminUser);
+  const user = useSyncExternalStore(subscribeToAdminSession, readAdminUser, serverAdminSession);
+  const token = useSyncExternalStore(subscribeToAdminSession, readAdminToken, serverAdminSession);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem("ai_token");
-    if (!token) {
+    if (!token || !user) {
       router.replace("/admin/login");
-      return;
     }
-  }, [router]);
+  }, [router, token, user]);
 
   const handleLogout = () => {
     localStorage.removeItem("ai_token");
     localStorage.removeItem("ai_user");
+    window.dispatchEvent(new Event("admin-session-change"));
     router.replace("/admin/login");
   };
 
-  if (!user) return null;
+  if (!token || !user) {
+    return <div className="min-h-screen bg-neutral-950" />;
+  }
 
   return (
     <div className="min-h-screen bg-neutral-950 flex">

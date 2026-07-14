@@ -45,6 +45,7 @@ describe('AI management security', () => {
     await request(app).post('/api/ai/reindex').expect(401);
     await request(app).get('/api/ai/predict-demand').expect(401);
     await request(app).get('/api/ai/recommendations').expect(401);
+    await request(app).post('/api/ai/image-recognize').send({ description: '6200' }).expect(401);
     await request(app).get('/api/ai/forecast').expect(401);
 
     expect(aiService.adminChat).not.toHaveBeenCalled();

@@ -44,6 +44,8 @@ interface CheckoutStore {
 }
 
 let pollingTimer: ReturnType<typeof setInterval> | null = null;
+const EMPTY_CITIES: string[] = [];
+const OTHER_CITIES = ['其他'];
 
 function clearPolling() {
   if (pollingTimer) {
@@ -178,7 +180,7 @@ export const useCheckoutStore = create<CheckoutStore>()((set, get) => ({
 /** Reactive selector — only re-renders when province changes. */
 export const useCities = () =>
   useCheckoutStore((s) =>
-    s.province ? (REGION_DATA[s.province] || ['其他']) : []
+    s.province ? (REGION_DATA[s.province] || OTHER_CITIES) : EMPTY_CITIES
   );
 
 /** Stable list of all provinces — never changes, so no re-render cost. */

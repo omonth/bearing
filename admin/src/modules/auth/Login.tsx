@@ -33,13 +33,13 @@ export default function Login() {
       <Card className="w-[400px]" title="轴承销售系统 - 管理后台">
         <Form onFinish={onFinish} size="large" initialValues={{ username: 'admin' }}>
           <Form.Item name="username" rules={[{ required: true, message: '请输入用户名' }]}>
-            <Input prefix={<UserOutlined />} placeholder="用户名" />
+            <Input data-testid="admin-login-username" prefix={<UserOutlined />} placeholder="用户名" />
           </Form.Item>
           <Form.Item name="password" rules={[{ required: true, message: '请输入密码' }]}>
-            <Input.Password prefix={<LockOutlined />} placeholder="密码" />
+            <Input.Password data-testid="admin-login-password" prefix={<LockOutlined />} placeholder="密码" />
           </Form.Item>
           <Form.Item>
-            <Button type="primary" htmlType="submit" loading={loading} block>
+            <Button data-testid="admin-login-submit" type="primary" htmlType="submit" loading={loading} block>
               登录
             </Button>
           </Form.Item>

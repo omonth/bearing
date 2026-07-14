@@ -4,9 +4,11 @@ import Head from "next/head";
 import Header from "@/components/Header";
 import { useCartStore, useTotalCount } from "@/store/cartStore";
 import { useAuthStore } from "@/store/authStore";
+import AddressBookPanel from "@/components/account/AddressBookPanel";
 import { getCustomerOrders, getCustomerCoupons } from "@/lib/api";
+import type { CustomerCoupon, Order } from "@/types";
 
-type Tab = "orders" | "coupons";
+type Tab = "orders" | "coupons" | "addresses";
 
 const statusLabels: Record<string, string> = {
   pending: "待支付",
@@ -58,8 +60,8 @@ export default function AccountPage() {
   const { toggleCart } = useCartStore();
   const totalCount = useTotalCount();
   const [tab, setTab] = useState<Tab>("orders");
-  const [orders, setOrders] = useState<any[]>([]);
-  const [coupons, setCoupons] = useState<any[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [coupons, setCoupons] = useState<CustomerCoupon[]>([]);
   const [fetching, setFetching] = useState(false);
   const [fetchError, setFetchError] = useState(false);
 
@@ -72,12 +74,12 @@ export default function AccountPage() {
         .then((data) => setOrders(data))
         .catch(() => setFetchError(true))
         .finally(() => setFetching(false));
-    } else {
+    } else if (tab === "coupons") {
       getCustomerCoupons()
         .then((data) => setCoupons(data))
         .catch(() => setFetchError(true))
         .finally(() => setFetching(false));
-    }
+    } else setFetching(false);
   };
 
   useEffect(() => {
@@ -91,17 +93,23 @@ export default function AccountPage() {
 
   useEffect(() => {
     if (!token) return;
+    if (tab === "addresses") return;
     let cancelled = false;
     const id = setTimeout(() => {
       if (cancelled) return;
       setFetching(true);
       setFetchError(false);
-      const fetcher = tab === "orders" ? getCustomerOrders() : getCustomerCoupons();
-      const setter = tab === "orders" ? setOrders : setCoupons;
-      fetcher
-        .then((data) => { if (!cancelled) setter(data); })
-        .catch(() => { if (!cancelled) setFetchError(true); })
-        .finally(() => { if (!cancelled) setFetching(false); });
+      if (tab === "orders") {
+        getCustomerOrders()
+          .then((data) => { if (!cancelled) setOrders(data); })
+          .catch(() => { if (!cancelled) setFetchError(true); })
+          .finally(() => { if (!cancelled) setFetching(false); });
+      } else {
+        getCustomerCoupons()
+          .then((data) => { if (!cancelled) setCoupons(data); })
+          .catch(() => { if (!cancelled) setFetchError(true); })
+          .finally(() => { if (!cancelled) setFetching(false); });
+      }
     }, 0);
     return () => { cancelled = true; clearTimeout(id); };
   }, [tab, token]);
@@ -177,11 +185,13 @@ export default function AccountPage() {
             {[
               { key: "orders", label: "我的订单" },
               { key: "coupons", label: "我的优惠券" },
+              { key: "addresses", label: "收货地址" },
             ].map((t) => {
               const isActive = tab === t.key;
               return (
                 <button
                   key={t.key}
+                  data-testid={`account-tab-${t.key}`}
                   onClick={() => setTab(t.key as Tab)}
                   className={`relative flex-1 py-3 text-sm font-medium transition-colors ${
                     isActive
@@ -199,7 +209,7 @@ export default function AccountPage() {
           </div>
 
           {/* Content */}
-          {fetching ? (
+          {tab === "addresses" ? <AddressBookPanel /> : fetching ? (
             <div className="flex flex-col items-center justify-center py-16 gap-4">
               <div className="w-8 h-8 border-2 border-neutral-800 border-t-amber-500 rounded-full animate-spin" />
               <p className="text-neutral-400 text-sm">加载中...</p>
@@ -230,6 +240,7 @@ export default function AccountPage() {
                 {orders.map((order) => (
                   <div
                     key={order.id}
+                    data-testid="account-order"
                     className="bg-neutral-900 border border-neutral-800 rounded-lg p-5"
                   >
                     <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
@@ -268,7 +279,7 @@ export default function AccountPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {coupons.map((c: any) => (
+              {coupons.map((c) => (
                 <div
                   key={c.id}
                   className="flex justify-between items-center flex-wrap gap-3 bg-neutral-900 border border-neutral-800 rounded-lg p-5"

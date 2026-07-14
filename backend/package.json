@@ -9,6 +9,7 @@
     "init-db": "node initDatabase.js",
     "backup": "node backup.js",
     "prod": "NODE_ENV=production node server.js",
+    "lint": "eslint . --ext .js",
     "test": "vitest run",
     "test:watch": "vitest"
   },

@@ -2,9 +2,9 @@
 
 ## 支持的部署路径
 
-完整生产栈以 Docker Compose 为受支持的部署路径。它启动 PostgreSQL、Redis、后端、Next.js 前端、向量服务和 Nginx。`render.yaml` 仅描述后端服务，适合由平台提供持久磁盘且前端/HTTPS 另行托管的场景；它不替代完整栈的 Redis、向量服务和反向代理配置。
+完整生产栈以 Docker Compose 为受支持的部署路径。它启动 PostgreSQL、Redis、后端、Next.js 前端、Vite 管理后台、向量服务和 Nginx；管理后台由 `/admin/` 提供。`render.yaml` 仅描述后端服务，适合由平台提供持久磁盘且前端/HTTPS 另行托管的场景；它不替代完整栈的 Redis、向量服务和反向代理配置。
 
-独立的 `admin/` Vite 管理后台不在 Compose 或 Kubernetes 清单中。若生产需要该界面，应把它作为单独、版本化的静态应用部署在受控 HTTPS 域名，并验证其 API 地址、管理员认证和访问边界；不要误以为它已随商城前端发布。
+Kubernetes 参考清单也包含独立的 `admin` 静态服务与 `/admin` Ingress 路由。管理员 API 始终经由同域 `/api` 访问，仍由 Express 的管理员 JWT 校验保护；部署后需验证 `/admin/login`、管理员登录和 API 权限边界。
 
 `start-prod.sh` 及其旧 PM2/`build/` 复制流程已经弃用：Next.js 的构建产物不是 Create React App 的 `build/` 目录，旧脚本还会删除 `backend/public`，可能导致上传文件丢失。不要使用它，也不要把前端构建产物复制到后端静态目录。
 
@@ -112,6 +112,6 @@ docker compose --env-file .env.production exec -T postgres \
 
 ## Render 后端部署
 
-`render.yaml` 使用 `npm ci`、持久化 SQLite 磁盘和 `/health` 检查。Render 控制台必须显式填写标记为 `sync: false` 的 `CORS_ORIGIN`、`INITIAL_ADMIN_*` 与 `AI_BOOTSTRAP_*`，并确认自动生成的 `JWT_SECRET` 和 `AI_JWT_SECRET` 已轮换或妥善保管。它固定 `PAYMENT_MODE=production`，因此必须先配置真实支付提供方凭据和回调地址；没有配置时不得开放支付。
+`render.yaml` 使用 `npm ci` 和 `/health` 检查，但不再使用生产 SQLite。Render 控制台必须为外部托管 PostgreSQL 和 Redis 填写标记为 `sync: false` 的连接信息与密码，以及 `CORS_ORIGIN`、`INITIAL_ADMIN_*` 和 `AI_BOOTSTRAP_*`。自动生成的 `JWT_SECRET` 和 `AI_JWT_SECRET` 仍须妥善保管并按组织策略轮换。它固定 `PAYMENT_MODE=production`，因此必须先配置真实支付提供方凭据和 HTTPS 回调地址；没有配置时不得开放支付。
 
-Render 服务只部署 API。将商城前端部署到独立 HTTPS 域名后，把该确切源填入 `CORS_ORIGIN`；不要把 SQLite、日志或上传目录当作可替代的异地备份。
+Render 服务只部署 API。将商城前端部署到独立 HTTPS 域名后，把该确切源填入 `CORS_ORIGIN`；PostgreSQL 必须采用受控备份和恢复策略，日志或上传目录不能替代数据库备份。

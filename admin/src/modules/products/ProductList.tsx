@@ -33,7 +33,10 @@ export default function ProductList() {
     finally { setLoading(false); }
   }, [search, category]);
 
-  useEffect(() => { fetchProducts(); }, [fetchProducts]);
+  useEffect(() => {
+    const timer = window.setTimeout(fetchProducts, 0);
+    return () => window.clearTimeout(timer);
+  }, [fetchProducts]);
 
   useEffect(() => {
     adminApi.get('/categories').then(r => setCategories(Array.isArray(r.data) ? r.data : r.data.data || [])).catch(() => {});
@@ -79,7 +82,7 @@ export default function ProductList() {
     {
       title: '图片', dataIndex: 'image', width: 80,
       render: (img: string) => (
-        <Image src={img || '/placeholder.svg'} width={48} height={48} className="object-cover rounded" />
+        <Image alt="" src={img || '/placeholder.svg'} width={48} height={48} className="object-cover rounded" />
       ),
     },
     { title: '名称', dataIndex: 'name', width: 200, render: (_: unknown, r: Bearing) => ln(r.name), ellipsis: true },
@@ -149,6 +152,7 @@ export default function ProductList() {
 
       <div className="flex gap-3 mb-4">
         <Input
+          data-testid="admin-products-search"
           placeholder="搜索型号或名称"
           prefix={<SearchOutlined />}
           value={search}
@@ -167,6 +171,7 @@ export default function ProductList() {
       </div>
 
       <Table
+        data-testid="admin-products-table"
         columns={columns}
         dataSource={products}
         rowKey="id"

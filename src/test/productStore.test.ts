@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useProductStore } from '@/store/productStore';
+import type { Bearing } from '@/types';
 
-const mockProducts = [
-  { id: 1, name: '轴承 A', model: 'A1', price: 10, image: '', category: '深沟球轴承', specs: { innerDiameter: 10, outerDiameter: 30, width: 9 }, stock: 50, description: '' },
-  { id: 2, name: '轴承 B', model: 'B1', price: 20, image: '', category: '圆柱滚子轴承', specs: { innerDiameter: 20, outerDiameter: 40, width: 12 }, stock: 30, description: '' },
+const mockProducts: Bearing[] = [
+  { id: 1, name: { zh: '轴承 A', en: 'Bearing A' }, model: 'A1', price: 10, image: '', category: '深沟球轴承', specs: { innerDiameter: 10, outerDiameter: 30, width: 9 }, stock: 50, description: { zh: '测试轴承 A', en: 'Test bearing A' } },
+  { id: 2, name: { zh: '轴承 B', en: 'Bearing B' }, model: 'B1', price: 20, image: '', category: '圆柱滚子轴承', specs: { innerDiameter: 20, outerDiameter: 40, width: 12 }, stock: 30, description: { zh: '测试轴承 B', en: 'Test bearing B' } },
 ];
 
 // Mock the API module
@@ -46,7 +47,7 @@ describe('productStore', () => {
     await useProductStore.getState().fetchProducts('深沟球轴承');
     const state = useProductStore.getState();
     expect(state.products).toHaveLength(1);
-    expect(state.products[0].name).toBe('轴承 A');
+    expect(state.products[0].model).toBe('A1');
   });
 
   it('should set active category', () => {
@@ -55,8 +56,8 @@ describe('productStore', () => {
   });
 
   it('should set selected product', () => {
-    useProductStore.getState().setSelectedProduct(mockProducts[0] as any);
-    expect(useProductStore.getState().selectedProduct?.name).toBe('轴承 A');
+    useProductStore.getState().setSelectedProduct(mockProducts[0]);
+    expect(useProductStore.getState().selectedProduct?.model).toBe('A1');
     useProductStore.getState().setSelectedProduct(null);
     expect(useProductStore.getState().selectedProduct).toBeNull();
   });

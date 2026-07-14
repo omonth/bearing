@@ -23,6 +23,7 @@ docker compose --env-file .env.production logs --tail=100 backend
 ```bash
 docker build -t bearing-sales-backend:local backend
 docker build -t bearing-sales-frontend:local .
+docker build -t bearing-sales-admin:local admin
 ```
 
 发布后至少验证 `GET /health`、登录、商品浏览、下单、真实支付回调、退款/库存恢复与管理员授权。Nginx 仅暴露 HTTP；公网入口必须由受管 TLS 或上游 HTTPS 反向代理保护。

@@ -24,7 +24,10 @@ export default function Layout() {
           theme="dark"
           mode="inline"
           selectedKeys={[location.pathname]}
-          items={menuData.map(item => ({ key: item.path, label: item.name }))}
+          items={menuData.map(item => ({
+            key: item.path,
+            label: <span data-testid={`admin-nav-${item.path.split('/').pop()}`}>{item.name}</span>,
+          }))}
           onClick={({ key }) => navigate(key)}
         />
       </AntLayout.Sider>

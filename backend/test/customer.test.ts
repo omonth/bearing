@@ -358,6 +358,32 @@ describe('Customer Auth API', () => {
     });
   });
 
+  describe('GET /api/crm/levels', () => {
+    it('requires administrator authentication for CRM configuration', async () => {
+      await request(app).get('/api/crm/levels').expect(401);
+
+      const customerLogin = await request(app)
+        .post('/api/customer/login')
+        .send({ phone: '13800000001', password: 'test123' });
+      await request(app)
+        .get('/api/crm/levels')
+        .set('Authorization', `Bearer ${customerLogin.body.data.token}`)
+        .expect(403);
+
+      const adminLogin = await request(app)
+        .post('/api/auth/login')
+        .send({ username: 'admin', password: 'admin123' });
+      const response = await request(app)
+        .get('/api/crm/levels')
+        .set('Authorization', `Bearer ${adminLogin.body.data.token}`)
+        .expect(200);
+
+      expect(response.body.data).toEqual(expect.arrayContaining([
+        expect.objectContaining({ level: 'bronze' }),
+      ]));
+    });
+  });
+
   describe('POST /api/customer/coupons/use', () => {
     it('should use a valid coupon', async () => {
       const loginRes = await request(app)

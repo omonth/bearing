@@ -125,7 +125,7 @@ GET /api/search?q=6205&category=深沟球轴承&minPrice=10&maxPrice=50&inStock=
 ```
 
 **查询参数**:
-- `q`: 搜索关键词（支持全文搜索）
+- `q`: 搜索关键词（匹配型号、名称、分类和描述，兼容 SQLite 与 PostgreSQL）
 - `category`: 分类筛选
 - `minPrice`: 最低价格
 - `maxPrice`: 最高价格
@@ -151,7 +151,10 @@ Content-Type: application/json
 {
   "customerName": "张三",
   "customerPhone": "13800138000",
-  "customerAddress": "北京市朝阳区xxx街道xxx号",
+  "province": "北京市",
+  "city": "北京市",
+  "district": "朝阳区",
+  "addressDetail": "xxx街道xxx号",
   "items": [
     {
       "id": 1,
@@ -162,6 +165,31 @@ Content-Type: application/json
   "totalPrice": 51.00
 }
 ```
+
+### 顾客收货地址簿（顾客 JWT）
+
+```http
+GET /api/customer/addresses
+Authorization: Bearer <customer-token>
+```
+
+```http
+POST /api/customer/addresses
+Authorization: Bearer <customer-token>
+Content-Type: application/json
+
+{
+  "recipientName": "张三",
+  "recipientPhone": "13800138000",
+  "province": "北京市",
+  "city": "北京市",
+  "district": "朝阳区",
+  "addressDetail": "xxx街道xxx号",
+  "isDefault": true
+}
+```
+
+`PUT /api/customer/addresses/:id` 使用相同请求体更新；`DELETE /api/customer/addresses/:id` 删除本人地址。接口按 JWT 顾客 ID 过滤，不能跨顾客访问；系统维持每位顾客最多一个默认地址。
 
 ### 获取所有订单（需管理员权限）
 

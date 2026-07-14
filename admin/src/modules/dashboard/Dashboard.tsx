@@ -69,10 +69,10 @@ export default function Dashboard() {
   ];
 
   return (
-    <div>
+    <div data-testid="admin-dashboard">
       <h1 className="text-xl font-semibold text-neutral-200 mb-4">数据看板</h1>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div data-testid="admin-dashboard-stats" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <Card size="small"><Statistic title="总销售额" value={data?.totalSales || 0} prefix={<DollarOutlined />} suffix="元" precision={2} loading={loading} /></Card>
         <Card size="small"><Statistic title="总订单" value={data?.totalOrders || 0} prefix={<ShoppingCartOutlined />} loading={loading} /></Card>
         <Card size="small"><Statistic title="总客户" value={data?.totalCustomers || 0} prefix={<UserOutlined />} loading={loading} /></Card>

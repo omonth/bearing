@@ -40,7 +40,7 @@ export default function ImageUpload({ value, onChange }: { value?: string; onCha
     <div>
       {value ? (
         <div className="flex items-start gap-3">
-          <Image src={value} width={120} height={120} className="object-cover rounded-md" />
+          <Image alt="产品图片" src={value} width={120} height={120} className="object-cover rounded-md" />
           <Button icon={<DeleteOutlined />} danger size="small" onClick={handleDelete} />
         </div>
       ) : (

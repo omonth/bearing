@@ -1,5 +1,6 @@
 require('dotenv').config();
 const logger = require('./logger');
+const { validateProductionEnvironment } = require('./config/production');
 const { getDatabase } = require('./db/adapter');
 const InventoryAlert = require('./utils/inventoryAlert');
 const Analytics = require('./utils/analytics');
@@ -12,14 +13,17 @@ const BearingService = require('./services/bearingService');
 const OrderService = require('./services/orderService');
 const CustomerService = require('./services/customerService');
 const CustomerSelfService = require('./services/customerSelfService');
+const AddressBookService = require('./services/addressBookService');
 const CouponService = require('./services/couponService');
 const PointsService = require('./services/pointsService');
 const SupplyChainService = require('./services/supplyChainService');
 const RAGEngine = require('./services/ragEngine');
 const createApp = require('./app');
+const { ensureCustomerAddressSchema } = require('./db/migrations/customerAddresses');
 
 const PORT = process.env.PORT || 3001;
 
+validateProductionEnvironment();
 const db = getDatabase();
 const inventoryAlert = new InventoryAlert(db);
 const analytics = new Analytics(db);
@@ -43,6 +47,7 @@ const { clearCache } = require('./middleware/cache');
 const bearingService = new BearingService(db, clearCache, ragEngine);
 const orderService = new OrderService(db, clearCache);
 const customerService = new CustomerService(db);
+const addressBookService = new AddressBookService(db);
 const couponService = new CouponService(db);
 const pointsService = new PointsService(db, customerService);
 const supplyChainService = new SupplyChainService(db);
@@ -51,6 +56,7 @@ const customerSelfService = new CustomerSelfService({
   customerService,
   couponService,
   orderService,
+  addressBookService,
 });
 
 const paymentService = new PaymentOrchestrator(db, orderService);
@@ -74,7 +80,7 @@ const app = createApp(db, {
   supplyChainService,
 });
 
-authService.bootstrapInitialAdmin().then(() => app.listen(PORT, '0.0.0.0', () => {
+ensureCustomerAddressSchema(db).then(() => authService.bootstrapInitialAdmin()).then(() => app.listen(PORT, '0.0.0.0', () => {
   console.log(`后端服务器运行在端口 ${PORT}`);
   logger.info('服务器启动', { port: PORT, env: process.env.NODE_ENV || 'development' });
 })).catch((error) => {

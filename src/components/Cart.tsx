@@ -33,6 +33,7 @@ export default function Cart({
         className="flex h-full w-[460px] max-w-full flex-col border-l border-white/10 bg-neutral-950 shadow-[0_0_80px_rgba(0,0,0,0.38)] max-sm:h-[86dvh] max-sm:w-full max-sm:rounded-t-lg max-sm:border-l-0 max-sm:border-t"
         onClick={(event) => event.stopPropagation()}
         aria-label={text.cart.title}
+        data-testid="storefront-cart"
       >
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
           <div>
@@ -43,6 +44,7 @@ export default function Cart({
           </div>
           <button
             type="button"
+            data-testid="storefront-cart-close"
             onClick={onClose}
             className="grid h-9 w-9 place-items-center rounded-md text-neutral-500 transition hover:bg-white/5 hover:text-white active:scale-95"
             aria-label={text.cart.close}
@@ -87,6 +89,7 @@ export default function Cart({
               {items.map((item) => (
                 <div
                   key={item.id}
+                  data-testid="storefront-cart-item"
                   className="grid grid-cols-[72px_minmax(0,1fr)] gap-3 border-b border-white/10 pb-4"
                 >
                   <ProductImage
@@ -107,6 +110,7 @@ export default function Cart({
                       </div>
                       <button
                         type="button"
+                        data-testid="storefront-cart-remove"
                         onClick={() => onRemove(item.id)}
                         className="text-xs font-medium text-red-300 transition hover:text-red-200"
                       >
@@ -121,6 +125,7 @@ export default function Cart({
                       <div className="inline-flex h-8 overflow-hidden rounded-md border border-white/10 bg-white/[0.035]">
                         <button
                           type="button"
+                          data-testid="storefront-cart-decrease"
                           onClick={() =>
                             onUpdateQuantity(item.id, item.quantity - 1)
                           }
@@ -135,6 +140,7 @@ export default function Cart({
                         </span>
                         <button
                           type="button"
+                          data-testid="storefront-cart-increase"
                           onClick={() =>
                             onUpdateQuantity(
                               item.id,
@@ -166,6 +172,7 @@ export default function Cart({
             </div>
             <button
               type="button"
+              data-testid="storefront-cart-checkout"
               onClick={() => {
                 onClose();
                 router.push("/checkout");

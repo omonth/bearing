@@ -7,7 +7,7 @@ import { useAuthStore } from "@/store/authStore";
 export default function LoginPage() {
   const { toggleCart } = useCartStore();
   const totalCount = useTotalCount();
-  const { login, register } = useAuthStore();
+  const { login, register, _rehydrated } = useAuthStore();
   const [mode, setMode] = useState<"login" | "register">("login");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
@@ -17,6 +17,7 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!_rehydrated) return;
     setError("");
     if (!phone || !password) {
       setError("请填写手机号和密码");
@@ -34,8 +35,8 @@ export default function LoginPage() {
         await register({ name: name || undefined, phone, password });
       }
       window.location.href = "/account";
-    } catch (err: any) {
-      setError(err.message || "操作失败");
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "操作失败");
     } finally {
       setSubmitting(false);
     }
@@ -48,7 +49,7 @@ export default function LoginPage() {
     <>
       <Head>
         <title>
-          {mode === "login" ? "登录" : "注册"} - 轴承商城
+          {`${mode === "login" ? "登录" : "注册"} - 轴承商城`}
         </title>
       </Head>
       <div className="min-h-screen bg-neutral-950">
@@ -61,6 +62,7 @@ export default function LoginPage() {
               return (
                 <button
                   key={m}
+                  data-testid={`customer-auth-mode-${m}`}
                   onClick={() => {
                     setMode(m);
                     setError("");
@@ -92,6 +94,7 @@ export default function LoginPage() {
                 </label>
                 <input
                   type="text"
+                  data-testid="customer-register-name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="请输入姓名"
@@ -106,6 +109,7 @@ export default function LoginPage() {
               </label>
               <input
                 type="tel"
+                data-testid="customer-auth-phone"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="请输入手机号"
@@ -119,6 +123,7 @@ export default function LoginPage() {
               </label>
               <input
                 type="password"
+                data-testid="customer-auth-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="请输入密码"
@@ -132,7 +137,8 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              disabled={submitting}
+              data-testid="customer-auth-submit"
+              disabled={submitting || !_rehydrated}
               className="w-full py-2.5 text-sm font-medium text-neutral-950 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 rounded-md transition-colors"
             >
               {submitting

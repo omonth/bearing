@@ -173,7 +173,7 @@ module.exports = function(db, { customerService, couponService, pointsService })
     }
   });
 
-  router.get('/levels', async (req, res, next) => {
+  router.get('/levels', verifyToken, requireAdmin, async (req, res, next) => {
     try {
       if (!customerService) return res.status(500).json({ error: 'CRM服务未配置' });
       const data = await customerService.getLevels();

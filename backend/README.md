@@ -19,7 +19,7 @@
 - id: 主键
 - customer_name: 客户姓名
 - customer_phone: 客户电话
-- customer_address: 客户地址
+- province / city / district / address_detail: 订单收货地址快照
 - total_price: 总价
 - status: 订单状态
 - created_at: 创建时间
@@ -45,11 +45,19 @@ GET /api/categories
 
 ### 创建订单
 POST /api/orders
-请求体: { customerName, customerPhone, customerAddress, items, totalPrice }
+请求体: `{ customerName, customerPhone, province, city, district, addressDetail, items }`。后端根据商品当前价格计算总价。
+
+### 收货地址簿（顾客 JWT）
+- `GET /api/customer/addresses`
+- `POST /api/customer/addresses`
+- `PUT /api/customer/addresses/:id`
+- `DELETE /api/customer/addresses/:id`
+
+地址仅可由所属顾客读取或修改；首个地址自动设为默认地址，任意时刻每位顾客最多一个默认地址。
 
 ## 使用方法
 
-1. 安装依赖: `npm install`
+1. 安装依赖: `npm ci`
 2. 初始化数据库: `npm run init-db`
 3. 启动服务器: `npm start`
 

@@ -17,7 +17,7 @@ export default function AdminAI() {
     {
       role: "bot",
       content: "您好！我是 AI 管理助手。可以问我：\n\n- **产品查询**：M30 轴承库存多少？\n- **数据分析**：上个月销售额是多少？\n- **客户分析**：哪个客户买得最多？",
-      timestamp: new Date().toISOString(),
+      timestamp: "",
     },
   ]);
   const [input, setInput] = useState("");

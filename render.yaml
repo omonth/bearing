@@ -26,9 +26,23 @@ services:
       - key: PAYMENT_MODE
         value: production
       - key: DB_TYPE
-        value: sqlite
-      - key: DB_PATH
-        value: /var/data/bearings.db
+        value: postgres
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        value: "5432"
+      - key: DB_NAME
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: REDIS_HOST
+        sync: false
+      - key: REDIS_PORT
+        value: "6379"
+      - key: REDIS_PASSWORD
+        sync: false
       - key: CORS_ORIGIN
         sync: false
       - key: DEEPSEEK_API_KEY
@@ -43,7 +57,3 @@ services:
         value: canary
       - key: GRAY_RELEASE_FORCE_HEADER
         value: x-gray-release
-    disk:
-      name: sqlite-disk
-      mountPath: /var/data
-      sizeGB: 1

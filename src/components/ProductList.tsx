@@ -200,6 +200,7 @@ export default function ProductList({
               </svg>
             </span>
             <input
+              data-testid="storefront-product-search"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder={text.product.searchPlaceholder}
@@ -209,11 +210,12 @@ export default function ProductList({
         </div>
 
         <div className="flex gap-1 overflow-x-auto border-b border-white/10 pb-px scrollbar-none">
-          {cats.map((category) => {
+          {cats.map((category, index) => {
             const isActive = activeCategory === category;
             return (
               <button
                 key={category}
+                data-testid={`storefront-category-${index}`}
                 type="button"
                 onClick={() => onCategoryChange?.(category)}
                 className={`relative shrink-0 px-4 py-2.5 text-sm transition ${
@@ -260,10 +262,12 @@ export default function ProductList({
             return (
               <article
                 key={product.id}
+                data-testid={`storefront-product-card-${product.model}`}
                 className="group overflow-hidden rounded-lg border border-white/10 bg-neutral-900/80 shadow-[0_22px_70px_rgba(0,0,0,0.18)] transition duration-300 hover:-translate-y-1 hover:border-amber-400/30 hover:bg-neutral-900"
               >
                 <button
                   type="button"
+                  data-testid={`storefront-product-detail-${product.model}`}
                   className="block w-full text-left"
                   onClick={() => onProductClick(product)}
                 >
@@ -281,6 +285,7 @@ export default function ProductList({
                   <div className="flex items-start justify-between gap-3">
                     <button
                       type="button"
+                      data-testid={`storefront-product-add-${product.model}`}
                       className="min-w-0 text-left"
                       onClick={() => onProductClick(product)}
                     >

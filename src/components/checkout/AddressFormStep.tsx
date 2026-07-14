@@ -1,4 +1,6 @@
 import { inputClass, labelClass, primaryBtnClass, secondaryBtnClass } from "./shared";
+import type { PaymentMethod } from "@/lib/api";
+import type { CustomerAddress } from "@/types";
 
 export interface ShippingAddress {
   customerName: string;
@@ -7,7 +9,7 @@ export interface ShippingAddress {
   city: string;
   district: string;
   addressDetail: string;
-  paymentMethod: string;
+  paymentMethod: PaymentMethod;
 }
 
 interface AddressFormStepProps {
@@ -20,7 +22,11 @@ interface AddressFormStepProps {
   formError: string | null;
   onChangeField: (field: keyof ShippingAddress, value: string) => void;
   onSelectProvince: (province: string) => void;
-  onSelectPaymentMethod: (method: string) => void;
+  savedAddresses: CustomerAddress[];
+  onSelectSavedAddress: (addressId: number) => void;
+  onSaveAddress?: () => void;
+  savingAddress: boolean;
+  onSelectPaymentMethod: (method: PaymentMethod) => void;
   onSubmit: () => void;
   onBack: () => void;
 }
@@ -33,6 +39,10 @@ export default function AddressFormStep({
   discountAmount,
   submitting,
   formError,
+  savedAddresses,
+  onSelectSavedAddress,
+  onSaveAddress,
+  savingAddress,
   onChangeField,
   onSelectProvince,
   onSelectPaymentMethod,
@@ -50,11 +60,30 @@ export default function AddressFormStep({
       )}
 
       <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-6 space-y-4">
+        {savedAddresses.length > 0 && (
+          <div>
+            <label className={labelClass}>已保存地址</label>
+            <select
+              data-testid="checkout-saved-address"
+              defaultValue=""
+              onChange={(event) => onSelectSavedAddress(Number(event.target.value))}
+              className={inputClass}
+            >
+              <option value="">手动填写新地址</option>
+              {savedAddresses.map((address) => (
+                <option key={address.id} value={address.id}>
+                  {address.isDefault ? '默认：' : ''}{address.recipientName} - {address.province}{address.city}{address.district}{address.addressDetail}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className={labelClass}>收货人 *</label>
             <input
               type="text"
+              data-testid="checkout-recipient-name"
               value={values.customerName}
               onChange={(e) => onChangeField("customerName", e.target.value)}
               placeholder="请输入收货人姓名"
@@ -65,6 +94,7 @@ export default function AddressFormStep({
             <label className={labelClass}>手机号 *</label>
             <input
               type="tel"
+              data-testid="checkout-recipient-phone"
               value={values.customerPhone}
               onChange={(e) => onChangeField("customerPhone", e.target.value)}
               placeholder="请输入手机号"
@@ -77,6 +107,7 @@ export default function AddressFormStep({
           <div>
             <label className={labelClass}>省份 *</label>
             <select
+              data-testid="checkout-province"
               value={values.province}
               onChange={(e) => onSelectProvince(e.target.value)}
               className={inputClass}
@@ -90,6 +121,7 @@ export default function AddressFormStep({
           <div>
             <label className={labelClass}>城市 *</label>
             <select
+              data-testid="checkout-city"
               value={values.city}
               onChange={(e) => onChangeField("city", e.target.value)}
               disabled={!values.province}
@@ -105,6 +137,7 @@ export default function AddressFormStep({
             <label className={labelClass}>区/县 *</label>
             <input
               type="text"
+              data-testid="checkout-district"
               value={values.district}
               onChange={(e) => onChangeField("district", e.target.value)}
               placeholder="请输入区/县"
@@ -116,6 +149,7 @@ export default function AddressFormStep({
         <div>
           <label className={labelClass}>详细地址 *</label>
           <textarea
+            data-testid="checkout-address-detail"
             value={values.addressDetail}
             onChange={(e) => onChangeField("addressDetail", e.target.value)}
             placeholder="街道、门牌号等详细信息"
@@ -128,12 +162,12 @@ export default function AddressFormStep({
         <div>
           <label className="block text-xs text-neutral-400 mb-2">支付方式</label>
           <div className="grid grid-cols-4 gap-2">
-            {[
+            {([
               { value: "alipay", label: "支付宝" },
               { value: "wechat", label: "微信" },
               { value: "unionpay", label: "银联" },
               { value: "cod", label: "货到付款" },
-            ].map((m) => (
+            ] as Array<{ value: PaymentMethod; label: string }>).map((m) => (
               <label
                 key={m.value}
                 className={`flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-md border cursor-pointer text-sm transition-colors ${
@@ -144,6 +178,7 @@ export default function AddressFormStep({
               >
                 <input
                   type="radio"
+                  data-testid={`checkout-payment-${m.value}`}
                   name="payment"
                   value={m.value}
                   checked={values.paymentMethod === m.value}
@@ -163,6 +198,17 @@ export default function AddressFormStep({
           ← 返回
         </button>
         <div className="text-right">
+          {onSaveAddress && (
+            <button
+              type="button"
+              data-testid="checkout-save-address"
+              disabled={savingAddress}
+              onClick={onSaveAddress}
+              className="mr-3 px-3 py-2 text-sm text-amber-400 border border-amber-500/50 rounded-md disabled:opacity-50"
+            >
+              {savingAddress ? '保存中…' : '保存到地址簿'}
+            </button>
+          )}
           {discountAmount > 0 && (
             <p className="text-xs text-emerald-400 mb-0.5">
               已优惠 ¥{discountAmount.toFixed(2)}
@@ -172,6 +218,7 @@ export default function AddressFormStep({
             合计 ¥{finalPrice.toFixed(2)}
           </p>
           <button
+            data-testid="checkout-submit-order"
             onClick={onSubmit}
             disabled={submitting}
             className={primaryBtnClass}

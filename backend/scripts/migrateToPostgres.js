@@ -62,15 +62,18 @@ async function migrateData() {
     for (const order of orders) {
       const result = await pool.query(`
         INSERT INTO orders (
-          customer_name, customer_phone, customer_address,
+          customer_name, customer_phone, province, city, district, address_detail,
           total_price, status, tracking_number,
           shipped_at, completed_at, created_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         RETURNING id
       `, [
         order.customer_name,
         order.customer_phone,
-        order.customer_address,
+        order.province || '未提供',
+        order.city || '未提供',
+        order.district || '',
+        order.address_detail || order.customer_address || '未提供',
         order.total_price,
         order.status || 'pending',
         order.tracking_number,

@@ -4,18 +4,24 @@ export default defineConfig({
   testDir: './e2e',
   timeout: 30000,
   retries: 1,
-  globalSetup: './e2e/globalSetup.ts',
-  globalTeardown: './e2e/globalTeardown.ts',
+  outputDir: 'test-results',
   use: {
     baseURL: 'http://localhost:5173',
     headless: true,
     screenshot: 'only-on-failure',
+    trace: 'retain-on-failure',
+    video: 'retain-on-failure',
   },
   webServer: [
     {
-      command: 'cd ../backend && DB_PATH=test-bearings.db node server.js',
+      command: 'node scripts/startE2eServer.js',
+      cwd: '../backend',
+      env: {
+        DB_PATH: 'test-bearings.db',
+        NODE_ENV: 'test',
+      },
       port: 3001,
-      reuseExistingServer: true,
+      reuseExistingServer: false,
       timeout: 15000,
     },
     {

@@ -41,6 +41,58 @@ export interface Order {
   created_at: string;
 }
 
+export interface CustomerAddress {
+  id: number;
+  customerId: number;
+  recipientName: string;
+  recipientPhone: string;
+  province: string;
+  city: string;
+  district: string;
+  addressDetail: string;
+  postalCode: string | null;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CustomerAddressInput {
+  recipientName: string;
+  recipientPhone: string;
+  province: string;
+  city: string;
+  district: string;
+  addressDetail: string;
+  postalCode?: string;
+  isDefault?: boolean;
+}
+
+export interface AuthUser {
+  id: number;
+  phone: string;
+  name: string;
+  level: string;
+  points: number;
+}
+
+export interface AdminUser {
+  id: number;
+  username: string;
+  role: string;
+}
+
+export interface CustomerCoupon {
+  id: number;
+  code: string;
+  coupon_name?: string;
+  type: 'fixed' | 'percentage';
+  discount_value: number;
+  min_order_amount: number;
+  status: 'unused' | 'used' | 'expired';
+  valid_from?: string;
+  valid_until?: string;
+}
+
 export interface OrderItem {
   id: number;
   bearing_id: number;

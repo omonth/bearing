@@ -63,7 +63,10 @@ export default function OrderList() {
     finally { setLoading(false); }
   }, [status, search]);
 
-  useEffect(() => { fetchOrders(); }, [fetchOrders]);
+  useEffect(() => {
+    const timer = window.setTimeout(fetchOrders, 0);
+    return () => window.clearTimeout(timer);
+  }, [fetchOrders]);
 
   const handleStatus = async (orderId: number, newStatus: string) => {
     try {
@@ -156,6 +159,7 @@ export default function OrderList() {
         <div className="flex-1 flex gap-2">
           {statusTabs.map(s => (
             <Button
+              data-testid={`admin-orders-status-${s || 'all'}`}
               key={s}
               type={status === s ? 'primary' : 'default'}
               size="small"
@@ -166,6 +170,7 @@ export default function OrderList() {
           ))}
         </div>
         <Input
+          data-testid="admin-orders-search"
           placeholder="搜索订单号/客户/电话"
           prefix={<SearchOutlined />}
           value={search}
@@ -185,6 +190,7 @@ export default function OrderList() {
       )}
 
       <Table
+        data-testid="admin-orders-table"
         columns={columns}
         dataSource={orders}
         rowKey="id"

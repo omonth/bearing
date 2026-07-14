@@ -71,5 +71,7 @@ temp/
 Thumbs.db
 .DS_Store
 admin/test-results/
+test-results/
+playwright-report/
 .worktrees/
 *.tsbuildinfo

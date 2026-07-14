@@ -70,6 +70,59 @@ module.exports = function(customerSelfService) {
     }
   });
 
+  // ==================== 收货地址簿 ====================
+
+  router.get('/addresses', verifyToken, async (req, res, next) => {
+    try {
+      if (!customerSelfService) return res.status(500).json({ error: '顾客自助服务未配置' });
+      if (!requireCustomer(req, res)) return;
+      const data = await customerSelfService.listAddresses(req.user.userId);
+      res.json({ data });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.post('/addresses', verifyToken, async (req, res, next) => {
+    try {
+      if (!customerSelfService) return res.status(500).json({ error: '顾客自助服务未配置' });
+      if (!requireCustomer(req, res)) return;
+      const data = await customerSelfService.createAddress(req.user.userId, req.body);
+      res.json({ data });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.put('/addresses/:id', verifyToken, async (req, res, next) => {
+    try {
+      if (!customerSelfService) return res.status(500).json({ error: '顾客自助服务未配置' });
+      if (!requireCustomer(req, res)) return;
+      const data = await customerSelfService.updateAddress(
+        req.user.userId,
+        Number.parseInt(req.params.id, 10),
+        req.body
+      );
+      res.json({ data });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.delete('/addresses/:id', verifyToken, async (req, res, next) => {
+    try {
+      if (!customerSelfService) return res.status(500).json({ error: '顾客自助服务未配置' });
+      if (!requireCustomer(req, res)) return;
+      const data = await customerSelfService.deleteAddress(
+        req.user.userId,
+        Number.parseInt(req.params.id, 10)
+      );
+      res.json({ data });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   // ==================== 我的优惠券 ====================
 
   router.get('/coupons', verifyToken, async (req, res, next) => {

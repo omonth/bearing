@@ -63,7 +63,7 @@ services:
     networks:
       - bearing-network
     healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      test: ["CMD-SHELL", "redis-cli --no-auth-warning -a \"$${REDIS_PASSWORD}\" ping | grep -q PONG"]
       interval: 10s
       timeout: 3s
       retries: 5
@@ -153,6 +153,18 @@ services:
     networks:
       - bearing-network
 
+  admin:
+    image: ${ADMIN_IMAGE:-bearing-sales-admin:local}
+    build:
+      context: ./admin
+      dockerfile: Dockerfile
+    container_name: bearing-sales-admin
+    restart: unless-stopped
+    depends_on:
+      - backend
+    networks:
+      - bearing-network
+
   nginx:
     image: nginx:alpine
     container_name: bearing-sales-nginx
@@ -163,6 +175,7 @@ services:
       - "80:80"
     depends_on:
       - frontend
+      - admin
       - backend
     networks:
       - bearing-network

@@ -4,11 +4,12 @@ const { generateToken } = require('../middleware/auth');
 const { ValidationError, UnauthorizedError, ConflictError } = require('../utils/errors');
 
 class CustomerSelfService {
-  constructor({ db, customerService, couponService, orderService, tokenFactory = generateToken }) {
+  constructor({ db, customerService, couponService, orderService, addressBookService, tokenFactory = generateToken }) {
     this.db = db;
     this.customerService = customerService;
     this.couponService = couponService;
     this.orderService = orderService;
+    this.addressBookService = addressBookService;
     this.tokenFactory = tokenFactory;
   }
 
@@ -86,6 +87,22 @@ class CustomerSelfService {
       throw new ValidationError('请提供优惠券代码和订单ID');
     }
     return this.couponService.use({ code, customerId, orderId });
+  }
+
+  async listAddresses(customerId) {
+    return this.addressBookService.list(customerId);
+  }
+
+  async createAddress(customerId, input) {
+    return this.addressBookService.create(customerId, input);
+  }
+
+  async updateAddress(customerId, addressId, input) {
+    return this.addressBookService.update(customerId, addressId, input);
+  }
+
+  async deleteAddress(customerId, addressId) {
+    return this.addressBookService.delete(customerId, addressId);
   }
 }
 

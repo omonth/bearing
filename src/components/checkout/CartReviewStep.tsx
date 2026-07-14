@@ -1,12 +1,13 @@
 import { useMemo } from "react";
-import { CartItem } from "@/types/index";
+import Image from "next/image";
+import type { CartItem, CustomerCoupon } from "@/types/index";
 import { localized } from "@/lib/utils";
 import { inputClass, primaryBtnClass, secondaryBtnClass } from "./shared";
 
 interface CartReviewStepProps {
   items: CartItem[];
   token: string | null;
-  coupons: any[];
+  coupons: CustomerCoupon[];
   selectedCoupon: string;
   totalPrice: number;
   discountAmount: number;
@@ -44,11 +45,14 @@ export default function CartReviewStep({
         {items.map((item) => (
           <div
             key={item.id}
+            data-testid="checkout-cart-item"
             className="flex gap-4 bg-neutral-900 border border-neutral-800 rounded-lg p-4"
           >
-            <img
-              src={item.image}
+            <Image
+              src={item.image || "/placeholder.svg"}
               alt={localized(item.name)}
+              width={80}
+              height={80}
               className="w-20 h-20 object-cover rounded-md shrink-0"
             />
             <div className="flex-1 min-w-0">
@@ -61,6 +65,7 @@ export default function CartReviewStep({
               <div className="flex items-center justify-between mt-2">
                 <div className="flex items-center gap-2">
                   <button
+                    data-testid="checkout-cart-decrease"
                     onClick={() => onUpdateQuantity(item.id, item.quantity - 1)}
                     disabled={item.quantity <= 1}
                     className="w-6 h-6 flex items-center justify-center text-neutral-400 hover:text-white disabled:text-neutral-700 transition-colors text-sm"
@@ -71,6 +76,7 @@ export default function CartReviewStep({
                     {item.quantity}
                   </span>
                   <button
+                    data-testid="checkout-cart-increase"
                     onClick={() =>
                       onUpdateQuantity(item.id, Math.min(item.stock, item.quantity + 1))
                     }
@@ -81,6 +87,7 @@ export default function CartReviewStep({
                   </button>
                 </div>
                 <button
+                  data-testid="checkout-cart-remove"
                   onClick={() => onRemoveItem(item.id)}
                   className="text-xs text-red-400 hover:text-red-300 transition-colors"
                 >
@@ -110,7 +117,7 @@ export default function CartReviewStep({
             className={inputClass}
           >
             <option value="">不使用优惠券</option>
-            {coupons.map((c: any) => (
+            {coupons.map((c) => (
               <option key={c.id} value={c.code}>
                 {c.coupon_name || c.code} (
                 {c.type === "fixed" ? `¥${c.discount_value}` : `${c.discount_value}%`}
@@ -153,7 +160,7 @@ export default function CartReviewStep({
         <button onClick={onBackToCart} className={secondaryBtnClass}>
           继续购物
         </button>
-        <button onClick={onProceed} className={primaryBtnClass}>
+        <button data-testid="checkout-proceed-to-address" onClick={onProceed} className={primaryBtnClass}>
           下一步
         </button>
       </div>

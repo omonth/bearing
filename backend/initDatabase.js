@@ -128,6 +128,30 @@ async function initializeDatabase() {
   db.run(`CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone)`);
 
   db.run(`
+    CREATE TABLE IF NOT EXISTS customer_addresses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      customer_id INTEGER NOT NULL,
+      recipient_name TEXT NOT NULL,
+      recipient_phone TEXT NOT NULL,
+      province TEXT NOT NULL,
+      city TEXT NOT NULL,
+      district TEXT NOT NULL,
+      address_detail TEXT NOT NULL,
+      postal_code TEXT,
+      is_default INTEGER NOT NULL DEFAULT 0 CHECK (is_default IN (0, 1)),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
+    )
+  `);
+  db.run('CREATE INDEX IF NOT EXISTS idx_customer_addresses_customer ON customer_addresses(customer_id, is_default)');
+  db.run(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_customer_addresses_one_default
+    ON customer_addresses(customer_id)
+    WHERE is_default = 1
+  `);
+
+  db.run(`
     CREATE TABLE IF NOT EXISTS customer_levels (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       level TEXT UNIQUE NOT NULL,

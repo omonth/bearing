@@ -3,19 +3,24 @@ export function localized(
   lang?: string,
   fallback = 'zh'
 ): string {
+  const requestedLanguage = lang || 'zh';
+  const getValue = (candidate: unknown) => {
+    if (!candidate || typeof candidate !== 'object') return '';
+    const fields = candidate as Record<string, unknown>;
+    for (const key of [requestedLanguage, fallback, 'zh']) {
+      const field = fields[key];
+      if (typeof field === 'string') return field;
+    }
+    return '';
+  };
+
   if (typeof value === 'string') {
     try {
-      const parsed = JSON.parse(value);
-      if (parsed && typeof parsed === 'object') {
-        return parsed[lang || 'zh'] || parsed[fallback] || parsed.zh || '';
-      }
+      return getValue(JSON.parse(value)) || value;
     } catch {}
     return value;
   }
-  if (value && typeof value === 'object') {
-    return value[lang || 'zh'] || value[fallback] || value.zh || '';
-  }
-  return '';
+  return getValue(value);
 }
 
 export function getStoredLang(): string {

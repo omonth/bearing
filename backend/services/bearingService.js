@@ -61,8 +61,13 @@ class BearingService {
     let query = '';
     let params = [];
     if (q && q.trim()) {
-      query = 'SELECT b.* FROM bearings b INNER JOIN bearings_fts fts ON b.id = fts.id WHERE bearings_fts MATCH ?';
-      params.push(q.trim());
+      const searchTerm = `%${q.trim().toLowerCase()}%`;
+      query = `SELECT * FROM bearings
+        WHERE LOWER(model) LIKE ?
+          OR LOWER(name) LIKE ?
+          OR LOWER(category) LIKE ?
+          OR LOWER(description) LIKE ?`;
+      params.push(searchTerm, searchTerm, searchTerm, searchTerm);
     } else {
       query = 'SELECT * FROM bearings WHERE 1=1';
     }

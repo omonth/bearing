@@ -6,7 +6,7 @@
 
 ## 核心能力
 
-- 前台商城：轴承列表、分类筛选、产品详情、购物车、结算下单、客户登录与订单查询。
+- 前台商城：轴承列表、分类筛选、产品详情、购物车、结算下单、客户登录、订单查询和收货地址簿。
 - 管理后台：管理员登录、产品管理、订单管理、仪表盘、图片上传和后台聊天助手。
 - 后端 API：产品、订单、客户、CRM、库存、支付、供应链、推荐、分析、AI 与运行时配置接口。
 - 数据层：默认支持 SQLite，本地和生产环境可切换到 Postgres；Redis 用于缓存高频读取接口。
@@ -159,7 +159,7 @@ npx playwright test
 | 认证 | `POST /api/auth/login`, `GET /api/auth/me` |
 | 产品 | `GET /api/bearings`, `GET /api/bearings/:id`, `GET /api/search`, `GET /api/categories` |
 | 订单 | `POST /api/orders`, `GET /api/orders`, `PUT /api/orders/:id/status` |
-| 客户 | `POST /api/customer/register`, `POST /api/customer/login`, `GET /api/customer/me`, `GET /api/customer/orders` |
+| 客户 | `POST /api/customer/register`, `POST /api/customer/login`, `GET /api/customer/me`, `GET /api/customer/orders`, `/api/customer/addresses` |
 | 支付 | `POST /api/payment/checkout`, `GET /api/payment/status/:paymentOrderId`, `POST /api/payment/simulate/:paymentOrderId` |
 | 库存 | `GET /api/inventory/low-stock`, `GET /api/inventory/summary` |
 | 推荐 | `GET /api/recommendations/hot`, `GET /api/recommendations/similar/:productId` |
@@ -187,6 +187,7 @@ Compose 默认启动：
 - Redis 7
 - Express backend
 - Next.js frontend
+- Vite admin static frontend (`/admin/`)
 - Nginx reverse proxy
 
 生产部署前必须设置 `DB_PASSWORD`、`REDIS_PASSWORD`、`JWT_SECRET`、`AI_JWT_SECRET`、两组首次管理员凭据、`CORS_ORIGIN` 和 `PAYMENT_MODE=production`。Nginx 配置仅提供 HTTP 反向代理；公网部署还应在其前方配置受管 TLS 或 HTTPS 终止。部署、备份、恢复和回滚细节见 `DEPLOYMENT.md` 与 `DOCKER-DEPLOYMENT.md`。
@@ -197,6 +198,7 @@ Compose 默认启动：
 npm test
 npm run lint
 npm run build
+npm run test:e2e
 cd backend && npm test
 cd admin && npm test
 cd admin && npm run build

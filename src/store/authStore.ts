@@ -1,14 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { customerLogin, customerRegister, getCustomerMe } from '@/lib/api';
-
-interface AuthUser {
-  id: number;
-  phone: string;
-  name: string;
-  level: string;
-  points: number;
-}
+import type { AuthUser } from '@/types';
 
 interface AuthStore {
   user: AuthUser | null;

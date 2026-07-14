@@ -17,7 +17,6 @@
 ## 技术栈
 
 - Express.js + SQLite3
-- GraphQL（Apollo Server）
 - JWT 认证
 - Multer 文件上传
 
@@ -29,4 +28,3 @@
 - `/api/crm` — 客户关系管理
 - `/api/ai` — AI 智能服务
 - `/api/upload` — 图片上传
-- `/graphql` — GraphQL 端点

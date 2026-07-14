@@ -13,13 +13,12 @@ const config = [
   },
   {
     ignores: [
-      'admin/**',
       'backend/**',
       '.worktrees/**',
-      'node_modules/**',
+      '**/node_modules/**',
       '.next/**',
       'out/**',
-      'dist/**',
+      '**/dist/**',
       'coverage/**',
       'next-env.d.ts',
       'tsconfig.tsbuildinfo',

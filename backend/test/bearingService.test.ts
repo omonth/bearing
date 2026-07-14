@@ -67,6 +67,12 @@ describe("BearingService", () => {
   });
 
   describe("search", () => {
+    it("searches a model without requiring a SQLite-only FTS index", async () => {
+      const data = await bearingService.search({ q: "6200" });
+
+      expect(data.results.map((bearing) => bearing.model)).toContain("6200");
+    });
+
     it("无查询时返回全部产品", async () => {
       const data = await bearingService.search({});
       expect(data.total).toBe(3);

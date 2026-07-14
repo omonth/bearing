@@ -8,7 +8,8 @@ import PaymentStep from "@/components/checkout/PaymentStep";
 import { useCartStore, useTotalPrice, useTotalCount } from "@/store/cartStore";
 import { useCheckoutStore, useCities, useAllProvinces, useFinalPrice } from "@/store/checkoutStore";
 import { useAuthStore } from "@/store/authStore";
-import { getCustomerCoupons } from "@/lib/api";
+import { createCustomerAddress, getCustomerAddresses, getCustomerCoupons } from "@/lib/api";
+import type { CustomerAddress, CustomerCoupon } from "@/types";
 
 const steps = ["确认商品", "收货地址", "支付"];
 
@@ -40,7 +41,11 @@ export default function CheckoutPage() {
   } = useCheckoutStore();
 
   const { token } = useAuthStore();
-  const [coupons, setCoupons] = useState<any[]>([]);
+  const isAuthenticated = Boolean(token)
+    || (typeof window !== 'undefined' && Boolean(localStorage.getItem('token')));
+  const [coupons, setCoupons] = useState<CustomerCoupon[]>([]);
+  const [savedAddresses, setSavedAddresses] = useState<CustomerAddress[]>([]);
+  const [savingAddress, setSavingAddress] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
   // Reactive selectors — only re-render when their specific slice changes
@@ -51,12 +56,20 @@ export default function CheckoutPage() {
 
   // Load coupons
   useEffect(() => {
-    if (token) {
+    if (isAuthenticated) {
       getCustomerCoupons()
         .then((data) => setCoupons(data || []))
         .catch(() => {});
+      getCustomerAddresses()
+        .then((data) => setSavedAddresses(data || []))
+        .catch(() => {});
+    } else {
+      queueMicrotask(() => {
+        setCoupons([]);
+        setSavedAddresses([]);
+      });
     }
-  }, [token]);
+  }, [isAuthenticated]);
 
   // Clean up polling on unmount
   useEffect(() => {
@@ -95,8 +108,41 @@ export default function CheckoutPage() {
     }
     try {
       await submitOrder(items);
-    } catch (error: any) {
-      setFormError(error.message || "下单失败");
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : "下单失败");
+    }
+  };
+
+  const selectSavedAddress = (addressId: number) => {
+    const address = savedAddresses.find((item) => item.id === addressId);
+    if (!address) return;
+    setProvince(address.province);
+    setField("customerName", address.recipientName);
+    setField("customerPhone", address.recipientPhone);
+    setField("city", address.city);
+    setField("district", address.district);
+    setField("addressDetail", address.addressDetail);
+  };
+
+  const saveAddress = async () => {
+    if (!isAuthenticated) return;
+    setSavingAddress(true);
+    setFormError(null);
+    try {
+      const address = await createCustomerAddress({
+        recipientName: customerName,
+        recipientPhone: customerPhone,
+        province,
+        city,
+        district,
+        addressDetail,
+        isDefault: savedAddresses.length === 0,
+      });
+      setSavedAddresses((current) => [address, ...current.filter((item) => item.id !== address.id)]);
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : "地址保存失败");
+    } finally {
+      setSavingAddress(false);
     }
   };
 
@@ -196,7 +242,11 @@ export default function CheckoutPage() {
               finalPrice={finalPrice}
               discountAmount={discountAmount}
               submitting={submitting}
-              formError={formError}
+               formError={formError}
+               savedAddresses={savedAddresses}
+               onSelectSavedAddress={selectSavedAddress}
+               onSaveAddress={isAuthenticated ? () => void saveAddress() : undefined}
+               savingAddress={savingAddress}
               onChangeField={setField}
               onSelectProvince={setProvince}
               onSelectPaymentMethod={setPaymentMethod}

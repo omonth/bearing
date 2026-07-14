@@ -1,4 +1,28 @@
+import type {
+  AdminUser,
+  AuthUser,
+  Bearing,
+  ChatResponse,
+  Customer,
+  CustomerAddress,
+  CustomerAddressInput,
+  CustomerCoupon,
+  Order,
+} from '@/types';
+
 const API_BASE = '/api';
+
+interface ApiEnvelope<T> {
+  data: T;
+}
+
+interface ApiError {
+  error?: string;
+}
+
+function isApiError(value: unknown): value is ApiError {
+  return typeof value === 'object' && value !== null && 'error' in value;
+}
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${url}`, {
@@ -9,15 +33,15 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
     },
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: '请求失败' }));
-    throw new Error(err.error || `HTTP ${res.status}`);
+    const error: unknown = await res.json().catch(() => ({ error: '请求失败' }));
+    throw new Error(isApiError(error) && error.error ? error.error : `HTTP ${res.status}`);
   }
-  const body = await res.json();
+  const body: unknown = await res.json();
   // Backend wraps all success responses as { data: ... }
-  return body.data as T;
+  return (body as ApiEnvelope<T>).data;
 }
 
-export const getAuthHeaders = () => {
+export const getAuthHeaders = (): Record<string, string> => {
   if (typeof window !== 'undefined') {
     const token = localStorage.getItem('token');
     return token ? { Authorization: `Bearer ${token}` } : {};
@@ -25,7 +49,7 @@ export const getAuthHeaders = () => {
   return {};
 };
 
-export type PaymentMethod = 'alipay' | 'wechat' | 'unionpay' | 'cod' | 'balance';
+export type PaymentMethod = 'alipay' | 'wechat' | 'unionpay' | 'cod';
 
 export interface CreateOrderRequest {
   customerName: string;
@@ -70,7 +94,7 @@ export {
 
 export const searchProducts = (params: Record<string, string>) => {
   const qs = new URLSearchParams(params).toString();
-  return request<any>(`/search?${qs}`);
+  return request<Bearing[]>(`/search?${qs}`);
 };
 
 // Orders
@@ -83,54 +107,85 @@ export const createOrder = (data: CreateOrderRequest) =>
 
 // Recommendations
 export const getHotProducts = (limit = 10) =>
-  request<any[]>(`/recommendations/hot?limit=${limit}`);
+  request<Bearing[]>(`/recommendations/hot?limit=${limit}`);
 
 // Auth (admin)
 export const adminLogin = (username: string, password: string) =>
-  request<{ token: string; user: any }>('/auth/login', {
+  request<{ token: string; user: AdminUser }>('/auth/login', {
     method: 'POST',
     body: JSON.stringify({ username, password }),
   });
 
 // Customer auth
-export const customerRegister = (data: { name?: string; phone: string; password: string }) =>
-  request<{ token: string; user: any }>('/customer/register', {
+export interface CustomerRegistrationRequest {
+  name?: string;
+  phone: string;
+  password: string;
+}
+
+export const customerRegister = (data: CustomerRegistrationRequest) =>
+  request<{ token: string; user: AuthUser }>('/customer/register', {
     method: 'POST',
     body: JSON.stringify(data),
     headers: { 'Content-Type': 'application/json' },
   });
 
 export const customerLogin = (phone: string, password: string) =>
-  request<{ token: string; user: any }>('/customer/login', {
+  request<{ token: string; user: AuthUser }>('/customer/login', {
     method: 'POST',
     body: JSON.stringify({ phone, password }),
     headers: { 'Content-Type': 'application/json' },
   });
 
 export const getCustomerMe = () =>
-  request<any>('/customer/me', {
+  request<Customer>('/customer/me', {
     headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
   });
 
 export const getCustomerOrders = () =>
-  request<any[]>('/customer/orders', {
+  request<Order[]>('/customer/orders', {
     headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
   });
 
 export const getCustomerOrderDetail = (id: number) =>
-  request<any>(`/customer/orders/${id}`, {
+  request<Order>(`/customer/orders/${id}`, {
     headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
   });
 
 export const getCustomerCoupons = () =>
-  request<any[]>('/customer/coupons', {
+  request<CustomerCoupon[]>('/customer/coupons', {
     headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
   });
 
 export const applyCustomerCoupon = (code: string, orderId: number) =>
-  request<any>('/customer/coupons/use', {
+  request<{ discountAmount: number }>('/customer/coupons/use', {
     method: 'POST',
     body: JSON.stringify({ code, orderId }),
+    headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+  });
+
+export const getCustomerAddresses = () =>
+  request<CustomerAddress[]>('/customer/addresses', {
+    headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+  });
+
+export const createCustomerAddress = (data: CustomerAddressInput) =>
+  request<CustomerAddress>('/customer/addresses', {
+    method: 'POST',
+    body: JSON.stringify(data),
+    headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+  });
+
+export const updateCustomerAddress = (id: number, data: CustomerAddressInput) =>
+  request<CustomerAddress>(`/customer/addresses/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+    headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+  });
+
+export const deleteCustomerAddress = (id: number) =>
+  request<{ id: number }>(`/customer/addresses/${id}`, {
+    method: 'DELETE',
     headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
   });
 
@@ -159,8 +214,8 @@ export const queryPaymentStatus = (paymentOrderId: number, orderAccessToken: str
   );
 
 // AI
-export const chatWithBot = (message: string, context?: any) =>
-  request<any>('/ai/chat', {
+export const chatWithBot = (message: string, context?: Record<string, unknown>) =>
+  request<ChatResponse>('/ai/chat', {
     method: 'POST',
     body: JSON.stringify({ message, context }),
   });

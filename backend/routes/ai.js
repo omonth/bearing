@@ -152,7 +152,7 @@ module.exports = function(db, aiService, requireAIRole) {
 
   // ==================== Image Recognition (Simulated) ====================
 
-  router.post('/image-recognize', async (req, res, next) => {
+  router.post('/image-recognize', requireManagementRole(...readRoles), async (req, res, next) => {
     try {
       // In production, this would use TensorFlow.js or a cloud vision API
       // For now, returns a simulated product recognition result

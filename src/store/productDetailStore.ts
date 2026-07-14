@@ -26,8 +26,8 @@ export const useProductDetailStore = create<ProductDetailStore>()((set) => ({
         getSimilarProducts(id),
       ]);
       set({ currentProduct: product, similarProducts: similar });
-    } catch (error: any) {
-      set({ detailError: error.message || '加载产品失败' });
+    } catch (error) {
+      set({ detailError: error instanceof Error ? error.message : '加载产品失败' });
       console.error('获取产品详情失败:', error);
     } finally {
       set({ detailLoading: false });

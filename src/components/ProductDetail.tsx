@@ -43,6 +43,7 @@ export default function ProductDetail({
     <div className="space-y-6">
       <button
         type="button"
+        data-testid="storefront-product-back"
         onClick={onBack}
         className="rounded-md px-3 py-2 text-sm font-medium text-neutral-400 transition hover:bg-white/5 hover:text-amber-300 active:scale-95"
       >
@@ -152,6 +153,7 @@ export default function ProductDetail({
                 </button>
                 <input
                   type="number"
+                  data-testid="storefront-detail-quantity"
                   value={quantity}
                   onChange={(event) =>
                     setSafeQuantity(parseInt(event.target.value, 10) || 1)
@@ -173,6 +175,7 @@ export default function ProductDetail({
               </div>
               <button
                 type="button"
+                data-testid="storefront-detail-add-to-cart"
                 onClick={handleAddToCart}
                 disabled={!inStock}
                 className="h-11 flex-1 rounded-md bg-amber-400 px-5 text-sm font-semibold text-neutral-950 transition hover:bg-amber-300 active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-neutral-700 disabled:text-neutral-500"
