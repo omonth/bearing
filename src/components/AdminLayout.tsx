@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
 
@@ -28,70 +28,52 @@ const roleLabels: Record<string, string> = {
   admin: "管理员",
 };
 
-function readAdminUser(): AdminUser | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const stored = localStorage.getItem("ai_user");
-    if (!stored) return null;
-    const parsed: unknown = JSON.parse(stored);
-    if (
-      typeof parsed === "object"
-      && parsed !== null
-      && "id" in parsed
-      && "username" in parsed
-      && "role" in parsed
-      && typeof parsed.id === "number"
-      && typeof parsed.username === "string"
-      && typeof parsed.role === "string"
-    ) {
-      return {
-        id: parsed.id,
-        username: parsed.username,
-        role: parsed.role,
-      };
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-function readAdminToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem("ai_token");
-}
-
-function subscribeToAdminSession(onStoreChange: () => void) {
-  window.addEventListener("storage", onStoreChange);
-  window.addEventListener("admin-session-change", onStoreChange);
-  return () => {
-    window.removeEventListener("storage", onStoreChange);
-    window.removeEventListener("admin-session-change", onStoreChange);
-  };
-}
-
-const serverAdminSession = () => null;
-
 export default function AdminLayout({ children, title }: AdminLayoutProps) {
   const router = useRouter();
-  const user = useSyncExternalStore(subscribeToAdminSession, readAdminUser, serverAdminSession);
-  const token = useSyncExternalStore(subscribeToAdminSession, readAdminToken, serverAdminSession);
+  const [user, setUser] = useState<AdminUser | null>(null);
+  const [sessionChecked, setSessionChecked] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   useEffect(() => {
-    if (!token || !user) {
+    let cancelled = false;
+    fetch("/api/ai/auth/me", { credentials: "include" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("session unavailable");
+        const body = await response.json();
+        if (!cancelled) setUser(body.user);
+      })
+      .catch(() => {
+        if (!cancelled) setUser(null);
+      })
+      .finally(() => {
+        if (!cancelled) setSessionChecked(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (sessionChecked && !user) {
       router.replace("/admin/login");
     }
-  }, [router, token, user]);
+  }, [router, sessionChecked, user]);
 
-  const handleLogout = () => {
-    localStorage.removeItem("ai_token");
-    localStorage.removeItem("ai_user");
-    window.dispatchEvent(new Event("admin-session-change"));
-    router.replace("/admin/login");
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/ai/auth/logout", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+    } finally {
+      setUser(null);
+      await router.replace("/admin/login");
+    }
   };
 
-  if (!token || !user) {
+  if (!sessionChecked || !user) {
     return <div className="min-h-screen bg-neutral-950" />;
   }
 

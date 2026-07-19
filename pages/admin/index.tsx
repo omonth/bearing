@@ -27,14 +27,9 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem("ai_token");
-    if (!token) return;
-
-    const headers = { Authorization: `Bearer ${token}` };
-
     Promise.all([
-      fetch("/api/ai/forecast?days=14", { headers }).then((r) => r.json()),
-      fetch("/api/ai/predict-demand", { headers }).then((r) => r.json()),
+      fetch("/api/ai/forecast?days=14", { credentials: "include" }).then((r) => r.json()),
+      fetch("/api/ai/predict-demand", { credentials: "include" }).then((r) => r.json()),
     ])
       .then(([f, p]) => {
         setForecast(f.forecast || []);

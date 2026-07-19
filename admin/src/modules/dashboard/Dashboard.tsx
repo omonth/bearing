@@ -13,8 +13,8 @@ interface DashboardData {
 }
 interface AlertProduct { id: number; name: { zh?: string } | string; model: string; stock: number; }
 
-const statusColors: Record<string, string> = { pending: 'default', paid: 'processing', shipped: 'blue', completed: 'green', cancelled: 'error' };
-const statusLabels: Record<string, string> = { pending: '待处理', paid: '已支付', shipped: '已发货', completed: '已完成', cancelled: '已取消' };
+const statusColors: Record<string, string> = { pending: 'default', paid: 'processing', shipped: 'blue', completed: 'green', cancelled: 'error', refunded: 'warning' };
+const statusLabels: Record<string, string> = { pending: '待处理', paid: '已支付', shipped: '已发货', completed: '已完成', cancelled: '已取消', refunded: '已退款' };
 
 function ln(v: { zh?: string } | string) { return typeof v === 'object' ? v?.zh || '' : v; }
 
@@ -48,7 +48,12 @@ export default function Dashboard() {
     let socket: ReturnType<typeof import('socket.io-client').io> | null = null;
     try {
       import('socket.io-client').then(m => {
-        socket = m.io('/', { path: '/socket.io', transports: ['websocket', 'polling'] });
+        socket = m.io('/', {
+          path: '/api/socket.io',
+          withCredentials: true,
+          auth: { audience: 'admin' },
+          transports: ['polling', 'websocket'],
+        });
         socket.emit('join-admin');
         socket.on('new-order', (order: { id: number; customer_name: string; created_at: string; status: string }) => {
           setLiveOrders(prev => [order, ...prev].slice(0, 8));

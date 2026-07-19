@@ -18,7 +18,7 @@
 
 ```bash
 curl -X POST http://localhost:3001/api/bearings \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Bearer <access-token>" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "深沟球轴承 6205",
@@ -55,7 +55,7 @@ curl -X POST http://localhost:3001/api/bearings \
 
 ```bash
 curl -X DELETE http://localhost:3001/api/bearings/123 \
-  -H "Authorization: Bearer YOUR_TOKEN"
+  -H "Authorization: Bearer <access-token>"
 ```
 
 #### 响应示例
@@ -84,7 +84,7 @@ curl -X DELETE http://localhost:3001/api/bearings/123 \
 
 ```bash
 curl -X PUT http://localhost:3001/api/bearings/123/stock \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Bearer <access-token>" \
   -H "Content-Type: application/json" \
   -d '{
     "stock": 200
@@ -174,7 +174,7 @@ curl -X POST http://localhost:3001/api/orders \
 
 ```bash
 curl -X DELETE http://localhost:3001/api/orders/456 \
-  -H "Authorization: Bearer YOUR_TOKEN"
+  -H "Authorization: Bearer <access-token>"
 ```
 
 #### 响应示例
@@ -227,7 +227,7 @@ curl -X DELETE http://localhost:3001/api/orders/456 \
 
 ```bash
 curl -X DELETE http://localhost:3001/api/orders/batch \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Bearer <access-token>" \
   -H "Content-Type: application/json" \
   -d '{
     "orderIds": [456, 457, 458]
@@ -272,7 +272,7 @@ curl -X DELETE http://localhost:3001/api/orders/batch \
 
 ```bash
 curl -X PUT http://localhost:3001/api/orders/456/status \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Bearer <access-token>" \
   -H "Content-Type: application/json" \
   -d '{
     "status": "shipped",
@@ -303,7 +303,7 @@ curl -X PUT http://localhost:3001/api/orders/456/status \
 
 ```bash
 curl http://localhost:3001/api/orders/456/history \
-  -H "Authorization: Bearer YOUR_TOKEN"
+  -H "Authorization: Bearer <access-token>"
 ```
 
 #### 响应示例

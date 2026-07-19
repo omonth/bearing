@@ -32,6 +32,10 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
+      '/api/socket.io': {
+        target: 'http://localhost:3001',
+        ws: true,
+      },
       '/api': 'http://localhost:3001',
       '/images': 'http://localhost:3001',
     },

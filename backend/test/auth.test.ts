@@ -76,7 +76,7 @@ describe('Auth API', () => {
     const res = await request(app)
       .post('/api/auth/change-password')
       .set('Authorization', `Bearer ${loginRes.body.data.token}`)
-      .send({ oldPassword: 'admin123', newPassword: 'newpass123' });
+      .send({ oldPassword: 'admin123', newPassword: 'new-admin-password-123' });
     expect(res.status).toBe(200);
 
     // Verify old password no longer works
@@ -88,7 +88,7 @@ describe('Auth API', () => {
     // New password works
     const newRes = await request(app)
       .post('/api/auth/login')
-      .send({ username: 'admin', password: 'newpass123' });
+      .send({ username: 'admin', password: 'new-admin-password-123' });
     expect(newRes.status).toBe(200);
   });
 

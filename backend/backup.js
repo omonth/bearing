@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const logger = require('./logger');
 const { getDatabase } = require('./db/adapter');
+const { runPostgresBackup } = require('./scripts/backup/postgres-backup');
 
 const backupDir = process.env.BACKUP_DIR || './backups';
 const MAX_BACKUPS = 10;
@@ -12,14 +13,25 @@ if (!fs.existsSync(backupDir)) {
 }
 
 /**
- * Safe SQLite backup using the `.backup()` API (consistent snapshot).
- * Falls back to file-copy for PostgreSQL (pg_dump) or if the adapter is not SQLite.
+ * Safe SQLite backup using the `.backup()` API (consistent snapshot), or an
+ * encrypted PostgreSQL custom-format dump uploaded to offsite object storage.
  */
-async function backupDatabase() {
+async function backupDatabase(env = process.env) {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const db = getDatabase();
 
   try {
+    if (env.DB_TYPE === 'postgres') {
+      const result = await runPostgresBackup(env);
+      logger.info('PostgreSQL 数据库备份成功', {
+        backupPath: result.backupPath,
+        remoteKey: result.remoteKey,
+        sha256: result.manifest.sha256,
+      });
+      console.log(`PostgreSQL 数据库备份成功: ${result.backupPath}`);
+      return result;
+    }
+
+    const db = getDatabase();
     if (db.type === 'sqlite' && db.sqlite) {
       // Use SQLite backup API for a consistent, live-safe snapshot
       const backupPath = path.join(backupDir, `bearings_backup_${timestamp}.db`);
@@ -31,11 +43,6 @@ async function backupDatabase() {
       });
       logger.info('数据库备份成功 (SQLite backup API)', { backupPath });
       console.log(`数据库备份成功: ${backupPath}`);
-    } else if (db.type === 'postgres') {
-      // For PostgreSQL, log a warning — use pg_dump externally
-      logger.warn('PostgreSQL 备份请使用 pg_dump，内置备份仅支持 SQLite');
-      console.log('PostgreSQL 备份请使用 pg_dump 命令');
-      return;
     } else {
       // Fallback: file copy (not safe for live DB, but better than nothing)
       const dbPath = path.join(__dirname, process.env.DB_PATH || 'bearings.db');
@@ -49,6 +56,7 @@ async function backupDatabase() {
   } catch (error) {
     logger.error('数据库备份失败', { error: error.message });
     console.error('数据库备份失败:', error.message);
+    throw error;
   }
 }
 
@@ -76,7 +84,9 @@ function cleanOldBackups() {
 }
 
 if (require.main === module) {
-  backupDatabase().then(() => process.exit(0)).catch(() => process.exit(1));
+  backupDatabase().catch(() => {
+    process.exitCode = 1;
+  });
 }
 
 module.exports = { backupDatabase };

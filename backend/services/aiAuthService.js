@@ -1,5 +1,6 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const logger = require('../logger');
 
 const DEVELOPMENT_AI_JWT_SECRET = 'development-ai-jwt-secret-not-for-production';
@@ -9,6 +10,7 @@ const WEAK_AI_JWT_SECRETS = new Set([
   'your-secret-key-change-in-production',
   'bearing-jwt-secret-change-in-production-min-32-chars',
 ]);
+const DUMMY_AI_PASSWORD_HASH = '$2b$10$C84RtBLD5qZjINso0ykEbublUglHL0uBNezsXPrv5TEg0UiC6eOUW';
 
 function isProduction(env = process.env) {
   return env.NODE_ENV === 'production';
@@ -54,7 +56,7 @@ class AIAuthService {
     this.bootstrapUsername = config.bootstrapUsername ?? process.env.AI_BOOTSTRAP_USERNAME ?? null;
     this.bootstrapPassword = config.bootstrapPassword ?? process.env.AI_BOOTSTRAP_PASSWORD ?? null;
     this._validateBootstrapConfig();
-    this.ready = this._ensureTable();
+    this.ready = this._bootstrapInitialAdmin();
   }
 
   _validateBootstrapConfig() {
@@ -81,39 +83,7 @@ class AIAuthService {
     }
   }
 
-  async _ensureTable() {
-    const idColumn = this.db.type === 'postgres'
-      ? 'SERIAL PRIMARY KEY'
-      : 'INTEGER PRIMARY KEY AUTOINCREMENT';
-
-    await this.db.run(`
-      CREATE TABLE IF NOT EXISTS ai_users (
-        id ${idColumn},
-        username TEXT NOT NULL UNIQUE,
-        password_hash TEXT NOT NULL,
-        role TEXT NOT NULL DEFAULT 'viewer' CHECK (role IN ('viewer', 'editor', 'admin')),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        last_login TIMESTAMP
-      )
-    `);
-
-    await this.db.run(`
-      CREATE TABLE IF NOT EXISTS ai_operation_logs (
-        id ${idColumn},
-        admin_id INTEGER NOT NULL,
-        admin_username TEXT NOT NULL,
-        action TEXT NOT NULL,
-        target_table TEXT,
-        target_id INTEGER,
-        before_value TEXT,
-        after_value TEXT,
-        reason TEXT,
-        status TEXT NOT NULL DEFAULT 'pending',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        executed_at TIMESTAMP
-      )
-    `);
-
+  async _bootstrapInitialAdmin() {
     const count = await this.db.get('SELECT COUNT(*) as count FROM ai_users');
     if (Number(count.count) !== 0) {
       return;
@@ -135,15 +105,19 @@ class AIAuthService {
   async login(username, password) {
     await this.ready;
     const user = await this.db.get('SELECT * FROM ai_users WHERE username = ?', [username]);
-    if (!user) return { error: '用户名或密码错误', status: 401 };
-
-    const valid = await bcrypt.compare(password, user.password_hash);
-    if (!valid) return { error: '用户名或密码错误', status: 401 };
+    const valid = await bcrypt.compare(password, user?.password_hash || DUMMY_AI_PASSWORD_HASH);
+    if (!user || !valid) return { error: '用户名或密码错误', status: 401 };
 
     await this.db.run('UPDATE ai_users SET last_login = CURRENT_TIMESTAMP WHERE id = ?', [user.id]);
 
     const token = jwt.sign(
-      { id: user.id, username: user.username, role: user.role, type: 'ai' },
+      {
+        id: user.id,
+        username: user.username,
+        role: user.role,
+        type: 'ai',
+        sessionProof: this._sessionProof(user.id, user.password_hash),
+      },
       this.jwtSecret,
       { expiresIn: this.expiresIn }
     );
@@ -152,10 +126,30 @@ class AIAuthService {
     return { data: { token, user: { id: user.id, username: user.username, role: user.role } } };
   }
 
-  verifyToken(token) {
+  _sessionProof(userId, passwordHash) {
+    return crypto
+      .createHmac('sha256', this.jwtSecret)
+      .update(`ai-session:${userId}:${passwordHash}`)
+      .digest('hex');
+  }
+
+  async verifyToken(token) {
     try {
       const decoded = jwt.verify(token, this.jwtSecret);
-      if (decoded.type !== 'ai') return null;
+      if (decoded.type !== 'ai'
+        || !Number.isSafeInteger(decoded.id)
+        || typeof decoded.sessionProof !== 'string'
+        || !/^[a-f0-9]{64}$/.test(decoded.sessionProof)) return null;
+      const user = await this.db.get(
+        'SELECT username, password_hash, role FROM ai_users WHERE id = ?',
+        [decoded.id]
+      );
+      if (!user || user.role !== decoded.role || user.username !== decoded.username) return null;
+      const expected = Buffer.from(this._sessionProof(decoded.id, user.password_hash), 'hex');
+      const supplied = Buffer.from(decoded.sessionProof, 'hex');
+      if (expected.length !== supplied.length || !crypto.timingSafeEqual(expected, supplied)) {
+        return null;
+      }
       return decoded;
     } catch {
       return null;

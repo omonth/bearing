@@ -1,15 +1,17 @@
-const AIAuthService = require('../services/aiAuthService');
+const { AI_SESSION_COOKIE, parseCookies } = require('./sessionCookies');
 
 function createAIAuthMiddleware(aiAuthService) {
   return function requireAIRole(...roles) {
-    return (req, res, next) => {
+    return async (req, res, next) => {
       const authHeader = req.headers.authorization;
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      const cookieToken = parseCookies(req.headers.cookie)[AI_SESSION_COOKIE];
+      if (authHeader && !authHeader.startsWith('Bearer ')) {
         return res.status(401).json({ error: '未登录' });
       }
+      const token = authHeader?.slice(7).trim() || cookieToken;
+      if (!token) return res.status(401).json({ error: '未登录' });
 
-      const token = authHeader.slice(7);
-      const decoded = aiAuthService.verifyToken(token);
+      const decoded = await aiAuthService.verifyToken(token);
       if (!decoded) {
         return res.status(401).json({ error: '登录已过期，请重新登录' });
       }
@@ -19,7 +21,7 @@ function createAIAuthMiddleware(aiAuthService) {
       }
 
       req.aiUser = decoded;
-      next();
+      return next();
     };
   };
 }

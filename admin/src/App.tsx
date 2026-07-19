@@ -7,6 +7,8 @@ const Login = lazy(() => import('./modules/auth/Login'));
 const Dashboard = lazy(() => import('./modules/dashboard/Dashboard'));
 const ProductList = lazy(() => import('./modules/products/ProductList'));
 const OrderList = lazy(() => import('./modules/orders/OrderList'));
+const AfterSalesList = lazy(() => import('./modules/after-sales/AfterSalesList'));
+const InvoiceList = lazy(() => import('./modules/invoices/InvoiceList'));
 
 export default function App() {
   return (
@@ -23,6 +25,8 @@ export default function App() {
           <Route path="/admin/dashboard" element={<Dashboard />} />
           <Route path="/admin/products" element={<ProductList />} />
           <Route path="/admin/orders" element={<OrderList />} />
+          <Route path="/admin/after-sales" element={<AfterSalesList />} />
+          <Route path="/admin/invoices" element={<InvoiceList />} />
         </Route>
         <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
       </Routes>

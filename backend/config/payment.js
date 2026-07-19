@@ -3,11 +3,11 @@
  * 所有密钥从环境变量读取，不硬编码
  */
 
-const path = require('path');
+const paymentMode = process.env.PAYMENT_MODE || 'sandbox';
 
 const paymentConfig = {
   // 支付模式: sandbox | production
-  mode: process.env.PAYMENT_MODE || 'sandbox',
+  mode: paymentMode,
 
   // ==================== 支付宝 ====================
   alipay: {
@@ -17,9 +17,10 @@ const paymentConfig = {
     // 支付宝公钥（用于验证回调签名）
     publicKey: process.env.ALIPAY_PUBLIC_KEY || '',
     // 异步通知地址（公网可访问）
-    notifyUrl: process.env.ALIPAY_NOTIFY_URL || 'http://localhost:3001/api/payment/alipay/notify',
+    notifyUrl: process.env.ALIPAY_NOTIFY_URL
+      || (paymentMode === 'production' ? '' : 'http://localhost:3001/api/payment/alipay/notify'),
     // 网关地址
-    gateway: process.env.ALIPAY_MODE === 'production'
+    gateway: paymentMode === 'production'
       ? 'https://openapi.alipay.com/gateway.do'
       : 'https://openapi-sandbox.dl.alipaydev.com/gateway.do',
     // 沙箱环境应用公钥证书路径（可选，证书模式用）
@@ -38,10 +39,13 @@ const paymentConfig = {
     certSerial: process.env.WECHAT_CERT_SERIAL || '',
     // 商户API私钥（apiclient_key.pem 内容）
     privateKey: process.env.WECHAT_PRIVATE_KEY || '',
+    merchantPublicKey: process.env.WECHAT_MERCHANT_PUBLIC_KEY || '',
     // 异步通知地址
-    notifyUrl: process.env.WECHAT_NOTIFY_URL || 'http://localhost:3001/api/payment/wechat/notify',
+    notifyUrl: process.env.WECHAT_NOTIFY_URL
+      || (paymentMode === 'production' ? '' : 'http://localhost:3001/api/payment/wechat/notify'),
     // 微信平台证书（用于验证回调签名，可选，SDK 会自动下载）
     platformCertPath: process.env.WECHAT_PLATFORM_CERT_PATH || '',
+    callbackMaxAgeSeconds: Number(process.env.WECHAT_CALLBACK_MAX_AGE_SECONDS || 300),
   },
 
   // ==================== 银联 ====================
@@ -56,13 +60,15 @@ const paymentConfig = {
     // 加密证书路径
     encryptCertPath: process.env.UNIONPAY_ENCRYPT_CERT_PATH || '',
     // 异步通知地址
-    notifyUrl: process.env.UNIONPAY_NOTIFY_URL || 'http://localhost:3001/api/payment/unionpay/notify',
+    notifyUrl: process.env.UNIONPAY_NOTIFY_URL
+      || (paymentMode === 'production' ? '' : 'http://localhost:3001/api/payment/unionpay/notify'),
     // 网关地址
-    gateway: process.env.UNIONPAY_MODE === 'production'
+    gateway: paymentMode === 'production'
       ? 'https://gateway.95516.com/gateway/api'
       : 'https://gateway.test.95516.com/gateway/api',
     // 前台跳转地址
-    frontUrl: process.env.UNIONPAY_FRONT_URL || 'http://localhost:3000',
+    frontUrl: process.env.UNIONPAY_FRONT_URL
+      || (paymentMode === 'production' ? '' : 'http://localhost:3000'),
   },
 };
 
@@ -70,15 +76,22 @@ const paymentConfig = {
 function checkConfig() {
   const results = { alipay: false, wechat: false, unionpay: false };
 
-  if (paymentConfig.alipay.appId && paymentConfig.alipay.privateKey) {
+  if (paymentConfig.alipay.appId
+    && paymentConfig.alipay.privateKey
+    && paymentConfig.alipay.publicKey) {
     results.alipay = true;
   }
-  if (paymentConfig.wechat.appId && paymentConfig.wechat.mchId && paymentConfig.wechat.apiKeyV3) {
+  if (paymentConfig.wechat.appId
+    && paymentConfig.wechat.mchId
+    && paymentConfig.wechat.apiKeyV3
+    && paymentConfig.wechat.certSerial
+    && paymentConfig.wechat.privateKey
+    && paymentConfig.wechat.platformCertPath) {
     results.wechat = true;
   }
-  if (paymentConfig.unionpay.merchantId && paymentConfig.unionpay.certPath) {
-    results.unionpay = true;
-  }
+  // Real UnionPay is intentionally disabled until an official ACP-compatible
+  // PKCS#12/DER implementation and merchant acceptance test are available.
+  results.unionpay = false;
 
   return results;
 }

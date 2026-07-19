@@ -19,12 +19,16 @@ class PaymentProvider {
     throw new Error('queryStatus not implemented');
   }
 
-  async handleCallback(params) {
+  async handleCallback({ headers, body, rawBody }) {
     throw new Error('handleCallback not implemented');
   }
 
   async createRefund({ paymentOrder, amount, reason, refundNo }) {
     throw new Error('createRefund not implemented');
+  }
+
+  async queryRefund({ paymentOrder, refund }) {
+    throw new Error('queryRefund not implemented');
   }
 }
 

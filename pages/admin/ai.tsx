@@ -28,8 +28,6 @@ export default function AdminAI() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const getToken = () => localStorage.getItem("ai_token");
-
   const send = async (text: string) => {
     const msg = text.trim();
     if (!msg) return;
@@ -39,14 +37,12 @@ export default function AdminAI() {
     setLoading(true);
 
     try {
-      const token = getToken();
-
       // Try RAG first (product queries)
       const ragRes = await fetch("/api/ai/chat", {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({ message: msg }),
       });
@@ -110,12 +106,11 @@ export default function AdminAI() {
     setLoading(true);
 
     try {
-      const token = getToken();
       const res = await fetch("/api/ai/admin-chat", {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({ message: msg }),
       });

@@ -65,6 +65,7 @@ export async function createTestDb() {
       password TEXT NOT NULL,
       email TEXT,
       role TEXT DEFAULT 'admin',
+      session_version INTEGER NOT NULL DEFAULT 1,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       last_login DATETIME
     )
@@ -128,6 +129,35 @@ export async function createTestDb() {
       new_status TEXT NOT NULL,
       note TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await db.run(`
+    CREATE TABLE ai_users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'viewer' CHECK (role IN ('viewer', 'editor', 'admin')),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      last_login DATETIME
+    )
+  `);
+
+  await db.run(`
+    CREATE TABLE ai_operation_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      admin_id INTEGER NOT NULL,
+      admin_username TEXT NOT NULL,
+      action TEXT NOT NULL CHECK (action IN ('create', 'update', 'delete', 'query')),
+      target_table TEXT,
+      target_id INTEGER,
+      before_value TEXT,
+      after_value TEXT,
+      reason TEXT,
+      status TEXT NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending', 'executed', 'cancelled', 'rolled_back')),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      executed_at DATETIME
     )
   `);
 

@@ -37,8 +37,28 @@ beforeAll(async () => {
       refund_reason TEXT,
       status TEXT DEFAULT 'pending',
       refund_no TEXT,
+      provider_refund_id TEXT,
+      attempt_count INTEGER NOT NULL DEFAULT 0,
+      lease_token TEXT,
+      lease_expires_at INTEGER,
+      next_reconcile_at INTEGER,
+      last_attempt_at TEXT,
+      last_error TEXT,
+      manual_evidence TEXT,
+      external_reference TEXT,
+      manual_completed_by INTEGER,
+      manual_completed_at TEXT,
       refunded_at TEXT,
       created_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+  await db.run(`
+    CREATE TABLE IF NOT EXISTS refund_status_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, refund_id INTEGER NOT NULL,
+      from_status TEXT, to_status TEXT NOT NULL, event_type TEXT NOT NULL,
+      source TEXT NOT NULL, actor_id INTEGER, attempt_count INTEGER DEFAULT 0,
+      provider_refund_id TEXT, external_reference TEXT, evidence TEXT,
+      error_message TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
@@ -185,9 +205,17 @@ describe('Payment Sandbox API', () => {
   it('should use the order lifecycle status interface when payment is simulated', async () => {
     const calls: any[] = [];
     const orderLifecycle = {
-      updateOrderStatus: async (nextOrderId: number, status: string) => {
+      updateOrderStatusInTransaction: async ({
+        transaction,
+        orderId: nextOrderId,
+        status,
+      }: {
+        transaction: any;
+        orderId: number;
+        status: string;
+      }) => {
         calls.push({ orderId: nextOrderId, status });
-        await db.run('UPDATE orders SET status = ? WHERE id = ?', [status, nextOrderId]);
+        await transaction.run('UPDATE orders SET status = ? WHERE id = ?', [status, nextOrderId]);
         return { data: { oldStatus: 'pending', newStatus: status }, error: null };
       },
     };

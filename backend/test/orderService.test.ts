@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, vi } from "vitest";
 import { createTestDb, seedTestData } from "./helpers";
 const OrderService = require("../services/orderService");
 
@@ -9,6 +9,17 @@ describe("OrderService", () => {
   beforeAll(async () => {
     db = await createTestDb();
     await seedTestData(db);
+    await db.run(`
+      CREATE TABLE payment_orders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_id INTEGER NOT NULL,
+        payment_method TEXT NOT NULL,
+        amount REAL NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        transaction_id TEXT UNIQUE,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
     orderService = new OrderService(db);
   });
 
@@ -117,8 +128,32 @@ describe("OrderService", () => {
       const stockAfterCancellation = await db.get("SELECT stock FROM bearings WHERE id = ?", [2]);
       expect(stockAfterCancellation.stock).toBe(stockBefore);
       await expect(orderService.updateStatus(order.orderId, "paid")).rejects.toMatchObject({
-        code: "INVALID_STATUS_TRANSITION",
+        code: "PAYMENT_SETTLEMENT_REQUIRED",
       });
+    });
+
+    it("requires the refund settlement path to cancel a paid order", async () => {
+      const order = await orderService.create({
+        customerName: "Paid cancellation guard",
+        customerPhone: "13900000011",
+        province: "P",
+        city: "C",
+        district: "D",
+        addressDetail: "A",
+        items: [{ id: 2, quantity: 1 }],
+      });
+      await db.transaction((transaction: any) => orderService.updateOrderStatusInTransaction({
+        transaction,
+        orderId: order.orderId,
+        status: "paid",
+        note: "支付结算测试",
+      }));
+
+      await expect(orderService.updateStatus(order.orderId, "cancelled")).rejects.toMatchObject({
+        code: "REFUND_REQUIRED",
+      });
+      await expect(db.get("SELECT status FROM orders WHERE id = ?", [order.orderId]))
+        .resolves.toEqual({ status: "paid" });
     });
   });
 
@@ -210,13 +245,39 @@ describe("OrderService", () => {
       orderId = data.orderId;
     });
 
-    it("更新为 paid", async () => {
-      const data = await orderService.updateStatus(orderId, "paid");
-      expect(data.oldStatus).toBe("pending");
-      expect(data.newStatus).toBe("paid");
+    it("拒绝管理员手工把订单更新为 paid", async () => {
+      await expect(orderService.updateStatus(orderId, "paid")).rejects.toMatchObject({
+        code: "PAYMENT_SETTLEMENT_REQUIRED",
+        statusCode: 409,
+      });
+      await expect(db.get("SELECT status FROM orders WHERE id = ?", [orderId]))
+        .resolves.toEqual({ status: "pending" });
+    });
 
-      const order = await db.get("SELECT status FROM orders WHERE id = ?", [orderId]);
-      expect(order.status).toBe("paid");
+    it("仅允许支付结算事务边界把订单更新为 paid", async () => {
+      const data = await db.transaction((transaction: any) => (
+        orderService.updateOrderStatusInTransaction({
+          transaction,
+          orderId,
+          status: "paid",
+          note: "支付成功",
+        })
+      ));
+      expect(data).toMatchObject({
+        oldStatus: "pending",
+        newStatus: "paid",
+        updated: true,
+      });
+      await expect(db.get("SELECT status FROM orders WHERE id = ?", [orderId]))
+        .resolves.toEqual({ status: "paid" });
+    });
+
+    it("没有有效物流单号时拒绝发货", async () => {
+      await expect(orderService.updateStatus(orderId, "shipped"))
+        .rejects.toMatchObject({ field: "trackingNumber" });
+
+      await expect(db.get("SELECT status, tracking_number FROM orders WHERE id = ?", [orderId]))
+        .resolves.toEqual({ status: "paid", tracking_number: null });
     });
 
     it("更新为 shipped 并记录 tracking_number", async () => {
@@ -239,7 +300,8 @@ describe("OrderService", () => {
     });
 
     it("不存在的订单返回 404", async () => {
-      await expect(orderService.updateStatus(99999, "paid")).rejects.toThrow("订单不存在");
+      await expect(orderService.updateStatus(99999, "shipped", null, "SF1234"))
+        .rejects.toThrow("订单不存在");
     });
 
     it("记录状态历史", async () => {
@@ -274,26 +336,70 @@ describe("OrderService", () => {
         items: [{ id: 1, quantity: 3 }],
       });
       paidOrderId = r2.orderId;
-      await orderService.updateStatus(paidOrderId, "paid");
+      await db.transaction((transaction: any) => orderService.updateOrderStatusInTransaction({
+        transaction,
+        orderId: paidOrderId,
+        status: "paid",
+        note: "支付成功",
+      }));
     });
 
-    it("删除 pending 状态订单并恢复库存", async () => {
-      const stockBefore = (await db.get("SELECT stock FROM bearings WHERE id = ?", [1])).stock;
+    it("拒绝硬删除 pending 订单且不恢复库存或删除明细", async () => {
+      const before = {
+        stock: await db.get("SELECT stock FROM bearings WHERE id = ?", [1]),
+        order: await db.get("SELECT id, status FROM orders WHERE id = ?", [pendingOrderId]),
+        items: await db.all("SELECT * FROM order_items WHERE order_id = ?", [pendingOrderId]),
+      };
 
-      const data = await orderService.delete(pendingOrderId);
-      expect(data.restoredStock).toBe(true);
-      expect(data.itemsCount).toBe(1);
+      await expect(orderService.delete(pendingOrderId)).rejects.toMatchObject({
+        code: "ORDER_HARD_DELETE_DISABLED",
+        statusCode: 409,
+      });
 
-      const stockAfter = (await db.get("SELECT stock FROM bearings WHERE id = ?", [1])).stock;
-      expect(stockAfter).toBe(stockBefore + 5);
+      expect({
+        stock: await db.get("SELECT stock FROM bearings WHERE id = ?", [1]),
+        order: await db.get("SELECT id, status FROM orders WHERE id = ?", [pendingOrderId]),
+        items: await db.all("SELECT * FROM order_items WHERE order_id = ?", [pendingOrderId]),
+      }).toEqual(before);
     });
 
-    it("无法删除已支付订单", async () => {
-      await expect(orderService.delete(paidOrderId)).rejects.toThrow("无法删除");
+    it("拒绝硬删除已支付订单", async () => {
+      await expect(orderService.delete(paidOrderId)).rejects.toMatchObject({
+        code: "ORDER_HARD_DELETE_DISABLED",
+        statusCode: 409,
+      });
+      await expect(db.get("SELECT status FROM orders WHERE id = ?", [paidOrderId]))
+        .resolves.toEqual({ status: "paid" });
     });
 
-    it("不存在的订单返回 404", async () => {
-      await expect(orderService.delete(99999)).rejects.toThrow("订单不存在");
+    it("不透露硬删除目标是否存在", async () => {
+      await expect(orderService.delete(99999)).rejects.toMatchObject({
+        code: "ORDER_HARD_DELETE_DISABLED",
+        statusCode: 409,
+      });
+    });
+
+    it("批量硬删除全量拒绝且不改变订单或支付状态", async () => {
+      await db.run(
+        `INSERT INTO payment_orders
+          (order_id, payment_method, amount, status, transaction_id)
+         VALUES (?, ?, ?, ?, ?)`,
+        [pendingOrderId, "wechat", 75, "processing", `DELETE-GUARD-${pendingOrderId}`]
+      );
+      const before = {
+        pending: await db.get("SELECT id, status FROM orders WHERE id = ?", [pendingOrderId]),
+        paid: await db.get("SELECT id, status FROM orders WHERE id = ?", [paidOrderId]),
+        payment: await db.get("SELECT status FROM payment_orders WHERE order_id = ?", [pendingOrderId]),
+      };
+
+      await expect(orderService.batchDelete([pendingOrderId, paidOrderId]))
+        .rejects.toMatchObject({ code: "ORDER_HARD_DELETE_DISABLED", statusCode: 409 });
+
+      expect({
+        pending: await db.get("SELECT id, status FROM orders WHERE id = ?", [pendingOrderId]),
+        paid: await db.get("SELECT id, status FROM orders WHERE id = ?", [paidOrderId]),
+        payment: await db.get("SELECT status FROM payment_orders WHERE order_id = ?", [pendingOrderId]),
+      }).toEqual(before);
     });
   });
 
@@ -354,6 +460,120 @@ describe("OrderService", () => {
 
     it("空 ID 数组返回错误", async () => {
       await expect(orderService.batchUpdateStatus([], "shipped")).rejects.toThrow("订单ID列表不能为空");
+    });
+
+    it("拒绝批量手工把订单更新为 paid", async () => {
+      await expect(orderService.batchUpdateStatus([orderId1], "paid"))
+        .rejects.toMatchObject({ code: "PAYMENT_SETTLEMENT_REQUIRED" });
+    });
+  });
+
+  describe("admin cancellation payment gates", () => {
+    async function createPendingOrder(suffix: string, quantity = 1) {
+      return orderService.create({
+        customerName: `Admin cancellation ${suffix}`,
+        customerPhone: `1370000${suffix.padStart(4, "0")}`,
+        province: "P",
+        city: "C",
+        district: "D",
+        addressDetail: "A",
+        items: [{ id: 1, quantity }],
+      });
+    }
+
+    it.each([
+      ["pending", "alipay"],
+      ["processing", "wechat"],
+      ["processing", "unionpay"],
+    ])("拒绝取消存在 %s %s 外部支付单的订单", async (paymentStatus, paymentMethod) => {
+      const order = await createPendingOrder(`${paymentStatus.length}${paymentMethod.length}`);
+      await db.run(
+        `INSERT INTO payment_orders
+          (order_id, payment_method, amount, status, transaction_id)
+         VALUES (?, ?, ?, ?, ?)`,
+        [order.orderId, paymentMethod, 15, paymentStatus, `ADMIN-${order.orderId}`]
+      );
+      const stockBefore = await db.get("SELECT stock FROM bearings WHERE id = ?", [1]);
+
+      await expect(orderService.updateStatus(order.orderId, "cancelled"))
+        .rejects.toMatchObject({ code: "PAYMENT_CLOSE_REQUIRED", statusCode: 409 });
+
+      expect({
+        order: await db.get("SELECT status FROM orders WHERE id = ?", [order.orderId]),
+        payment: await db.get("SELECT status FROM payment_orders WHERE order_id = ?", [order.orderId]),
+        stock: await db.get("SELECT stock FROM bearings WHERE id = ?", [1]),
+      }).toEqual({
+        order: { status: "pending" },
+        payment: { status: paymentStatus },
+        stock: stockBefore,
+      });
+    });
+
+    it.each([
+      ["pending", "balance"],
+      ["processing", "cod"],
+    ])("事务取消安全的 %s %s 本地支付并仅恢复一次库存", async (paymentStatus, paymentMethod) => {
+      const order = await createPendingOrder(`${paymentStatus.length + 2}${paymentMethod.length}`, 2);
+      await db.run(
+        `INSERT INTO payment_orders
+          (order_id, payment_method, amount, status, transaction_id)
+         VALUES (?, ?, ?, ?, ?)`,
+        [order.orderId, paymentMethod, 30, paymentStatus, `LOCAL-${order.orderId}`]
+      );
+      const stockBefore = await db.get("SELECT stock FROM bearings WHERE id = ?", [1]);
+
+      const first = await orderService.updateStatus(order.orderId, "cancelled", "管理员取消");
+      const stockAfterFirst = await db.get("SELECT stock FROM bearings WHERE id = ?", [1]);
+      const second = await orderService.updateStatus(order.orderId, "cancelled", "管理员重试取消");
+
+      expect({
+        first,
+        second,
+        order: await db.get("SELECT status FROM orders WHERE id = ?", [order.orderId]),
+        payment: await db.get("SELECT status FROM payment_orders WHERE order_id = ?", [order.orderId]),
+        stockDelta: stockAfterFirst.stock - stockBefore.stock,
+        stockAfterRetry: await db.get("SELECT stock FROM bearings WHERE id = ?", [1]),
+      }).toEqual({
+        first: {
+          message: "订单状态已更新",
+          oldStatus: "pending",
+          newStatus: "cancelled",
+          idempotent: false,
+        },
+        second: {
+          message: "订单状态已更新",
+          oldStatus: "cancelled",
+          newStatus: "cancelled",
+          idempotent: true,
+        },
+        order: { status: "cancelled" },
+        payment: { status: "cancelled" },
+        stockDelta: 2,
+        stockAfterRetry: stockAfterFirst,
+      });
+    });
+
+    it("检测锁定快照后的并发状态冲突且不恢复库存", async () => {
+      const tx = {
+        get: vi.fn()
+          .mockResolvedValueOnce({ id: 91, status: "pending" })
+          .mockResolvedValueOnce({ status: "pending" }),
+        all: vi.fn().mockResolvedValue([]),
+        run: vi.fn().mockResolvedValue({ changes: 0 }),
+      };
+      const concurrentDb = {
+        type: "postgres",
+        transaction: (callback: (transaction: any) => Promise<any>) => callback(tx),
+      };
+      const service = new OrderService(concurrentDb);
+
+      await expect(service.updateStatus(91, "cancelled"))
+        .rejects.toMatchObject({ code: "ORDER_STATUS_CONFLICT" });
+
+      expect(tx.get.mock.calls[0][0]).toContain("FOR UPDATE");
+      expect(tx.all.mock.calls[0][0]).toContain("FOR UPDATE");
+      expect(tx.run).toHaveBeenCalledTimes(1);
+      expect(tx.run.mock.calls[0][0]).toContain("WHERE id = ? AND status = ?");
     });
   });
 

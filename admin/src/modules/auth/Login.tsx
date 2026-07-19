@@ -16,8 +16,8 @@ export default function Login() {
     setLoading(true);
     try {
       const res = await adminApi.post('/auth/login', values);
-      const { token, user } = res.data.data;
-      login(token, user || { id: 0, username: values.username, role: 'admin' });
+      const { user } = res.data.data;
+      login(user || { id: 0, username: values.username, role: 'admin' });
       const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/admin/dashboard';
       navigate(from, { replace: true });
     } catch (err) {

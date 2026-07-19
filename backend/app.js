@@ -7,6 +7,13 @@ const logger = require('./logger');
 const { createGrayReleaseMiddleware } = require('./middleware/grayRelease');
 const { apiLimiter } = require('./middleware/rateLimiter');
 const { createUploadMiddleware, validateMime } = require('./middleware/upload');
+const { createRequestObservabilityMiddleware } = require('./middleware/observability');
+const { alerter: defaultAlerter } = require('./services/observability/alerting');
+const { metrics: defaultMetrics } = require('./services/observability/metrics');
+const {
+  configuredOrigins,
+  createCookieCsrfProtection,
+} = require('./middleware/sessionCookies');
 
 function createApp(db, services = {}) {
   const {
@@ -21,12 +28,18 @@ function createApp(db, services = {}) {
     orderService,
     customerService,
     customerSelfService,
+    afterSalesService,
     couponService,
     pointsService,
     supplyChainService,
+    observability = {},
   } = services;
 
+  const metrics = observability.metrics || defaultMetrics;
+  const alerter = observability.alerter || defaultAlerter;
+
   const app = express();
+  app.locals.db = db;
 
   app.set('trust proxy', 1);
 
@@ -44,13 +57,34 @@ function createApp(db, services = {}) {
     crossOriginResourcePolicy: { policy: 'cross-origin' },
   }));
 
+  const allowedOrigins = configuredOrigins();
   app.use(cors({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+    origin(origin, callback) {
+      callback(null, !origin || allowedOrigins.has(origin.replace(/\/$/, '')));
+    },
     credentials: true
   }));
 
+  app.use(createCookieCsrfProtection());
+
+  app.use(...createRequestObservabilityMiddleware(metrics, alerter));
+
+  app.use('/', require('./routes/observability')({
+    db,
+    redis: observability.redis,
+    requireRedis: observability.requireRedis ?? process.env.NODE_ENV === 'production',
+    metrics,
+    alerter,
+  }));
+
   app.use('/api/', apiLimiter);
-  app.use(express.json());
+  const capturePaymentCallbackBody = (req, _res, buffer) => {
+    if (req.originalUrl.startsWith('/api/payment/')) {
+      req.rawBody = buffer.toString('utf8');
+    }
+  };
+  app.use(express.json({ verify: capturePaymentCallbackBody }));
+  app.use(express.urlencoded({ extended: false, verify: capturePaymentCallbackBody }));
   app.use(createGrayReleaseMiddleware());
   app.use(express.static(path.join(__dirname, 'public')));
 
@@ -101,6 +135,10 @@ function createApp(db, services = {}) {
 
   const customerRoutes = require('./routes/customer')(customerSelfService);
   app.use('/api/customer', customerRoutes);
+
+  if (afterSalesService) {
+    app.use('/api/after-sales', require('./routes/afterSales')(afterSalesService));
+  }
 
   if (supplyChainService) {
     const supplyChainRoutes = require('./routes/supplyChain')(supplyChainService);

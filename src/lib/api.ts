@@ -1,5 +1,6 @@
 import type {
   AdminUser,
+  AfterSalesCase,
   AuthUser,
   Bearing,
   ChatResponse,
@@ -7,7 +8,11 @@ import type {
   CustomerAddress,
   CustomerAddressInput,
   CustomerCoupon,
+  CustomerOrderLogistics,
+  InvoiceProfile,
+  InvoiceProfileInput,
   Order,
+  OrderInvoiceRequest,
 } from '@/types';
 
 const API_BASE = '/api';
@@ -18,14 +23,28 @@ interface ApiEnvelope<T> {
 
 interface ApiError {
   error?: string;
+  code?: string;
 }
 
 function isApiError(value: unknown): value is ApiError {
   return typeof value === 'object' && value !== null && 'error' in value;
 }
 
+export class ApiRequestError extends Error {
+  readonly code?: string;
+  readonly status: number;
+
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.name = 'ApiRequestError';
+    this.code = code;
+    this.status = status;
+  }
+}
+
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${url}`, {
+    credentials: 'include',
     ...options,
     headers: {
       'Content-Type': 'application/json',
@@ -34,7 +53,11 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const error: unknown = await res.json().catch(() => ({ error: '请求失败' }));
-    throw new Error(isApiError(error) && error.error ? error.error : `HTTP ${res.status}`);
+    throw new ApiRequestError(
+      isApiError(error) && error.error ? error.error : `HTTP ${res.status}`,
+      res.status,
+      isApiError(error) ? error.code : undefined
+    );
   }
   const body: unknown = await res.json();
   // Backend wraps all success responses as { data: ... }
@@ -42,10 +65,6 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
 }
 
 export const getAuthHeaders = (): Record<string, string> => {
-  if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('token');
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  }
   return {};
 };
 
@@ -81,6 +100,7 @@ export interface PaymentResponse {
   paymentMethod: PaymentMethod;
   paymentOrderId: number;
   payUrl?: string;
+  qrCode?: string;
   qrUrl?: string;
   sandbox?: boolean;
 }
@@ -123,6 +143,34 @@ export interface CustomerRegistrationRequest {
   password: string;
 }
 
+export interface CustomerProfileUpdate {
+  name: string;
+  email: string;
+  company: string;
+}
+
+export interface CustomerCancellationResult {
+  orderId: number;
+  status: 'cancelled';
+  idempotent: boolean;
+}
+
+export interface PhoneVerificationResult {
+  verified: boolean;
+  notificationRequested?: boolean;
+  idempotent?: boolean;
+  verifiedAt?: number;
+}
+
+export interface CustomerAfterSalesCaseInput {
+  clientRequestId: string;
+  orderId?: number;
+  type: 'return_refund' | 'refund_only' | 'order_exception';
+  reason: string;
+  description: string;
+  requestedAmount?: number;
+}
+
 export const customerRegister = (data: CustomerRegistrationRequest) =>
   request<{ token: string; user: AuthUser }>('/customer/register', {
     method: 'POST',
@@ -137,8 +185,50 @@ export const customerLogin = (phone: string, password: string) =>
     headers: { 'Content-Type': 'application/json' },
   });
 
+export const customerLogout = () =>
+  request<{ loggedOut: boolean }>('/customer/logout', {
+    method: 'POST',
+    body: JSON.stringify({}),
+    headers: { 'Content-Type': 'application/json' },
+  });
+
+export const requestCustomerPasswordReset = (phone: string) =>
+  request<{ message: string }>('/customer/password/forgot', {
+    method: 'POST',
+    body: JSON.stringify({ phone }),
+    headers: { 'Content-Type': 'application/json' },
+  });
+
+export const resetCustomerPassword = (token: string, newPassword: string) =>
+  request<{ message: string }>('/customer/password/reset', {
+    method: 'POST',
+    body: JSON.stringify({ token, newPassword }),
+    headers: { 'Content-Type': 'application/json' },
+  });
+
 export const getCustomerMe = () =>
   request<Customer>('/customer/me', {
+    headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+  });
+
+export const updateCustomerProfile = (data: CustomerProfileUpdate) =>
+  request<Customer>('/customer/me', {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+    headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+  });
+
+export const requestCustomerPhoneVerification = () =>
+  request<PhoneVerificationResult>('/customer/phone-verification/request', {
+    method: 'POST',
+    body: JSON.stringify({}),
+    headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+  });
+
+export const confirmCustomerPhoneVerification = (code: string) =>
+  request<PhoneVerificationResult>('/customer/phone-verification/confirm', {
+    method: 'POST',
+    body: JSON.stringify({ code }),
     headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
   });
 
@@ -149,6 +239,88 @@ export const getCustomerOrders = () =>
 
 export const getCustomerOrderDetail = (id: number) =>
   request<Order>(`/customer/orders/${id}`, {
+    headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+  });
+
+export const cancelCustomerOrder = (id: number) =>
+  request<CustomerCancellationResult>(`/customer/orders/${id}/cancel`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+    headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+  });
+
+// After-sales, logistics, and invoices
+export const createCustomerAfterSalesCase = (data: CustomerAfterSalesCaseInput) =>
+  request<AfterSalesCase>('/after-sales/cases', {
+    method: 'POST',
+    body: JSON.stringify(data),
+    headers: {
+      ...getAuthHeaders(),
+      'Content-Type': 'application/json',
+      'Idempotency-Key': data.clientRequestId,
+    },
+  });
+
+export const listCustomerAfterSalesCases = () =>
+  request<AfterSalesCase[]>('/after-sales/cases', {
+    headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+  });
+
+export const getCustomerAfterSalesCase = (id: number) =>
+  request<AfterSalesCase>(`/after-sales/cases/${id}`, {
+    headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+  });
+
+export const cancelCustomerAfterSalesCase = (id: number, expectedVersion: number) =>
+  request<AfterSalesCase>(`/after-sales/cases/${id}/cancel`, {
+    method: 'POST',
+    body: JSON.stringify({ expectedVersion }),
+    headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+  });
+
+export const getCustomerOrderLogistics = (orderId: number) =>
+  request<CustomerOrderLogistics>(`/after-sales/orders/${orderId}/logistics`, {
+    headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+  });
+
+export const listCustomerInvoiceProfiles = () =>
+  request<InvoiceProfile[]>('/after-sales/invoice-profiles', {
+    headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+  });
+
+export const createCustomerInvoiceProfile = (data: InvoiceProfileInput) =>
+  request<InvoiceProfile>('/after-sales/invoice-profiles', {
+    method: 'POST',
+    body: JSON.stringify(data),
+    headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+  });
+
+export const updateCustomerInvoiceProfile = (
+  id: number,
+  expectedVersion: number,
+  data: Partial<InvoiceProfileInput>
+) => request<InvoiceProfile>(`/after-sales/invoice-profiles/${id}`, {
+  method: 'PATCH',
+  body: JSON.stringify({ expectedVersion, ...data }),
+  headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+});
+
+export const deleteCustomerInvoiceProfile = (id: number, expectedVersion: number) =>
+  request<{ id: number; deleted: boolean }>(`/after-sales/invoice-profiles/${id}`, {
+    method: 'DELETE',
+    body: JSON.stringify({ expectedVersion }),
+    headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+  });
+
+export const requestCustomerOrderInvoice = (orderId: number, profileId: number) =>
+  request<OrderInvoiceRequest>(`/after-sales/orders/${orderId}/invoices`, {
+    method: 'POST',
+    body: JSON.stringify({ profileId }),
+    headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+  });
+
+export const listCustomerOrderInvoices = () =>
+  request<OrderInvoiceRequest[]>('/after-sales/invoices', {
     headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
   });
 

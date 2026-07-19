@@ -136,6 +136,13 @@ export default function Header({ cartCount, onCartClick }: HeaderProps) {
               >
                 {text.header.account}
               </Link>
+              <Link
+                href="/support"
+                onClick={() => setMenuOpen(false)}
+                className="rounded-md px-3 py-2 text-sm text-neutral-300 transition hover:bg-white/5 hover:text-amber-300"
+              >
+                联系客服
+              </Link>
               <button
                 type="button"
                 onClick={toggleLang}
@@ -153,6 +160,12 @@ export default function Header({ cartCount, onCartClick }: HeaderProps) {
             className="rounded-md px-3 py-2 text-sm font-medium text-neutral-400 transition hover:bg-white/5 hover:text-amber-300"
           >
             {catalogLabel}
+          </Link>
+          <Link
+            href="/support"
+            className="rounded-md px-3 py-2 text-sm font-medium text-neutral-400 transition hover:bg-white/5 hover:text-amber-300"
+          >
+            联系客服
           </Link>
           <button
             type="button"

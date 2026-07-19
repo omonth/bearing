@@ -10,3 +10,17 @@ globalThis.localStorage = {
   get length() { return Object.keys(store).length; },
   key: vi.fn((index: number) => Object.keys(store)[index] ?? null),
 } as unknown as Storage;
+
+if (typeof globalThis.window !== 'undefined' && !globalThis.window.matchMedia) {
+  Object.defineProperty(globalThis.window, 'matchMedia', {
+    writable: true,
+    value: vi.fn().mockImplementation(() => ({
+      matches: false,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  });
+}

@@ -76,22 +76,34 @@ class UnionPayProvider extends PaymentProvider {
     };
   }
 
-  async handleCallback(params) {
+  async handleCallback({ body: params }) {
     if (!this._verifySign(params)) throw new Error('银联回调签名验证失败');
-    const { orderId, respCode, queryId, txnAmt } = params;
+    const { merId, merchantId, orderId, respCode, queryId, txnAmt, txnTime } = params;
+    if ((merId || merchantId) !== this.config.merchantId) {
+      throw new Error('UnionPay callback merchant ID mismatch');
+    }
     if (respCode === '00') {
       return {
+        eventId: `${queryId || orderId}:${txnTime}:${respCode}`,
         transactionId: orderId,
         status: 'paid',
         tradeNo: queryId || '',
         amount: Number(txnAmt) / 100,
       };
     }
-    return { transactionId: orderId, status: 'failed' };
+    return {
+      eventId: `${queryId || orderId}:${txnTime}:${respCode}`,
+      transactionId: orderId,
+      status: 'failed',
+    };
   }
 
   async createRefund() {
-    return { success: true, message: '银联退款需联系银行处理' };
+    return { status: 'manual_required', message: '银联退款需要人工处理' };
+  }
+
+  async queryRefund() {
+    return { status: 'manual_required', message: '银联退款没有已验证的自动查询能力' };
   }
 }
 

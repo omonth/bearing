@@ -35,4 +35,24 @@ test.describe('Admin panel smoke flows', () => {
     await page.getByTestId('admin-orders-status-paid').click();
     await expect(page.getByTestId('admin-orders-search')).toBeVisible();
   });
+
+  test('navigates to after-sales management and supports direct-route refresh', async ({ page }) => {
+    await login(page);
+    const afterSalesResponse = page.waitForResponse((response) =>
+      response.url().includes('/api/after-sales/admin/cases')
+      && response.request().method() === 'GET'
+    );
+    await page.getByTestId('admin-nav-after-sales').click();
+    expect((await afterSalesResponse).ok()).toBeTruthy();
+    await expect(page.getByTestId('admin-after-sales-page')).toBeVisible();
+    await expect(page.getByTestId('admin-after-sales-table')).toBeVisible();
+
+    const refreshedResponse = page.waitForResponse((response) =>
+      response.url().includes('/api/after-sales/admin/cases')
+      && response.request().method() === 'GET'
+    );
+    await page.reload();
+    expect((await refreshedResponse).ok()).toBeTruthy();
+    await expect(page.getByTestId('admin-after-sales-page')).toBeVisible();
+  });
 });

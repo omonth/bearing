@@ -103,6 +103,23 @@ describe('AI management security', () => {
     expect(aiService.ragEngine.buildIndex).toHaveBeenCalledOnce();
   });
 
+  it('supports an HttpOnly AI management cookie with the same Origin gate', async () => {
+    const browser = request.agent(app);
+    const login = await browser
+      .post('/api/ai/auth/login')
+      .send({ username: 'ai-admin-test', password: 'bootstrap-password-for-tests' })
+      .expect(200);
+
+    expect(login.headers['set-cookie'][0]).toContain('ai_session=');
+    expect(login.headers['set-cookie'][0]).toContain('HttpOnly');
+    expect(login.headers['set-cookie'][0]).toContain('SameSite=Strict');
+    await browser.post('/api/ai/reindex').expect(403);
+    await browser
+      .post('/api/ai/reindex')
+      .set('Origin', 'http://localhost:3000')
+      .expect(200);
+  });
+
   it('does not create a default AI administrator when bootstrap credentials are absent', async () => {
     const isolatedDb = await createTestDb();
     const service = new AIAuthService(isolatedDb, {

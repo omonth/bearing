@@ -1,12 +1,9 @@
 import { useState } from 'react';
 import { Upload, Button, Image, message } from 'antd';
 import { UploadOutlined, DeleteOutlined } from '@ant-design/icons';
-import { useAuthStore } from '@/shared/lib/authStore';
 
 export default function ImageUpload({ value, onChange }: { value?: string; onChange?: (url: string) => void }) {
   const [loading, setLoading] = useState(false);
-  const token = useAuthStore((s) => s.token);
-
   const handleUpload = async (file: File) => {
     setLoading(true);
     try {
@@ -14,7 +11,7 @@ export default function ImageUpload({ value, onChange }: { value?: string; onCha
       formData.append('image', file);
       const res = await fetch('/api/upload/image', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
         body: formData,
       });
       if (!res.ok) {

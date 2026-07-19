@@ -1,5 +1,10 @@
 const express = require('express');
 const logger = require('../logger');
+const {
+  AI_SESSION_COOKIE,
+  clearSessionCookie,
+  setSessionCookie,
+} = require('../middleware/sessionCookies');
 
 module.exports = function(aiAuthService, requireAIRole, db) {
   const router = express.Router();
@@ -13,11 +18,17 @@ module.exports = function(aiAuthService, requireAIRole, db) {
       }
       const result = await aiAuthService.login(username, password);
       if (result.error) return res.status(result.status || 401).json({ error: result.error });
+      setSessionCookie(res, AI_SESSION_COOKIE, result.data.token);
       res.json(result.data);
     } catch (error) {
       logger.error('AI登录失败', { error: error.message });
       res.status(500).json({ error: '登录失败' });
     }
+  });
+
+  router.post('/logout', (req, res) => {
+    clearSessionCookie(res, AI_SESSION_COOKIE);
+    res.json({ loggedOut: true });
   });
 
   // Get current user info

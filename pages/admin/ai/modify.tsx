@@ -25,12 +25,11 @@ export default function AdminModify() {
     setPreview(null);
 
     try {
-      const token = localStorage.getItem("ai_token");
       const res = await fetch("/api/ai/modify-product", {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({ message: input, dryRun: true }),
       });
@@ -55,12 +54,11 @@ export default function AdminModify() {
     setLoading(true);
 
     try {
-      const token = localStorage.getItem("ai_token");
       const res = await fetch("/api/ai/modify-product", {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({ message: input, dryRun: false }),
       });

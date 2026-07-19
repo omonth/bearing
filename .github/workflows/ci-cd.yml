@@ -2,163 +2,516 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 permissions:
   contents: read
 
+concurrency:
+  group: bearing-sales-${{ github.workflow }}-${{ github.ref }}
+  # Pull-request feedback may be superseded, but a production SSH deployment
+  # must never be cancelled halfway through by a newer push.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  NODE_VERSION: "22"
+  PUBLIC_SITE_URL: https://shop.example.test
+  ALERT_WEBHOOK_URL: https://alerts.example.test/hook
+  ALERT_WEBHOOK_TIMEOUT_MS: "3000"
+  CALLBACK_SIGNATURE_FAILURE_THRESHOLD: "5"
+  ALERT_HTTP_WINDOW_SIZE: "100"
+  ALERT_HTTP_MIN_SAMPLES: "20"
+  ALERT_ERROR_RATE_THRESHOLD: "0.05"
+  ALERT_LATENCY_THRESHOLD_MS: "2000"
+  CUSTOMER_SECURITY_PEPPER: ci-customer-security-pepper-over-thirty-two-characters
+  CUSTOMER_NOTIFICATION_WEBHOOK_URL: https://notifications.example.test/customer
+  CUSTOMER_NOTIFICATION_WEBHOOK_TOKEN: ci-customer-notification-token-over-thirty-two-characters
+  PAYMENT_CERTIFICATES_DIR: /tmp/bearing-payment-certificates
+  BACKUP_ENCRYPTION_KEY_PATH: /tmp/bearing-backup-key
+  BACKUP_AWS_CREDENTIALS_PATH: /tmp/bearing-aws-credentials
+  BACKUP_RETENTION_DAYS: "30"
+  BACKUP_S3_BUCKET: bearing-sales-ci-backups
+  BACKUP_S3_PREFIX: bearing-sales/postgres
+  BACKUP_S3_REGION: test-region-1
+  BACKUP_S3_ENDPOINT: https://s3.example.test
+  BACKUP_ALERT_WEBHOOK_URL: https://alerts.example.test/backup
+
 jobs:
-  test:
+  application-quality:
+    name: Lint, unit, integration, build and migration gates
     runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        node-version: [22.x]
-      fail-fast: true
+    timeout-minutes: 30
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-    - name: 使用 Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ matrix.node-version }}
-        cache: 'npm'
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            backend/package-lock.json
+            admin/package-lock.json
 
-    - name: 安装前端依赖
-      run: npm ci
+      - name: Install storefront dependencies
+        run: npm ci
 
-    - name: 安装后端依赖
-      run: cd backend && npm ci
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
 
-    - name: 安装管理后台依赖
-      run: cd admin && npm ci
+      - name: Install admin dependencies
+        working-directory: admin
+        run: npm ci
 
-    - name: 运行前端测试
-      run: npm test
+      - name: Storefront lint
+        run: npm run lint
 
-    - name: 检查前端代码风格
-      run: npm run lint
+      - name: Storefront unit tests
+        run: npm test
 
-    - name: 运行后端测试
-      run: cd backend && npm test
+      - name: Backend lint
+        working-directory: backend
+        run: npm run lint
 
-    - name: 运行管理后台测试
-      run: cd admin && npm test
+      - name: Backend API and unit tests
+        working-directory: backend
+        run: npm test
 
-    - name: 构建管理后台
-      run: cd admin && npm run build
+      - name: Admin lint
+        working-directory: admin
+        run: npm run lint
 
-    - name: 构建前端
-      run: npm run build
+      - name: Admin unit tests
+        working-directory: admin
+        run: npm test
 
-  build:
-    needs: test
+      - name: Production environment validation tests
+        working-directory: backend
+        run: npx vitest run test/productionConfig.test.ts --no-cache
+
+      - name: Database migration apply and clean-state check
+        working-directory: backend
+        env:
+          DB_TYPE: sqlite
+          DB_PATH: ${{ runner.temp }}/bearing-migration-ci.sqlite
+          NODE_ENV: test
+        run: |
+          npm run migrate
+          npm run migrate:check
+
+      - name: Database migration forward and recovery test
+        working-directory: backend
+        run: npm run migrate:test
+
+      - name: Database migration rollback compatibility gate
+        working-directory: backend
+        run: npm run migrate:rollback-compat
+
+      - name: Storefront production build
+        run: npm run build
+
+      - name: Admin production build
+        working-directory: admin
+        run: npm run build
+
+  end-to-end:
+    name: Storefront and admin Playwright
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            backend/package-lock.json
+            admin/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm ci --prefix backend
+          npm ci --prefix admin
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Storefront end-to-end tests
+        run: npm run test:e2e
+
+      - name: Admin end-to-end tests
+        working-directory: admin
+        run: npm run test:e2e
+
+      - name: Upload Playwright diagnostics
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-diagnostics-${{ github.run_id }}
+          path: |
+            test-results/
+            admin/test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  security:
+    name: Dependency and secret scanning
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            backend/package-lock.json
+            admin/package-lock.json
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/vector-service/requirements.lock
+
+      - name: Audit storefront dependencies
+        run: npm audit --audit-level=moderate
+
+      - name: Audit backend dependencies
+        working-directory: backend
+        run: npm audit --audit-level=moderate
+
+      - name: Audit admin dependencies
+        working-directory: admin
+        run: npm audit --audit-level=moderate
+
+      - name: Audit locked vector-service dependencies
+        run: |
+          python -m pip install --disable-pip-version-check pip-audit==2.10.1
+          audit_requirements="${RUNNER_TEMP}/vector-requirements-audit.txt"
+          # The CPU wheel carries a PEP 440 local suffix that PyPI's advisory
+          # API cannot identify. Audit the same upstream torch code version
+          # without that build suffix; the production image still installs
+          # and verifies the exact +cpu artifact from the official index.
+          sed -E 's/^(torch==[0-9]+(\.[0-9]+)*)\+cpu$/\1/' \
+            backend/vector-service/requirements.lock > "$audit_requirements"
+          if grep -q '+cpu' "$audit_requirements" \
+            || ! grep -Eq '^torch==[0-9]+(\.[0-9]+)+$' "$audit_requirements"; then
+            echo "Unable to project the locked CPU torch build for advisory lookup" >&2
+            exit 1
+          fi
+          python -m pip_audit \
+            --requirement "$audit_requirements" \
+            --no-deps
+
+      - name: Scan repository for committed secrets
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  infrastructure-validation:
+    name: Compose and deployment script validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DB_NAME: bearing_sales_ci
+      DB_USER: bearing_ci
+      DB_PASSWORD: ci-database-password-at-least-sixteen
+      REDIS_PASSWORD: ci-redis-password-at-least-sixteen
+      JWT_SECRET: ci-jwt-secret-that-is-longer-than-thirty-two-characters
+      AI_JWT_SECRET: ci-ai-jwt-secret-that-is-longer-than-thirty-two-characters
+      INITIAL_ADMIN_USERNAME: ci-ops-admin
+      INITIAL_ADMIN_PASSWORD: ci-initial-admin-password-long-enough
+      AI_BOOTSTRAP_USERNAME: ci-ai-ops-admin
+      AI_BOOTSTRAP_PASSWORD: ci-ai-bootstrap-password-long-enough
+      PAYMENT_MODE: production
+      CORS_ORIGIN: https://shop.example.test
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Prepare synthetic backup secret files
+        run: |
+          umask 077
+          openssl rand -base64 32 > "$BACKUP_ENCRYPTION_KEY_PATH"
+          printf '[default]\naws_access_key_id=ci\naws_secret_access_key=ci\n' > "$BACKUP_AWS_CREDENTIALS_PATH"
+
+      - name: Validate Compose interpolation and schema
+        run: docker compose config --quiet
+
+      - name: Validate shell scripts
+        run: |
+          mapfile -d '' shell_scripts < <(
+            find scripts ops backend -type f -name '*.sh' -print0
+          )
+          if [ "${#shell_scripts[@]}" -eq 0 ]; then
+            echo "No shell scripts were found for validation" >&2
+            exit 1
+          fi
+          for shell_script in "${shell_scripts[@]}"; do
+            bash -n "$shell_script"
+          done
+
+      - name: Reject unpinned actions
+        run: |
+          invalid="$(grep -RhoE 'uses:[[:space:]]+[^[:space:]#]+' .github/workflows \
+            | sed -E 's/^uses:[[:space:]]+//' \
+            | grep -Ev '@[0-9a-f]{40}$' || true)"
+          if [ -n "$invalid" ]; then
+            echo "Every GitHub Action must be pinned to a full commit SHA:" >&2
+            echo "$invalid" >&2
+            exit 1
+          fi
+
+  compose-smoke:
+    name: Build images and smoke the production Compose topology
+    needs:
+      - application-quality
+      - end-to-end
+      - security
+      - infrastructure-validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      DB_NAME: bearing_sales_ci
+      DB_USER: bearing_ci
+      DB_PASSWORD: ci-database-password-at-least-sixteen
+      REDIS_PASSWORD: ci-redis-password-at-least-sixteen
+      JWT_SECRET: ci-jwt-secret-that-is-longer-than-thirty-two-characters
+      AI_JWT_SECRET: ci-ai-jwt-secret-that-is-longer-than-thirty-two-characters
+      INITIAL_ADMIN_USERNAME: ci-ops-admin
+      INITIAL_ADMIN_PASSWORD: ci-initial-admin-password-long-enough
+      AI_BOOTSTRAP_USERNAME: ci-ai-ops-admin
+      AI_BOOTSTRAP_PASSWORD: ci-ai-bootstrap-password-long-enough
+      PAYMENT_MODE: production
+      CORS_ORIGIN: https://shop.example.test
+      COMPOSE_PROJECT_NAME: bearing-sales-ci-${{ github.run_id }}
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Prepare synthetic backup secret files
+        run: |
+          umask 077
+          openssl rand -base64 32 > "$BACKUP_ENCRYPTION_KEY_PATH"
+          printf '[default]\naws_access_key_id=ci\naws_secret_access_key=ci\n' > "$BACKUP_AWS_CREDENTIALS_PATH"
+
+      - name: Build every production image
+        run: docker compose build --pull
+
+      - name: Start production topology
+        run: docker compose up -d --no-build --wait --wait-timeout 300
+
+      - name: Smoke storefront, backend, admin, API and static assets
+        run: bash scripts/compose-smoke.sh http://127.0.0.1
+
+      - name: Print Compose diagnostics
+        if: failure()
+        run: docker compose logs --no-color --tail 300
+
+      - name: Stop Compose topology
+        if: always()
+        run: docker compose down --volumes --remove-orphans
+
+  publish-images:
+    name: Publish ${{ matrix.name }} image
+    needs: compose-smoke
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    outputs:
-      images_published: ${{ steps.guard.outputs.enabled }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - name: backend
+            context: ./backend
+            file: ./backend/Dockerfile
+            repository: bearing-sales-backend
+          - name: storefront
+            context: .
+            file: ./Dockerfile
+            repository: bearing-sales-frontend
+          - name: admin
+            context: ./admin
+            file: ./admin/Dockerfile
+            repository: bearing-sales-admin
+          - name: vector
+            context: ./backend/vector-service
+            file: ./backend/vector-service/Dockerfile
+            repository: bearing-sales-vector
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-    - name: 检查 Docker Hub 密钥
-      id: guard
-      env:
-        DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-        DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-      run: |
-        if [ -n "$DOCKER_USERNAME" ] && [ -n "$DOCKER_PASSWORD" ]; then
-          echo "enabled=true" >> $GITHUB_OUTPUT
-        else
-          echo "Docker Hub 用户名或密码未配置，跳过镜像构建"
-          echo "enabled=false" >> $GITHUB_OUTPUT
-        fi
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
 
-    - name: 设置Docker Buildx
-      if: steps.guard.outputs.enabled == 'true'
-      uses: docker/setup-buildx-action@v2
+      - name: Log in to Docker Hub
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
-    - name: 登录Docker Hub
-      if: steps.guard.outputs.enabled == 'true'
-      uses: docker/login-action@v2
-      with:
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
-
-    - name: 构建并推送后端镜像
-      if: steps.guard.outputs.enabled == 'true'
-      uses: docker/build-push-action@v4
-      with:
-        context: ./backend
-        push: true
-        tags: |
-          ${{ secrets.DOCKER_USERNAME }}/bearing-sales-backend:latest
-          ${{ secrets.DOCKER_USERNAME }}/bearing-sales-backend:${{ github.sha }}
-        cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/bearing-sales-backend:buildcache
-        cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/bearing-sales-backend:buildcache,mode=max
-
-    - name: 构建并推送前端镜像
-      if: steps.guard.outputs.enabled == 'true'
-      uses: docker/build-push-action@v4
-      with:
-        context: .
-        push: true
-        tags: |
-          ${{ secrets.DOCKER_USERNAME }}/bearing-sales-frontend:latest
-          ${{ secrets.DOCKER_USERNAME }}/bearing-sales-frontend:${{ github.sha }}
-        cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/bearing-sales-frontend:buildcache
-        cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/bearing-sales-frontend:buildcache,mode=max
-
-    - name: 构建并推送向量服务镜像
-      if: steps.guard.outputs.enabled == 'true'
-      uses: docker/build-push-action@v4
-      with:
-        context: ./backend/vector-service
-        push: true
-        tags: |
-          ${{ secrets.DOCKER_USERNAME }}/bearing-sales-vector:latest
-          ${{ secrets.DOCKER_USERNAME }}/bearing-sales-vector:${{ github.sha }}
-        cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/bearing-sales-vector:buildcache
-        cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/bearing-sales-vector:buildcache,mode=max
+      - name: Build and push ${{ matrix.name }}
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/${{ matrix.repository }}:${{ github.sha }}
+          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/${{ matrix.repository }}:buildcache
+          cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/${{ matrix.repository }}:buildcache,mode=max
 
   deploy:
-    needs: build
+    name: Deploy one coherent SHA and verify health
+    needs: publish-images
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.build.outputs.images_published == 'true'
+    timeout-minutes: 30
+    environment: production
 
     steps:
-    - name: 检查部署密钥
-      id: guard
-      env:
-        DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-        DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-        DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
-      run: |
-        if [ -n "$DEPLOY_HOST" ] && [ -n "$DEPLOY_USER" ] && [ -n "$DEPLOY_KEY" ]; then
-          echo "enabled=true" >> $GITHUB_OUTPUT
-        else
-          echo "部署主机、用户或密钥未配置，跳过部署"
-          echo "enabled=false" >> $GITHUB_OUTPUT
-        fi
+      - name: Deploy and roll back on failed smoke checks
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
+        env:
+          DEPLOY_SHA: ${{ github.sha }}
+          BACKEND_IMAGE: ${{ secrets.DOCKER_USERNAME }}/bearing-sales-backend:${{ github.sha }}
+          FRONTEND_IMAGE: ${{ secrets.DOCKER_USERNAME }}/bearing-sales-frontend:${{ github.sha }}
+          ADMIN_IMAGE: ${{ secrets.DOCKER_USERNAME }}/bearing-sales-admin:${{ github.sha }}
+          VECTOR_SERVICE_IMAGE: ${{ secrets.DOCKER_USERNAME }}/bearing-sales-vector:${{ github.sha }}
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_KEY }}
+          envs: DEPLOY_SHA,BACKEND_IMAGE,FRONTEND_IMAGE,ADMIN_IMAGE,VECTOR_SERVICE_IMAGE
+          command_timeout: 20m
+          script_stop: true
+          script: |
+            bash -se <<'DEPLOY_SCRIPT'
+            set -Eeuo pipefail
+            cd /opt/bearing-sales
+            test -f .env.production
+            command -v curl >/dev/null
+            command -v systemctl >/dev/null
+            systemctl is-enabled --quiet bearing-postgres-backup.timer
+            systemctl is-active --quiet bearing-postgres-backup.timer
 
-    - name: 部署到服务器
-      if: steps.guard.outputs.enabled == 'true'
-      uses: appleboy/ssh-action@master
-      env:
-        BACKEND_IMAGE: ${{ secrets.DOCKER_USERNAME }}/bearing-sales-backend:${{ github.sha }}
-        FRONTEND_IMAGE: ${{ secrets.DOCKER_USERNAME }}/bearing-sales-frontend:${{ github.sha }}
-        VECTOR_SERVICE_IMAGE: ${{ secrets.DOCKER_USERNAME }}/bearing-sales-vector:${{ github.sha }}
-      with:
-        host: ${{ secrets.DEPLOY_HOST }}
-        username: ${{ secrets.DEPLOY_USER }}
-        key: ${{ secrets.DEPLOY_KEY }}
-        envs: BACKEND_IMAGE,FRONTEND_IMAGE,VECTOR_SERVICE_IMAGE
-        script: |
-          set -eu
-          cd /opt/bearing-sales
-          test -f .env.production
-          docker compose --env-file .env.production pull
-          docker compose --env-file .env.production up -d --no-build --remove-orphans
+            for release_image in \
+              "$BACKEND_IMAGE" "$FRONTEND_IMAGE" "$ADMIN_IMAGE" "$VECTOR_SERVICE_IMAGE"; do
+              case "$release_image" in
+                *:"$DEPLOY_SHA") ;;
+                *) echo "Release image is not tagged with DEPLOY_SHA" >&2; exit 1 ;;
+              esac
+            done
+
+            previous_sha="$(git rev-parse HEAD)"
+
+            previous_backend="$(docker inspect --format '{{.Config.Image}}' bearing-sales-backend 2>/dev/null || true)"
+            previous_frontend="$(docker inspect --format '{{.Config.Image}}' bearing-sales-frontend 2>/dev/null || true)"
+            previous_admin="$(docker inspect --format '{{.Config.Image}}' bearing-sales-admin 2>/dev/null || true)"
+            previous_vector="$(docker inspect --format '{{.Config.Image}}' bearing-sales-vector 2>/dev/null || true)"
+
+            rollback() {
+              set +e
+              if [ -n "$previous_backend" ] && [ -n "$previous_frontend" ] \
+                && [ -n "$previous_admin" ] && [ -n "$previous_vector" ]; then
+                echo "Deployment health check failed; restoring the previous release manifest"
+                git reset --hard "$previous_sha"
+                export BACKEND_IMAGE="$previous_backend"
+                export FRONTEND_IMAGE="$previous_frontend"
+                export ADMIN_IMAGE="$previous_admin"
+                export VECTOR_SERVICE_IMAGE="$previous_vector"
+                docker compose --env-file .env.production -f docker-compose.yml \
+                  up -d --no-build --remove-orphans --wait --wait-timeout 300
+                bash scripts/compose-smoke.sh http://127.0.0.1 \
+                  || echo "Rollback completed but its health verification also failed" >&2
+              else
+                echo "No complete previous image set is available for automatic rollback" >&2
+              fi
+            }
+
+            on_error() {
+              status=$?
+              trap - ERR
+              rollback
+              exit "$status"
+            }
+            trap on_error ERR
+
+            if [ -n "$(git status --porcelain --untracked-files=all)" ]; then
+              echo "Production checkout has local changes or untracked files; refusing deployment" >&2
+              exit 1
+            fi
+            git fetch --no-tags origin "$DEPLOY_SHA"
+            git merge --ff-only "$DEPLOY_SHA"
+            test "$(git rev-parse HEAD)" = "$DEPLOY_SHA"
+
+            docker compose --env-file .env.production -f docker-compose.yml config --quiet
+            docker compose --env-file .env.production -f docker-compose.yml pull
+            # The release migrations may require recovery from an encrypted
+            # archive instead of a destructive down migration. Capture and
+            # upload a fresh backup with the exact release image before the
+            # new backend is allowed to start and apply migrations.
+            docker compose --env-file .env.production -f docker-compose.yml \
+              --profile ops run --rm --no-deps backup
+            docker compose --env-file .env.production -f docker-compose.yml \
+              up -d --no-build --remove-orphans --wait --wait-timeout 300
+            bash scripts/compose-smoke.sh http://127.0.0.1
+
+            umask 077
+            printf '%s\n' \
+              "DEPLOY_SHA=$DEPLOY_SHA" \
+              "BACKEND_IMAGE=$BACKEND_IMAGE" \
+              "FRONTEND_IMAGE=$FRONTEND_IMAGE" \
+              "ADMIN_IMAGE=$ADMIN_IMAGE" \
+              "VECTOR_SERVICE_IMAGE=$VECTOR_SERVICE_IMAGE" \
+              > .release-images.env.tmp
+            mv .release-images.env.tmp .release-images.env
+
+            trap - ERR
+            echo "Deployment ${DEPLOY_SHA} passed all health checks"
+            DEPLOY_SCRIPT
+
+  promote-latest:
+    name: Promote healthy ${{ matrix.repository }} image to latest
+    needs: deploy
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        repository:
+          - bearing-sales-backend
+          - bearing-sales-frontend
+          - bearing-sales-admin
+          - bearing-sales-vector
+
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Promote the deployed immutable image
+        run: |
+          docker buildx imagetools create \
+            --tag "${{ secrets.DOCKER_USERNAME }}/${{ matrix.repository }}:latest" \
+            "${{ secrets.DOCKER_USERNAME }}/${{ matrix.repository }}:${{ github.sha }}"

@@ -40,9 +40,7 @@ export default function CheckoutPage() {
     clearPolling,
   } = useCheckoutStore();
 
-  const { token } = useAuthStore();
-  const isAuthenticated = Boolean(token)
-    || (typeof window !== 'undefined' && Boolean(localStorage.getItem('token')));
+  const isAuthenticated = useAuthStore((state) => state.authenticated);
   const [coupons, setCoupons] = useState<CustomerCoupon[]>([]);
   const [savedAddresses, setSavedAddresses] = useState<CustomerAddress[]>([]);
   const [savingAddress, setSavingAddress] = useState(false);
@@ -219,7 +217,7 @@ export default function CheckoutPage() {
           {checkoutStep === "cart" && (
             <CartReviewStep
               items={items}
-              token={token}
+              authenticated={isAuthenticated}
               coupons={coupons}
               selectedCoupon={selectedCoupon}
               totalPrice={totalPrice}

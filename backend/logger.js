@@ -2,12 +2,27 @@ const winston = require('winston');
 require('winston-daily-rotate-file');
 const path = require('path');
 const fs = require('fs');
+const { getRequestContext } = require('./middleware/requestContext');
+const { redactSensitive } = require('./services/observability/redaction');
 
 const logDir = process.env.LOG_DIR || './logs';
 
 if (!fs.existsSync(logDir)) {
   fs.mkdirSync(logDir, { recursive: true });
 }
+
+const appendRequestContext = winston.format((info) => {
+  const context = getRequestContext();
+  if (context?.requestId && !info.requestId) info.requestId = context.requestId;
+  return info;
+});
+
+const redactLogInfo = winston.format((info) => {
+  const redacted = redactSensitive(info);
+  for (const key of Object.keys(info)) delete info[key];
+  Object.assign(info, redacted);
+  return info;
+});
 
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
@@ -17,6 +32,8 @@ const logger = winston.createLogger({
     }),
     winston.format.errors({ stack: true }),
     winston.format.splat(),
+    appendRequestContext(),
+    redactLogInfo(),
     winston.format.json()
   ),
   defaultMeta: { service: 'bearing-sales-api' },
@@ -37,7 +54,9 @@ const logger = winston.createLogger({
   ],
 });
 
-if (process.env.NODE_ENV !== 'production') {
+if (process.env.NODE_ENV === 'production') {
+  logger.add(new winston.transports.Console());
+} else {
   logger.add(new winston.transports.Console({
     format: winston.format.combine(
       winston.format.colorize(),
