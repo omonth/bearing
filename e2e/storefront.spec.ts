@@ -18,35 +18,24 @@ async function authenticateAdministrator(request: APIRequestContext): Promise<st
   return body.data.token;
 }
 
-async function registerAndLogIn(page: Page, customer: E2eCustomer) {
-  await page.goto('/login');
-  await page.getByTestId('customer-auth-mode-register').click();
-  await page.getByTestId('customer-register-name').fill(customer.name);
-  await page.getByTestId('customer-auth-phone').fill(customer.phone);
-  await page.getByTestId('customer-auth-password').fill(customer.password);
-  await page.getByTestId('customer-auth-submit').click();
-  await expect(page).toHaveURL(/\/account$/);
-
+async function logIn(page: Page, customer: E2eCustomer) {
   await page.goto('/login');
   await page.getByTestId('customer-auth-phone').fill(customer.phone);
   await page.getByTestId('customer-auth-password').fill(customer.password);
   await page.getByTestId('customer-auth-submit').click();
   await expect(page).toHaveURL(/\/account$/);
-  const token = await page.evaluate(() => localStorage.getItem('token'));
-  expect(token).toBeTruthy();
-  const profileResponse = await page.request.get('/api/customer/me', {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  expect(await page.evaluate(() => localStorage.getItem('token'))).toBeNull();
+  const profileResponse = await page.request.get('/api/customer/me');
   expect(profileResponse.ok()).toBeTruthy();
 }
 
-test('customer completes a protected storefront purchase flow', async ({ page, request }, testInfo) => {
+test('customer completes a protected storefront purchase flow', async ({ page, request }) => {
   const customer: E2eCustomer = {
     name: 'E2E Customer',
-    phone: `1390000000${testInfo.retry + 1}`,
+    phone: '13900000001',
     password: 'customer-e2e-password-123',
   };
-  await registerAndLogIn(page, customer);
+  await logIn(page, customer);
 
   await page.goto('/');
   await expect(page.getByTestId('storefront-product-card-6205')).toBeVisible();
@@ -76,7 +65,7 @@ test('customer completes a protected storefront purchase flow', async ({ page, r
   await expect(page.getByTestId('storefront-cart-item')).toBeVisible();
   await page.getByTestId('storefront-cart-checkout').click();
   await expect(page.getByTestId('checkout-cart-item')).toBeVisible();
-  expect(await page.evaluate(() => localStorage.getItem('token'))).toBeTruthy();
+  expect(await page.evaluate(() => localStorage.getItem('token'))).toBeNull();
   await page.getByTestId('checkout-proceed-to-address').click();
 
   await page.getByTestId('checkout-recipient-name').fill(customer.name);

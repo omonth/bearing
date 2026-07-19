@@ -42,13 +42,12 @@ export default function AdminLogs() {
   const fetchLogs = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem("ai_token");
       const params = new URLSearchParams({ page: String(page), limit: "20" });
       if (filterAction) params.set("action", filterAction);
       if (filterStatus) params.set("status", filterStatus);
 
       const res = await fetch(`/api/ai/auth/logs?${params}`, {
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: "include",
       });
       const data = await res.json();
       setLogs(data.data || []);
@@ -63,10 +62,9 @@ export default function AdminLogs() {
   const handleRollback = async (logId: number) => {
     if (!confirm("确定要回滚此操作吗？")) return;
     try {
-      const token = localStorage.getItem("ai_token");
       const res = await fetch(`/api/ai/auth/logs/${logId}/rollback`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: "include",
       });
       const data = await res.json();
       if (res.ok) {
@@ -84,13 +82,12 @@ export default function AdminLogs() {
     const load = async () => {
       setLoading(true);
       try {
-        const token = localStorage.getItem("ai_token");
         const params = new URLSearchParams({ page: String(page), limit: "20" });
         if (filterAction) params.set("action", filterAction);
         if (filterStatus) params.set("status", filterStatus);
 
         const res = await fetch(`/api/ai/auth/logs?${params}`, {
-          headers: { Authorization: `Bearer ${token}` },
+          credentials: "include",
         });
         const data = await res.json();
         if (!cancelled) {

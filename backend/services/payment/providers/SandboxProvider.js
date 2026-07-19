@@ -13,7 +13,6 @@ class SandboxProvider extends PaymentProvider {
       const qrCode = `alipay://pay?orderNo=${orderNo}&amount=${amount}`;
       return {
         qrCode,
-        qrUrl: `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrCode)}`,
         sandbox: true,
         message: '支付宝沙箱模式',
       };
@@ -22,7 +21,6 @@ class SandboxProvider extends PaymentProvider {
       const qrCode = `weixin://wxpay/bizpayurl?orderNo=${orderNo}&amount=${amount}`;
       return {
         qrCode,
-        qrUrl: `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrCode)}`,
         sandbox: true,
         message: '微信支付沙箱模式',
       };
@@ -39,13 +37,22 @@ class SandboxProvider extends PaymentProvider {
     return { status: 'pending', message: '待支付' };
   }
 
-  async handleCallback(params) {
+  async handleCallback({ body: params }) {
     const { out_trade_no, orderId, transaction_id, trade_no } = params;
-    return { transactionId: out_trade_no || orderId, status: 'paid', tradeNo: trade_no || transaction_id };
+    return {
+      eventId: trade_no || transaction_id || out_trade_no || orderId,
+      transactionId: out_trade_no || orderId,
+      status: 'paid',
+      tradeNo: trade_no || transaction_id,
+    };
   }
 
   async createRefund() {
-    return { success: true, message: '沙箱退款成功' };
+    return { status: 'success', message: '沙箱退款成功' };
+  }
+
+  async queryRefund() {
+    return { status: 'success', message: '沙箱退款成功' };
   }
 }
 

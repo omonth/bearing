@@ -2,11 +2,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAuthStore } from '@/store/authStore';
 
 const mockCustomerLogin = vi.fn();
+const mockCustomerLogout = vi.fn();
 const mockCustomerRegister = vi.fn();
 const mockGetCustomerMe = vi.fn();
 
 vi.mock('@/lib/api', () => ({
   customerLogin: (...args: unknown[]) => mockCustomerLogin(...args),
+  customerLogout: (...args: unknown[]) => mockCustomerLogout(...args),
   customerRegister: (...args: unknown[]) => mockCustomerRegister(...args),
   getCustomerMe: (...args: unknown[]) => mockGetCustomerMe(...args),
 }));
@@ -19,11 +21,11 @@ const user = {
   points: 120,
 };
 
-describe('authStore', () => {
+describe('cookie-backed authStore', () => {
   beforeEach(() => {
     useAuthStore.setState({
       user: null,
-      token: null,
+      authenticated: false,
       loading: false,
       _rehydrated: false,
     });
@@ -31,84 +33,66 @@ describe('authStore', () => {
     vi.clearAllMocks();
   });
 
-  it('stores the token and user after login', async () => {
-    mockCustomerLogin.mockResolvedValueOnce({ token: 'login-token', user });
+  it('keeps only public user state after login', async () => {
+    mockCustomerLogin.mockResolvedValueOnce({ token: 'must-not-be-stored', user });
 
     await useAuthStore.getState().login('13800138000', 'secret');
 
-    expect(useAuthStore.getState()).toMatchObject({
-      token: 'login-token',
-      user,
-    });
-    expect(localStorage.getItem('token')).toBe('login-token');
+    expect(useAuthStore.getState()).toMatchObject({ authenticated: true, user });
+    expect(localStorage.getItem('token')).toBeNull();
     expect(mockCustomerLogin).toHaveBeenCalledWith('13800138000', 'secret');
   });
 
-  it('stores the token and user after registration', async () => {
-    mockCustomerRegister.mockResolvedValueOnce({ token: 'register-token', user });
-    const registration = {
-      name: 'Test User',
-      phone: '13800138000',
-      password: 'secret',
-    };
+  it('keeps only public user state after registration', async () => {
+    mockCustomerRegister.mockResolvedValueOnce({ token: 'must-not-be-stored', user });
+    const registration = { name: 'Test User', phone: '13800138000', password: 'secret' };
 
     await useAuthStore.getState().register(registration);
 
-    expect(useAuthStore.getState()).toMatchObject({
-      token: 'register-token',
-      user,
-    });
-    expect(localStorage.getItem('token')).toBe('register-token');
+    expect(useAuthStore.getState()).toMatchObject({ authenticated: true, user });
+    expect(localStorage.getItem('token')).toBeNull();
     expect(mockCustomerRegister).toHaveBeenCalledWith(registration);
   });
 
-  it('clears the token and user on logout', () => {
-    localStorage.setItem('token', 'saved-token');
-    useAuthStore.setState({ token: 'saved-token', user });
+  it('calls the cookie logout endpoint and clears public session state', async () => {
+    mockCustomerLogout.mockResolvedValueOnce({ loggedOut: true });
+    useAuthStore.setState({ authenticated: true, user });
 
-    useAuthStore.getState().logout();
+    await useAuthStore.getState().logout();
 
-    expect(useAuthStore.getState()).toMatchObject({
-      token: null,
-      user: null,
-    });
-    expect(localStorage.getItem('token')).toBeNull();
+    expect(mockCustomerLogout).toHaveBeenCalledOnce();
+    expect(useAuthStore.getState()).toMatchObject({ authenticated: false, user: null });
   });
 
-  it('does not fetch the current customer when there is no token', async () => {
-    await useAuthStore.getState().fetchMe();
+  it('discovers an existing HttpOnly cookie session on initialization', async () => {
+    mockGetCustomerMe.mockResolvedValueOnce(user);
 
-    expect(mockGetCustomerMe).not.toHaveBeenCalled();
+    await useAuthStore.getState().initialize();
+
+    expect(mockGetCustomerMe).toHaveBeenCalledOnce();
     expect(useAuthStore.getState()).toMatchObject({
-      token: null,
-      user: null,
+      authenticated: true,
+      user,
+      _rehydrated: true,
     });
   });
 
-  it('refreshes the current customer when a token exists', async () => {
+  it('refreshes the current customer without a JavaScript-readable token', async () => {
     const refreshedUser = { ...user, points: 150 };
-    useAuthStore.setState({ token: 'saved-token', user });
     mockGetCustomerMe.mockResolvedValueOnce(refreshedUser);
 
     await useAuthStore.getState().fetchMe();
 
-    expect(useAuthStore.getState()).toMatchObject({
-      token: 'saved-token',
-      user: refreshedUser,
-    });
+    expect(useAuthStore.getState()).toMatchObject({ authenticated: true, user: refreshedUser });
   });
 
-  it('clears authentication when refreshing the current customer fails', async () => {
-    localStorage.setItem('token', 'expired-token');
-    useAuthStore.setState({ token: 'expired-token', user });
+  it('clears authentication when the server-side session is unavailable', async () => {
+    useAuthStore.setState({ authenticated: true, user });
     mockGetCustomerMe.mockRejectedValueOnce(new Error('expired'));
 
     await useAuthStore.getState().fetchMe();
 
-    expect(useAuthStore.getState()).toMatchObject({
-      token: null,
-      user: null,
-    });
+    expect(useAuthStore.getState()).toMatchObject({ authenticated: false, user: null });
     expect(localStorage.getItem('token')).toBeNull();
   });
 });

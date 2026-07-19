@@ -23,7 +23,7 @@ Content-Type: application/json
 **响应**:
 ```json
 {
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token": "<redacted-jwt>",
   "user": {
     "id": 1,
     "username": "admin",
@@ -454,14 +454,14 @@ Content-Type: application/json
 # 登录
 curl -X POST http://localhost:3001/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"admin123"}'
+  -d '{"username":"admin","password":"<strong-admin-password>"}'
 
 # 获取产品列表
 curl http://localhost:3001/api/bearings
 
 # 使用token访问受保护的API
 curl http://localhost:3001/api/orders \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+  -H "Authorization: Bearer <access-token>"
 ```
 
 ### 使用 JavaScript (Fetch)

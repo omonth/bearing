@@ -1,9 +1,11 @@
 import { primaryBtnClass } from "./shared";
 import Image from "next/image";
+import { QRCodeSVG } from "qrcode.react";
 
 interface PaymentInfo {
   orderNo: string;
   amount: number;
+  qrCode?: string;
   qrUrl?: string;
   sandbox?: boolean;
   message?: string;
@@ -61,19 +63,29 @@ export default function PaymentStep({
           <>
             <h3 className="text-lg font-bold text-white">等待支付</h3>
             <p className="text-sm text-neutral-400">订单号: {paymentInfo.orderNo}</p>
-            {paymentInfo.qrUrl && (
+            {(paymentInfo.qrCode || paymentInfo.qrUrl) && (
               <div>
                 <p className="text-sm text-neutral-400 mb-3">
                   请使用{paymentMethod === "alipay" ? "支付宝" : "微信"}扫码支付:
                 </p>
-                <Image
-                  src={paymentInfo.qrUrl}
-                  alt="支付二维码"
-                  width={200}
-                  height={200}
-                  unoptimized
-                  className="w-[200px] h-[200px] border border-neutral-800 rounded-lg mx-auto"
-                />
+                {paymentInfo.qrCode ? (
+                  <QRCodeSVG
+                    value={paymentInfo.qrCode}
+                    title="支付二维码"
+                    size={200}
+                    marginSize={2}
+                    className="w-[200px] h-[200px] border border-neutral-800 rounded-lg mx-auto"
+                  />
+                ) : (
+                  <Image
+                    src={paymentInfo.qrUrl as string}
+                    alt="支付二维码"
+                    width={200}
+                    height={200}
+                    unoptimized
+                    className="w-[200px] h-[200px] border border-neutral-800 rounded-lg mx-auto"
+                  />
+                )}
               </div>
             )}
             {paymentInfo.paymentMethod === "unionpay" && paymentInfo.formParams && (

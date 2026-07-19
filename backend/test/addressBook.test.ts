@@ -30,6 +30,7 @@ async function createCustomerTables(database: any) {
       tags TEXT,
       notes TEXT,
       status TEXT DEFAULT 'active',
+      phone_verified_at BIGINT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
@@ -62,15 +63,17 @@ beforeAll(async () => {
   await ensureCustomerAddressSchema(db);
 
   const password = await bcrypt.hash('test123', 10);
-  await db.run('INSERT INTO customers (name, phone, password) VALUES (?, ?, ?)', [
+  await db.run('INSERT INTO customers (name, phone, password, phone_verified_at) VALUES (?, ?, ?, ?)', [
     'Address owner',
     '13800000001',
     password,
+    2_000_000_000,
   ]);
-  await db.run('INSERT INTO customers (name, phone, password) VALUES (?, ?, ?)', [
+  await db.run('INSERT INTO customers (name, phone, password, phone_verified_at) VALUES (?, ?, ?, ?)', [
     'Other customer',
     '13800000002',
     password,
+    2_000_000_000,
   ]);
 
   const authService = new AuthService(db);

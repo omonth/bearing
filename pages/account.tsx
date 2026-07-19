@@ -5,26 +5,14 @@ import Header from "@/components/Header";
 import { useCartStore, useTotalCount } from "@/store/cartStore";
 import { useAuthStore } from "@/store/authStore";
 import AddressBookPanel from "@/components/account/AddressBookPanel";
+import AfterSalesPanel from "@/components/account/AfterSalesPanel";
+import CustomerOrderList from "@/components/account/CustomerOrderList";
+import CustomerProfilePanel from "@/components/account/CustomerProfilePanel";
+import InvoicePanel from "@/components/account/InvoicePanel";
 import { getCustomerOrders, getCustomerCoupons } from "@/lib/api";
 import type { CustomerCoupon, Order } from "@/types";
 
-type Tab = "orders" | "coupons" | "addresses";
-
-const statusLabels: Record<string, string> = {
-  pending: "待支付",
-  paid: "已支付",
-  shipped: "已发货",
-  completed: "已完成",
-  cancelled: "已取消",
-};
-
-const statusColors: Record<string, string> = {
-  pending: "bg-amber-500/20 text-amber-400",
-  paid: "bg-blue-500/20 text-blue-400",
-  shipped: "bg-purple-500/20 text-purple-400",
-  completed: "bg-emerald-500/20 text-emerald-400",
-  cancelled: "bg-neutral-500/20 text-neutral-400",
-};
+type Tab = "orders" | "coupons" | "addresses" | "profile" | "after-sales" | "invoices";
 
 const levelLabels: Record<string, string> = {
   bronze: "铜牌会员",
@@ -56,7 +44,7 @@ const couponStatusColor: Record<string, string> = {
 
 export default function AccountPage() {
   const router = useRouter();
-  const { user, token, fetchMe, logout, _rehydrated } = useAuthStore();
+  const { user, authenticated, fetchMe, logout, _rehydrated } = useAuthStore();
   const { toggleCart } = useCartStore();
   const totalCount = useTotalCount();
   const [tab, setTab] = useState<Tab>("orders");
@@ -65,35 +53,35 @@ export default function AccountPage() {
   const [fetching, setFetching] = useState(false);
   const [fetchError, setFetchError] = useState(false);
 
-  const fetchData = () => {
-    if (!token) return;
+  const fetchData = async () => {
+    if (!authenticated) return;
     setFetching(true);
     setFetchError(false);
-    if (tab === "orders") {
-      getCustomerOrders()
-        .then((data) => setOrders(data))
-        .catch(() => setFetchError(true))
-        .finally(() => setFetching(false));
-    } else if (tab === "coupons") {
-      getCustomerCoupons()
-        .then((data) => setCoupons(data))
-        .catch(() => setFetchError(true))
-        .finally(() => setFetching(false));
-    } else setFetching(false);
+    try {
+      if (tab === "orders") {
+        setOrders(await getCustomerOrders());
+      } else if (tab === "coupons") {
+        setCoupons(await getCustomerCoupons());
+      }
+    } catch {
+      setFetchError(true);
+    } finally {
+      setFetching(false);
+    }
   };
 
   useEffect(() => {
     if (!_rehydrated) return;
-    if (!token) {
+    if (!authenticated) {
       router.push("/login");
       return;
     }
     fetchMe();
-  }, [token, _rehydrated, fetchMe, router]);
+  }, [authenticated, _rehydrated, fetchMe, router]);
 
   useEffect(() => {
-    if (!token) return;
-    if (tab === "addresses") return;
+    if (!authenticated) return;
+    if (tab !== "orders" && tab !== "coupons") return;
     let cancelled = false;
     const id = setTimeout(() => {
       if (cancelled) return;
@@ -112,12 +100,12 @@ export default function AccountPage() {
       }
     }, 0);
     return () => { cancelled = true; clearTimeout(id); };
-  }, [tab, token]);
+  }, [tab, authenticated]);
 
 
-  const handleLogout = () => {
-    logout();
-    router.push("/");
+  const handleLogout = async () => {
+    await logout();
+    await router.push("/");
   };
 
   if (!_rehydrated) {
@@ -137,7 +125,7 @@ export default function AccountPage() {
     );
   }
 
-  if (!token) return null;
+  if (!authenticated) return null;
 
   return (
     <>
@@ -181,11 +169,14 @@ export default function AccountPage() {
           </div>
 
           {/* Tab switcher */}
-          <div className="flex border-b border-neutral-800">
+          <div className="grid grid-cols-3 border-b border-neutral-800 sm:grid-cols-6">
             {[
               { key: "orders", label: "我的订单" },
               { key: "coupons", label: "我的优惠券" },
               { key: "addresses", label: "收货地址" },
+              { key: "profile", label: "资料与安全" },
+              { key: "after-sales", label: "售后工单" },
+              { key: "invoices", label: "发票管理" },
             ].map((t) => {
               const isActive = tab === t.key;
               return (
@@ -209,7 +200,19 @@ export default function AccountPage() {
           </div>
 
           {/* Content */}
-          {tab === "addresses" ? <AddressBookPanel /> : fetching ? (
+          {tab === "profile" ? (
+            user ? (
+              <CustomerProfilePanel customer={user} onProfileUpdated={fetchMe} />
+            ) : (
+              <div className="py-12 text-center text-sm text-neutral-500">资料加载中...</div>
+            )
+          ) : tab === "addresses" ? (
+            <AddressBookPanel />
+          ) : tab === "after-sales" ? (
+            <AfterSalesPanel orders={orders} />
+          ) : tab === "invoices" ? (
+            <InvoicePanel orders={orders} />
+          ) : fetching ? (
             <div className="flex flex-col items-center justify-center py-16 gap-4">
               <div className="w-8 h-8 border-2 border-neutral-800 border-t-amber-500 rounded-full animate-spin" />
               <p className="text-neutral-400 text-sm">加载中...</p>
@@ -235,44 +238,7 @@ export default function AccountPage() {
                   去逛逛
                 </button>
               </div>
-            ) : (
-              <div className="space-y-3">
-                {orders.map((order) => (
-                  <div
-                    key={order.id}
-                    data-testid="account-order"
-                    className="bg-neutral-900 border border-neutral-800 rounded-lg p-5"
-                  >
-                    <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
-                      <div>
-                        <span className="text-xs text-neutral-500">订单号 </span>
-                        <strong className="text-sm text-white">
-                          #{order.id}
-                        </strong>
-                      </div>
-                      <span
-                        className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          statusColors[order.status] || statusColors.cancelled
-                        }`}
-                      >
-                        {statusLabels[order.status] || order.status}
-                      </span>
-                    </div>
-                    <p className="text-sm text-neutral-400 mb-3">
-                      {order.province} {order.city} {order.address_detail}
-                    </p>
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-neutral-600">
-                        {order.created_at}
-                      </span>
-                      <span className="text-lg font-bold text-amber-400">
-                        ¥{order.total_price?.toFixed(2)}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )
+            ) : <CustomerOrderList orders={orders} onRefresh={fetchData} />
           ) : coupons.length === 0 ? (
             <div className="text-center py-16 bg-neutral-900 border border-neutral-800 rounded-lg">
               <p className="text-neutral-500 text-sm">暂无优惠券</p>

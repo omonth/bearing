@@ -6,7 +6,7 @@ import { inputClass, primaryBtnClass, secondaryBtnClass } from "./shared";
 
 interface CartReviewStepProps {
   items: CartItem[];
-  token: string | null;
+  authenticated: boolean;
   coupons: CustomerCoupon[];
   selectedCoupon: string;
   totalPrice: number;
@@ -21,7 +21,7 @@ interface CartReviewStepProps {
 
 export default function CartReviewStep({
   items,
-  token,
+  authenticated,
   coupons,
   selectedCoupon,
   totalPrice,
@@ -108,7 +108,7 @@ export default function CartReviewStep({
       </div>
 
       {/* Coupon selector */}
-      {token && coupons.length > 0 && (
+      {authenticated && coupons.length > 0 && (
         <div>
           <label className="block text-xs text-neutral-400 mb-1.5">优惠券</label>
           <select

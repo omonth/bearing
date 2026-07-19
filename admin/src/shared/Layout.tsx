@@ -1,15 +1,19 @@
-import { Layout as AntLayout, Menu, Typography } from 'antd';
+import { Layout as AntLayout, Button, Menu, Typography } from 'antd';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { useAuthStore } from './lib/authStore';
 
 const menuData = [
   { path: '/admin/dashboard', name: '数据看板' },
   { path: '/admin/products', name: '商品管理' },
   { path: '/admin/orders', name: '订单管理' },
+  { path: '/admin/after-sales', name: '售后管理' },
+  { path: '/admin/invoices', name: '发票管理' },
 ];
 
 export default function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
+  const logout = useAuthStore((state) => state.logout);
 
   return (
     <AntLayout style={{ minHeight: '100vh' }}>
@@ -30,6 +34,17 @@ export default function Layout() {
           }))}
           onClick={({ key }) => navigate(key)}
         />
+        <div className="p-4">
+          <Button
+            block
+            danger
+            onClick={() => {
+              void logout().finally(() => navigate('/admin/login', { replace: true }));
+            }}
+          >
+            退出登录
+          </Button>
+        </div>
       </AntLayout.Sider>
       <AntLayout.Content className="min-w-0 bg-neutral-950 p-6">
         <div style={{ maxWidth: 1400, margin: '0 auto' }}>

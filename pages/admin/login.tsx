@@ -17,6 +17,7 @@ export default function AdminLogin() {
     try {
       const res = await fetch("/api/ai/auth/login", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
       });
@@ -27,8 +28,6 @@ export default function AdminLogin() {
         return;
       }
 
-      localStorage.setItem("ai_token", data.token);
-      localStorage.setItem("ai_user", JSON.stringify(data.user));
       router.replace("/admin");
     } catch {
       setError("网络错误，请稍后重试");

@@ -34,7 +34,7 @@ export interface Order {
   district?: string;
   address_detail: string;
   total_price: number;
-  status: 'pending' | 'paid' | 'shipped' | 'completed' | 'cancelled';
+  status: 'pending' | 'paid' | 'shipped' | 'completed' | 'cancelled' | 'refunded';
   tracking_number?: string;
   shipped_at?: string;
   completed_at?: string;
@@ -71,6 +71,8 @@ export interface AuthUser {
   id: number;
   phone: string;
   name: string;
+  email?: string | null;
+  company?: string | null;
   level: string;
   points: number;
 }
@@ -110,6 +112,136 @@ export interface PaymentOrder {
   status: string;
   transaction_id: string;
   trade_no: string;
+}
+
+export type AfterSalesCaseType = 'return_refund' | 'refund_only' | 'order_exception';
+
+export type AfterSalesCaseStatus =
+  | 'submitted'
+  | 'under_review'
+  | 'approved'
+  | 'rejected'
+  | 'awaiting_return'
+  | 'received'
+  | 'refund_processing'
+  | 'completed'
+  | 'cancelled';
+
+export interface AfterSalesHistory {
+  id: number;
+  caseId: number;
+  fromStatus: AfterSalesCaseStatus | null;
+  toStatus: AfterSalesCaseStatus;
+  actorType: 'customer' | 'admin' | 'payment_system';
+  actorId: number | null;
+  note: string | null;
+  version: number;
+  createdAt: string;
+}
+
+export interface AfterSalesCase {
+  id: number;
+  caseNo: string;
+  clientRequestId: string;
+  customerId: number;
+  orderId: number | null;
+  type: AfterSalesCaseType;
+  reason: string;
+  description: string;
+  requestedAmount: number | null;
+  status: AfterSalesCaseStatus;
+  version: number;
+  paymentOrderId: number | null;
+  refundId: number | null;
+  refundStatus: 'requested' | 'processing' | 'success' | 'failed' | 'manual_required' | null;
+  resolutionNote: string | null;
+  createdAt: string;
+  updatedAt: string;
+  idempotent?: boolean;
+  history?: AfterSalesHistory[];
+}
+
+export interface CustomerLogisticsHistory {
+  oldStatus: Order['status'] | null;
+  newStatus: Order['status'];
+  note: string | null;
+  createdAt: string;
+}
+
+export interface CustomerOrderLogistics {
+  orderId: number;
+  orderStatus: Order['status'];
+  shippingStatus:
+    | 'not_shipped'
+    | 'awaiting_shipment'
+    | 'label_created'
+    | 'in_transit'
+    | 'out_for_delivery'
+    | 'delivered'
+    | 'exception'
+    | 'returned'
+    | 'cancelled'
+    | 'unknown';
+  trackingNumber: string | null;
+  shippedAt: string | null;
+  completedAt: string | null;
+  history: CustomerLogisticsHistory[];
+  carrier?: string;
+  shipmentVersion?: number;
+  lastLocation?: string | null;
+  latestNote?: string | null;
+  occurredAt?: string | null;
+  events?: Array<{
+    id: number;
+    status: string;
+    carrier: string;
+    trackingNumber: string;
+    location: string | null;
+    note: string | null;
+    version: number;
+    occurredAt: string;
+  }>;
+}
+
+export interface InvoiceProfileInput {
+  titleType: 'personal' | 'company';
+  title: string;
+  taxNumber?: string | null;
+  email: string;
+  recipientPhone?: string | null;
+  registeredAddress?: string | null;
+  bankName?: string | null;
+  bankAccount?: string | null;
+  isDefault?: boolean;
+}
+
+export interface InvoiceProfile extends InvoiceProfileInput {
+  id: number;
+  customerId: number;
+  taxNumber: string | null;
+  recipientPhone: string | null;
+  registeredAddress: string | null;
+  bankName: string | null;
+  bankAccount: string | null;
+  isDefault: boolean;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OrderInvoiceRequest {
+  id: number;
+  customerId: number;
+  orderId: number;
+  profileId: number | null;
+  profileSnapshot: Omit<InvoiceProfileInput, 'isDefault'>;
+  status: 'requested' | 'processing' | 'issued' | 'rejected' | 'cancelled';
+  invoiceNumber: string | null;
+  resolutionNote?: string | null;
+  version?: number;
+  issuedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Customer {

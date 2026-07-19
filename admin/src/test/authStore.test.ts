@@ -1,53 +1,67 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAuthStore } from '@/shared/lib/authStore';
 
-describe('adminAuthStore', () => {
+const user = { id: 1, username: 'admin', role: 'admin' };
+
+describe('cookie-backed adminAuthStore', () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
   beforeEach(() => {
-    useAuthStore.setState({ token: null, user: null });
+    fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    useAuthStore.setState({ user: null, initialized: false, loading: false });
     localStorage.clear();
   });
 
-  it('should login and persist token', () => {
-    const { login, token, user } = useAuthStore.getState();
-    expect(token).toBeNull();
-    expect(user).toBeNull();
-
-    login('test-jwt-token', { id: 1, username: 'admin', role: 'admin' });
-
-    const state = useAuthStore.getState();
-    expect(state.token).toBe('test-jwt-token');
-    expect(state.user).toEqual({ id: 1, username: 'admin', role: 'admin' });
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
-  it('should logout and clear token', () => {
-    useAuthStore.getState().login('test-jwt-token', { id: 1, username: 'admin', role: 'admin' });
-    expect(useAuthStore.getState().token).toBe('test-jwt-token');
+  it('stores public administrator state without persisting a JWT', () => {
+    useAuthStore.getState().login(user);
 
-    useAuthStore.getState().logout();
-
-    expect(useAuthStore.getState().token).toBeNull();
-    expect(useAuthStore.getState().user).toBeNull();
-  });
-
-  it('should get token', () => {
-    useAuthStore.getState().login('my-token', { id: 1, username: 'admin', role: 'admin' });
-    expect(useAuthStore.getState().getToken()).toBe('my-token');
-  });
-
-  it('should check isAuthenticated', () => {
-    expect(useAuthStore.getState().isAuthenticated()).toBe(false);
-    useAuthStore.getState().login('token', { id: 1, username: 'admin', role: 'admin' });
+    expect(useAuthStore.getState()).toMatchObject({ user, initialized: true });
     expect(useAuthStore.getState().isAuthenticated()).toBe(true);
-    useAuthStore.getState().logout();
-    expect(useAuthStore.getState().isAuthenticated()).toBe(false);
+    expect(localStorage.getItem('admin-auth')).toBeNull();
   });
 
-it('should handle token expiry by checking getToken', () => {
-    // Store simulates checking if token exists
-    useAuthStore.getState().login('valid-token', { id: 1, username: 'admin', role: 'admin' });
-    expect(useAuthStore.getState().isAuthenticated()).toBe(true);
+  it('calls the cookie logout endpoint and clears public state', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('{}', { status: 200 }));
+    useAuthStore.getState().login(user);
 
-    useAuthStore.getState().logout();
+    await useAuthStore.getState().logout();
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/auth/logout', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    expect(useAuthStore.getState()).toMatchObject({ user: null, initialized: true });
+  });
+
+  it('discovers a current HttpOnly cookie session during initialization', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ data: user }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    }));
+
+    await useAuthStore.getState().initialize();
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/auth/me', { credentials: 'include' });
+    expect(useAuthStore.getState()).toMatchObject({ user, initialized: true, loading: false });
+  });
+
+  it('fails closed when the server-side session is unavailable', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('{}', { status: 401 }));
+
+    await useAuthStore.getState().initialize();
+
+    expect(useAuthStore.getState()).toMatchObject({
+      user: null,
+      initialized: true,
+      loading: false,
+    });
     expect(useAuthStore.getState().isAuthenticated()).toBe(false);
   });
 });

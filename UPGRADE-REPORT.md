@@ -358,11 +358,11 @@ kubectl apply -f k8s/deployment.yaml
 # 登录获取 Token
 curl -X POST http://localhost:3001/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"admin123"}'
+  -d '{"username":"admin","password":"<strong-admin-password>"}'
 
 # 使用 Token 访问受保护的API
 curl http://localhost:3001/api/orders \
-  -H "Authorization: Bearer YOUR_TOKEN"
+  -H "Authorization: Bearer <access-token>"
 ```
 
 ---

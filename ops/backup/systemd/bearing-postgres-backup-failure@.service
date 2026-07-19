@@ -1,0 +1,18 @@
+[Unit]
+Description=Alert when Bearing Sales backup unit %i fails before application alerting
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=bearing-backup
+Group=bearing-backup
+WorkingDirectory=/opt/bearing-sales
+EnvironmentFile=/etc/bearing-sales/backup.env
+ExecStart=/usr/bin/bash /opt/bearing-sales/ops/backup/systemd/notify-backup-failure.sh %i
+UMask=0077
+TimeoutStartSec=30s
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true

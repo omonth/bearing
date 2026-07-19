@@ -1,0 +1,20 @@
+[Unit]
+Description=Bearing Sales encrypted PostgreSQL backup
+After=network-online.target
+Wants=network-online.target
+OnFailure=bearing-postgres-backup-failure@%n.service
+
+[Service]
+Type=oneshot
+User=bearing-backup
+Group=bearing-backup
+WorkingDirectory=/opt/bearing-sales
+EnvironmentFile=/etc/bearing-sales/backup.env
+ExecStart=/usr/bin/bash /opt/bearing-sales/ops/backup/systemd/run-postgres-backup.sh
+UMask=0077
+TimeoutStartSec=4h
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/bearing-sales

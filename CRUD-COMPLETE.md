@@ -189,7 +189,7 @@
 
 ```bash
 curl -X POST http://localhost:3001/api/bearings \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Bearer <access-token>" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "深沟球轴承 6205",
@@ -209,11 +209,11 @@ curl -X POST http://localhost:3001/api/bearings \
 ```bash
 # 删除单个订单
 curl -X DELETE http://localhost:3001/api/orders/123 \
-  -H "Authorization: Bearer YOUR_TOKEN"
+  -H "Authorization: Bearer <access-token>"
 
 # 批量删除订单
 curl -X DELETE http://localhost:3001/api/orders/batch \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Bearer <access-token>" \
   -H "Content-Type: application/json" \
   -d '{"orderIds": [123, 124, 125]}'
 ```

@@ -30,6 +30,7 @@ async function setupCustomerTables(d: any) {
       tags TEXT,
       notes TEXT,
       status TEXT DEFAULT 'active',
+      phone_verified_at BIGINT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
@@ -117,12 +118,16 @@ async function setupCustomerTables(d: any) {
 async function seedCustomerData(d: any) {
   const hashed = await bcrypt.hash('test123', 10);
   await d.run(
-    'INSERT INTO customers (name, phone, password, level, points) VALUES (?, ?, ?, ?, ?)',
-    ['测试顾客', '13800000001', hashed, 'gold', 3000]
+    `INSERT INTO customers
+      (name, phone, password, level, points, phone_verified_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    ['测试顾客', '13800000001', hashed, 'gold', 3000, 2_000_000_000]
   );
   await d.run(
-    'INSERT INTO customers (name, phone, password, level, points) VALUES (?, ?, ?, ?, ?)',
-    ['李四', '13800000002', hashed, 'bronze', 100]
+    `INSERT INTO customers
+      (name, phone, password, level, points, phone_verified_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    ['李四', '13800000002', hashed, 'bronze', 100, 2_000_000_000]
   );
 
   await d.run(
@@ -237,20 +242,27 @@ describe('Customer Auth API', () => {
       expect(res.body.data.user.level).toBe('gold');
     });
 
-    it('should reject wrong password', async () => {
-      const res = await request(app)
+    it('uses the same authentication failure for a wrong password and an unknown phone', async () => {
+      const wrongPassword = await request(app)
         .post('/api/customer/login')
         .send({ phone: '13800000001', password: 'wrong' });
-      expect(res.status).toBe(401);
-      expect(res.body.error).toContain('密码');
-    });
-
-    it('should reject unregistered phone', async () => {
-      const res = await request(app)
+      const unknownPhone = await request(app)
         .post('/api/customer/login')
         .send({ phone: '19900000000', password: 'test123' });
-      expect(res.status).toBe(401);
-      expect(res.body.error).toContain('未注册');
+
+      expect({
+        wrongPassword: { status: wrongPassword.status, body: wrongPassword.body },
+        unknownPhone: { status: unknownPhone.status, body: unknownPhone.body },
+      }).toEqual({
+        wrongPassword: {
+          status: 401,
+          body: { error: '手机号或密码错误', code: 'UNAUTHORIZED' },
+        },
+        unknownPhone: {
+          status: 401,
+          body: { error: '手机号或密码错误', code: 'UNAUTHORIZED' },
+        },
+      });
     });
 
     it('should reject missing fields', async () => {

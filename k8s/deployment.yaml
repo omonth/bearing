@@ -17,13 +17,23 @@ data:
   DB_NAME: "bearing_sales"
   REDIS_HOST: "redis-service"
   REDIS_PORT: "6379"
+  VECTOR_SERVICE_URL: "http://vector-service:5050"
   PORT: "3001"
   CORS_ORIGIN: "https://REPLACE_WITH_PUBLIC_ORIGIN"
+  PUBLIC_SITE_URL: "https://REPLACE_WITH_PUBLIC_ORIGIN"
+  INTERNAL_API_URL: "http://backend-service:3001/api"
   PAYMENT_MODE: "production"
   GRAY_RELEASE_ENABLED: "false"
   GRAY_RELEASE_PERCENTAGE: "0"
   GRAY_RELEASE_VARIANT: "canary"
   GRAY_RELEASE_FORCE_HEADER: "x-gray-release"
+  ALERT_WEBHOOK_TIMEOUT_MS: "3000"
+  CALLBACK_SIGNATURE_FAILURE_THRESHOLD: "5"
+  ALERT_HTTP_WINDOW_SIZE: "100"
+  ALERT_HTTP_MIN_SAMPLES: "20"
+  ALERT_ERROR_RATE_THRESHOLD: "0.05"
+  ALERT_LATENCY_THRESHOLD_MS: "2000"
+  CUSTOMER_NOTIFICATION_WEBHOOK_URL: "https://REPLACE_WITH_NOTIFICATION_GATEWAY/customer"
 
 ---
 # PostgreSQL Deployment
@@ -34,6 +44,8 @@ metadata:
   namespace: production
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: postgres
@@ -44,7 +56,7 @@ spec:
     spec:
       containers:
       - name: postgres
-        image: postgres:15-alpine
+        image: postgres:15-alpine@sha256:3d0f7584ed7d04e27fa050d6683a74746608faf21f202be78460d679cc56461f
         ports:
         - containerPort: 5432
         env:
@@ -66,6 +78,22 @@ spec:
         volumeMounts:
         - name: postgres-storage
           mountPath: /var/lib/postgresql/data
+        readinessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        livenessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+          initialDelaySeconds: 30
+          periodSeconds: 10
       volumes:
       - name: postgres-storage
         persistentVolumeClaim:
@@ -97,6 +125,8 @@ metadata:
   namespace: production
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: redis
@@ -107,7 +137,7 @@ spec:
     spec:
       containers:
       - name: redis
-        image: redis:7-alpine
+        image: redis:7-alpine@sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99
         ports:
         - containerPort: 6379
         command: ["redis-server"]
@@ -121,6 +151,22 @@ spec:
         volumeMounts:
         - name: redis-storage
           mountPath: /data
+        readinessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - redis-cli --no-auth-warning -a "$REDIS_PASSWORD" ping | grep -q PONG
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        livenessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - redis-cli --no-auth-warning -a "$REDIS_PASSWORD" ping | grep -q PONG
+          initialDelaySeconds: 20
+          periodSeconds: 10
       volumes:
       - name: redis-storage
         persistentVolumeClaim:
@@ -139,6 +185,101 @@ spec:
   ports:
   - port: 6379
     targetPort: 6379
+  type: ClusterIP
+
+---
+# Vector search service. The model is embedded in the immutable image while
+# the generated search index is persisted independently on a single-writer PVC.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vector
+  namespace: production
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: vector
+  template:
+    metadata:
+      labels:
+        app: vector
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: vector
+        image: registry.example.invalid/bearing-sales-vector:replace-with-immutable-tag
+        ports:
+        - containerPort: 5050
+        env:
+        - name: EMBEDDING_MODEL
+          value: BAAI/bge-base-zh-v1.5
+        - name: BIT_WIDTH
+          value: "2"
+        - name: DIM
+          value: "768"
+        - name: INDEX_DIR
+          value: /app/data
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 5050
+          periodSeconds: 5
+          failureThreshold: 60
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 5050
+          periodSeconds: 5
+          failureThreshold: 3
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 5050
+          periodSeconds: 10
+          failureThreshold: 3
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "2"
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - name: vector-index
+          mountPath: /app/data
+      volumes:
+      - name: vector-index
+        persistentVolumeClaim:
+          claimName: vector-pvc
+
+---
+# Vector Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: vector-service
+  namespace: production
+spec:
+  selector:
+    app: vector
+  ports:
+  - port: 5050
+    targetPort: 5050
   type: ClusterIP
 
 ---
@@ -168,6 +309,8 @@ spec:
             name: bearing-sales-config
         - secretRef:
             name: bearing-sales-secrets
+        # The Secret must include ALERT_WEBHOOK_URL, CUSTOMER_SECURITY_PEPPER,
+        # and CUSTOMER_NOTIFICATION_WEBHOOK_TOKEN in addition to DB/auth values.
         livenessProbe:
           httpGet:
             path: /health
@@ -176,7 +319,7 @@ spec:
           periodSeconds: 10
         readinessProbe:
           httpGet:
-            path: /health
+            path: /ready
             port: 3001
           initialDelaySeconds: 5
           periodSeconds: 5
@@ -187,6 +330,26 @@ spec:
           limits:
             memory: "512Mi"
             cpu: "500m"
+        volumeMounts:
+        - name: shared-uploads
+          mountPath: /app/public/images
+        - name: payment-certificates
+          mountPath: /run/secrets/payment-certificates
+          readOnly: true
+      # All backend replicas serve /images. Production must provide the
+      # bearing-rwx StorageClass (or replace local uploads with object storage)
+      # before this Deployment can become Ready.
+      volumes:
+      - name: shared-uploads
+        persistentVolumeClaim:
+          claimName: backend-uploads-pvc
+      - name: payment-certificates
+        secret:
+          secretName: bearing-payment-certificates
+          # COD-only deployments do not require this Secret. If any WeChat
+          # credential/path is configured, startup validates that the mounted
+          # platform certificate actually exists and is readable.
+          optional: true
 
 ---
 # Backend Service
@@ -202,6 +365,87 @@ spec:
   - port: 3001
     targetPort: 3001
   type: ClusterIP
+
+---
+# Encrypted PostgreSQL backup. Create bearing-backup-secrets outside Git with
+# aes_key_base64, aws_credentials, BACKUP_S3_BUCKET, BACKUP_S3_REGION,
+# BACKUP_S3_ENDPOINT, and BACKUP_ALERT_WEBHOOK_URL. External monitoring must
+# alert when no postgres_backup_succeeded event arrives for 26 hours.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgres-encrypted-backup
+  namespace: production
+spec:
+  schedule: "15 2 * * *"
+  timeZone: Asia/Shanghai
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      ttlSecondsAfterFinished: 86400
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+          containers:
+          - name: backup
+            image: registry.example.invalid/bearing-sales-backend:replace-with-immutable-tag
+            command: ["node", "backup.js"]
+            envFrom:
+            - configMapRef:
+                name: bearing-sales-config
+            - secretRef:
+                name: bearing-sales-secrets
+            env:
+            - name: BACKUP_DIR
+              value: /work/backups
+            - name: BACKUP_ENCRYPTION_KEY_FILE
+              value: /run/secrets/backup/aes_key_base64
+            - name: AWS_SHARED_CREDENTIALS_FILE
+              value: /run/secrets/backup/aws_credentials
+            - name: BACKUP_RETENTION_DAYS
+              value: "30"
+            - name: BACKUP_S3_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: bearing-backup-secrets
+                  key: BACKUP_S3_BUCKET
+            - name: BACKUP_S3_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: bearing-backup-secrets
+                  key: BACKUP_S3_REGION
+            - name: BACKUP_S3_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: bearing-backup-secrets
+                  key: BACKUP_S3_ENDPOINT
+            - name: BACKUP_ALERT_WEBHOOK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: bearing-backup-secrets
+                  key: BACKUP_ALERT_WEBHOOK_URL
+            volumeMounts:
+            - name: backup-work
+              mountPath: /work/backups
+            - name: backup-secrets
+              mountPath: /run/secrets/backup
+              readOnly: true
+          volumes:
+          - name: backup-work
+            emptyDir: {}
+          - name: backup-secrets
+            secret:
+              secretName: bearing-backup-secrets
+              defaultMode: 0440
 
 ---
 # Frontend Deployment
@@ -225,6 +469,29 @@ spec:
         image: registry.example.invalid/bearing-sales-frontend:replace-with-immutable-tag
         ports:
         - containerPort: 3000
+        env:
+        - name: PUBLIC_SITE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: bearing-sales-config
+              key: PUBLIC_SITE_URL
+        - name: INTERNAL_API_URL
+          valueFrom:
+            configMapKeyRef:
+              name: bearing-sales-config
+              key: INTERNAL_API_URL
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 20
+          periodSeconds: 10
         resources:
           requests:
             memory: "128Mi"
@@ -306,7 +573,42 @@ spec:
   type: ClusterIP
 
 ---
-# Ingress
+# Socket.IO Ingress. Keep affinity scoped to this location so requests to the
+# storefront or admin upstream cannot overwrite the backend polling cookie.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: bearing-sales-socket-ingress
+  namespace: production
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/affinity: cookie
+    nginx.ingress.kubernetes.io/affinity-mode: persistent
+    nginx.ingress.kubernetes.io/session-cookie-name: bearing-socket-route
+    nginx.ingress.kubernetes.io/session-cookie-path: /api/socket.io
+    nginx.ingress.kubernetes.io/session-cookie-secure: "true"
+    nginx.ingress.kubernetes.io/session-cookie-samesite: Strict
+    nginx.ingress.kubernetes.io/session-cookie-max-age: "86400"
+    nginx.ingress.kubernetes.io/session-cookie-change-on-failure: "true"
+spec:
+  tls:
+  - hosts:
+    - yourdomain.com
+    secretName: bearing-sales-tls
+  rules:
+  - host: yourdomain.com
+    http:
+      paths:
+      - path: /api/socket.io
+        pathType: Prefix
+        backend:
+          service:
+            name: backend-service
+            port:
+              number: 3001
+
+---
+# Main Ingress
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -338,6 +640,13 @@ spec:
             name: admin-service
             port:
               number: 80
+      - path: /images
+        pathType: Prefix
+        backend:
+          service:
+            name: backend-service
+            port:
+              number: 3001
       - path: /
         pathType: Prefix
         backend:
@@ -373,3 +682,35 @@ spec:
   resources:
     requests:
       storage: 5Gi
+
+---
+# Persistent vector index. Deployment strategy is Recreate because this claim
+# is intentionally single-writer; the model itself remains inside the image.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vector-pvc
+  namespace: production
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+
+---
+# Shared uploads for all backend replicas. The named StorageClass is
+# intentionally explicit so a cluster without RWX storage fails closed instead
+# of silently running replicas with divergent ephemeral filesystems.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: backend-uploads-pvc
+  namespace: production
+spec:
+  storageClassName: bearing-rwx
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: 10Gi

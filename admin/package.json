@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "verify:container": "node scripts/verify-container-contract.mjs",
     "preview": "vite preview",
     "lint": "eslint --config ../eslint.config.mjs src --ext .ts,.tsx",
     "test": "vitest run",
@@ -30,6 +31,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.0",
+    "jsdom": "26.1.0",
     "tailwindcss": "^4.0.0",
     "typescript": "~5.7.0",
     "vite": "^6.0.0",

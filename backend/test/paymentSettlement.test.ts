@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createTestDb, seedTestData } from './helpers';
 import PaymentSettlement from '../services/payment/PaymentSettlement';
 import OrderLifecycleAdapter from '../services/payment/OrderLifecycleAdapter';
@@ -7,6 +7,19 @@ function createMockOrderService() {
   const calls: any[] = [];
   return {
     calls,
+    updateOrderStatusInTransaction: async ({ orderId, status, note }: any) => {
+      calls.push({ orderId, status, note });
+      return { oldStatus: 'pending', newStatus: status, restoredStock: false, updated: true };
+    },
+    settleRefundInTransaction: async ({ orderId, note }: any) => {
+      calls.push({ orderId, status: 'cancelled', note });
+      return { oldStatus: 'paid', newStatus: 'cancelled', restoredStock: true, updated: true };
+    },
+    settleRefund: async (orderId: number, note?: string) => {
+      calls.push({ orderId, status: 'cancelled', note });
+      return { oldStatus: 'paid', newStatus: 'cancelled', restoredStock: true, updated: true };
+    },
+    finalizeOrderStatusUpdate: () => {},
     updateOrderStatus: async (orderId: number, status: string, note?: string) => {
       calls.push({ orderId, status, note });
       return { data: { oldStatus: 'pending', newStatus: status }, error: null };
@@ -41,8 +54,28 @@ async function setupSettlement() {
       refund_reason TEXT,
       status TEXT DEFAULT 'pending',
       refund_no TEXT,
+      provider_refund_id TEXT,
+      attempt_count INTEGER NOT NULL DEFAULT 0,
+      lease_token TEXT,
+      lease_expires_at INTEGER,
+      next_reconcile_at INTEGER,
+      last_attempt_at TEXT,
+      last_error TEXT,
+      manual_evidence TEXT,
+      external_reference TEXT,
+      manual_completed_by INTEGER,
+      manual_completed_at TEXT,
       refunded_at TEXT,
       created_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+  await db.run(`
+    CREATE TABLE IF NOT EXISTS refund_status_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, refund_id INTEGER NOT NULL,
+      from_status TEXT, to_status TEXT NOT NULL, event_type TEXT NOT NULL,
+      source TEXT NOT NULL, actor_id INTEGER, attempt_count INTEGER DEFAULT 0,
+      provider_refund_id TEXT, external_reference TEXT, evidence TEXT,
+      error_message TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
@@ -191,7 +224,7 @@ describe('PaymentSettlement', () => {
       expect(refund.status).toBe('success');
 
       expect(mockOrderService.calls).toHaveLength(1);
-      expect(mockOrderService.calls[0]).toEqual({ orderId, status: 'cancelled', note: '退款取消' });
+      expect(mockOrderService.calls[0]).toEqual({ orderId, status: 'cancelled', note: '退款结算完成' });
 
       await db.close();
     });
@@ -248,6 +281,50 @@ describe('PaymentSettlement', () => {
 
       await db.close();
     });
+
+    it('locks the refund rows and aborts settlement when a concurrent decision wins', async () => {
+      const tx = {
+        get: vi.fn().mockResolvedValue({
+          id: 71,
+          payment_order_id: 81,
+          refund_no: 'REF-RACE-71',
+          refund_amount: 100,
+          status: 'processing',
+          lease_token: 'lease-new',
+          attempt_count: 2,
+          provider_refund_id: null,
+          order_id: 91,
+          payment_method: 'wechat',
+          payment_status: 'paid',
+        }),
+        run: vi.fn()
+          .mockResolvedValueOnce({ changes: 1 })
+          .mockResolvedValueOnce({ changes: 0 }),
+      };
+      const db = {
+        type: 'postgres',
+        transaction: (callback: (transaction: any) => Promise<any>) => callback(tx),
+      };
+      const orderLifecycle = {
+        markRefunded: vi.fn(),
+        finalize: vi.fn(),
+      };
+      const settlement = new PaymentSettlement(db as any, orderLifecycle as any);
+
+      const result = await settlement.settleRefundSuccess(71, {
+        leaseToken: 'lease-new',
+        providerRefundId: 'WX-RACE-WINNER',
+      });
+
+      expect(result).toEqual(expect.objectContaining({
+        success: false,
+        error: '退款记录状态已被并发更新',
+      }));
+      expect(tx.get.mock.calls[0][0]).toContain('FOR UPDATE');
+      expect(tx.run.mock.calls[1][0]).toContain('status IN');
+      expect(orderLifecycle.markRefunded).not.toHaveBeenCalled();
+      expect(orderLifecycle.finalize).not.toHaveBeenCalled();
+    });
   });
 
   describe('settleFailed', () => {
@@ -263,6 +340,30 @@ describe('PaymentSettlement', () => {
 
       const po: any = await db.get('SELECT status FROM payment_orders WHERE id = ?', [paymentId]);
       expect(po.status).toBe('failed');
+
+      await db.close();
+    });
+
+    it('should not downgrade a paid payment when an earlier failure arrives late', async () => {
+      const { db, settlement } = await setupSettlement();
+      const orderId = await createTestOrder(db, 'paid');
+      const paymentId = await createTestPayment(db, orderId, 'paid');
+
+      const result = await settlement.settleFailed(paymentId);
+
+      const payment: any = await db.get(
+        'SELECT status FROM payment_orders WHERE id = ?',
+        [paymentId]
+      );
+      expect({ result, payment }).toEqual({
+        result: {
+          success: false,
+          paymentOrderId: paymentId,
+          status: 'paid',
+          error: '当前支付状态不允许标记失败',
+        },
+        payment: { status: 'paid' },
+      });
 
       await db.close();
     });
@@ -311,14 +412,14 @@ describe('PaymentSettlement', () => {
       expect(mock.calls[0]).toEqual({ orderId: 42, status: 'paid', note: '支付成功' });
     });
 
-    it('should delegate markCancelled to orderService.updateOrderStatus', async () => {
+    it('should delegate refund settlement to the order refund lifecycle', async () => {
       const mock = createMockOrderService();
       const adapter = new OrderLifecycleAdapter(mock);
 
-      await adapter.markCancelled(42);
+      await adapter.markRefunded(42);
 
       expect(mock.calls).toHaveLength(1);
-      expect(mock.calls[0]).toEqual({ orderId: 42, status: 'cancelled', note: '退款取消' });
+      expect(mock.calls[0]).toEqual({ orderId: 42, status: 'cancelled', note: '退款结算完成' });
     });
   });
 });

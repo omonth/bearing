@@ -22,7 +22,11 @@ const loginLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   handler: (req, res) => {
-    logger.warn('登录限流触发', { ip: req.ip, username: req.body.username });
+    logger.warn('登录限流触发', {
+      ip: req.ip,
+      usernameProvided:
+        typeof req.body?.username === 'string' && req.body.username.trim().length > 0,
+    });
     res.status(429).json({ error: '登录尝试次数过多，请5分钟后再试' });
   },
 });

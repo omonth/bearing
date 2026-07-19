@@ -54,12 +54,12 @@ describe('api client', () => {
     await searchProducts({ model: '30205', brand: 'SKF' });
 
     expect(fetchMock).toHaveBeenCalledWith('/api/search?model=30205&brand=SKF', {
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
     });
   });
 
-  it('posts orders with the current customer authorization', async () => {
-    localStorage.setItem('token', 'customer-token');
+  it('posts orders with the HttpOnly customer cookie enabled', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({
       data: { orderId: 42, message: 'created', orderAccessToken: 'order-access-token' },
     }));
@@ -82,9 +82,9 @@ describe('api client', () => {
 
     expect(fetchMock).toHaveBeenCalledWith('/api/orders', {
       method: 'POST',
+      credentials: 'include',
       body: JSON.stringify(order),
       headers: {
-        Authorization: 'Bearer customer-token',
         'Content-Type': 'application/json',
       },
     });
@@ -102,6 +102,7 @@ describe('api client', () => {
 
     expect(fetchMock).toHaveBeenCalledWith('/api/payment/checkout', {
       method: 'POST',
+      credentials: 'include',
       body: JSON.stringify({ orderId: 42, paymentMethod: 'alipay', subject: 'order 42' }),
       headers: {
         'Content-Type': 'application/json',
@@ -118,6 +119,7 @@ describe('api client', () => {
     await queryPaymentStatus(100, 'order-access-token');
 
     expect(fetchMock).toHaveBeenCalledWith('/api/payment/status/100', {
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
         'X-Order-Access-Token': 'order-access-token',
@@ -125,15 +127,15 @@ describe('api client', () => {
     });
   });
 
-  it('sends the stored bearer token for customer requests', async () => {
-    localStorage.setItem('token', 'token-123');
+  it('uses the HttpOnly cookie instead of reading a bearer token from localStorage', async () => {
+    localStorage.setItem('token', 'legacy-token-must-be-ignored');
     fetchMock.mockResolvedValueOnce(jsonResponse({ data: { id: 7, phone: '13800138000' } }));
 
     await getCustomerMe();
 
     expect(fetchMock).toHaveBeenCalledWith('/api/customer/me', {
+      credentials: 'include',
       headers: {
-        Authorization: 'Bearer token-123',
         'Content-Type': 'application/json',
       },
     });

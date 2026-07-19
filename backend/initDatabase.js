@@ -96,7 +96,8 @@ async function initializeDatabase() {
       payment_order_id INTEGER NOT NULL,
       refund_amount REAL NOT NULL CHECK (refund_amount >= 0),
       refund_reason TEXT,
-      status TEXT NOT NULL DEFAULT 'pending',
+      status TEXT NOT NULL DEFAULT 'requested'
+        CHECK (status IN ('requested', 'processing', 'success', 'failed', 'manual_required')),
       refund_no TEXT UNIQUE,
       refunded_at DATETIME,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -142,6 +143,30 @@ async function initializeDatabase() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
+    )
+  `);
+  db.run(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_refund_records_active_payment
+    ON refund_records(payment_order_id)
+    WHERE status IN ('requested', 'processing', 'success', 'manual_required')
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS payment_callback_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      provider TEXT NOT NULL,
+      event_id TEXT NOT NULL,
+      event_key TEXT NOT NULL,
+      signature_nonce TEXT NOT NULL,
+      event_timestamp INTEGER NOT NULL,
+      transaction_id TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'processing',
+      processing_started_at INTEGER NOT NULL,
+      processed_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(provider, event_id),
+      UNIQUE(provider, event_key),
+      UNIQUE(provider, signature_nonce, event_timestamp)
     )
   `);
   db.run('CREATE INDEX IF NOT EXISTS idx_customer_addresses_customer ON customer_addresses(customer_id, is_default)');

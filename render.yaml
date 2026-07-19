@@ -4,8 +4,12 @@ services:
     runtime: node
     rootDir: backend
     buildCommand: npm ci
-    startCommand: node server.js
-    healthCheckPath: /health
+    startCommand: npm start
+    healthCheckPath: /ready
+    disk:
+      name: bearing-uploads
+      mountPath: /app/public/images
+      sizeGB: 10
     envVars:
       - key: NODE_ENV
         value: production
@@ -49,6 +53,26 @@ services:
         sync: false
       - key: LOG_LEVEL
         value: info
+      - key: ALERT_WEBHOOK_URL
+        sync: false
+      - key: ALERT_WEBHOOK_TIMEOUT_MS
+        value: "3000"
+      - key: CALLBACK_SIGNATURE_FAILURE_THRESHOLD
+        value: "5"
+      - key: ALERT_HTTP_WINDOW_SIZE
+        value: "100"
+      - key: ALERT_HTTP_MIN_SAMPLES
+        value: "20"
+      - key: ALERT_ERROR_RATE_THRESHOLD
+        value: "0.05"
+      - key: ALERT_LATENCY_THRESHOLD_MS
+        value: "2000"
+      - key: CUSTOMER_SECURITY_PEPPER
+        sync: false
+      - key: CUSTOMER_NOTIFICATION_WEBHOOK_URL
+        sync: false
+      - key: CUSTOMER_NOTIFICATION_WEBHOOK_TOKEN
+        sync: false
       - key: GRAY_RELEASE_ENABLED
         value: "false"
       - key: GRAY_RELEASE_PERCENTAGE
